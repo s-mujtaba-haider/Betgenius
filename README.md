@@ -23,15 +23,24 @@ Eleven MLB markets, walk-forward and point-in-time over **2024-04-01 →
 2026-08-17** (868 days, three seasons), on **412,886 graded candidates** across
 **413,253 priced candidates** and up to 3,941 games per market.
 
-| | |
-|---|---:|
-| Markets evaluated | 11 |
-| Gate (full OOS) PASS | **10** |
-| Gate (verdict window) PASS | **3** |
-| Final PASS | **3** — `batter_hits`, `batter_total_bases`, `batter_strikeouts` |
-| Final PASS_WITH_RESTRICTIONS | **7** — `batter_rbis`, `totals`, `spreads`, `pitcher_strikeouts`, `h2h`, `batter_runs_scored`, `pitcher_outs` |
-| Final VETO | **1** — `batter_home_runs` |
-| Final FAIL_AFTER_ITERATION | 0 |
+> **Round 2 superseded the first table.** A second optimisation pass found that
+> the original board was **36% picks production would never show** — it was built
+> at a confidence floor of 55, and `isEvPassPick` rejects everything below 60.
+> Pinning the floor to the shipped value fixes that, and it also generalises
+> better on a held-out test. The current table is
+> `reports/final_matrix_c60.csv`; the write-up is
+> [`OPTIMISATION_ROUND2.md`](betgenius/harness/uplift/OPTIMISATION_ROUND2.md).
+
+| | round 1 | **round 2 (current)** |
+|---|---:|---:|
+| Markets evaluated | 11 | 11 |
+| Gate (full OOS) PASS | 10 | **9** |
+| Gate (verdict window) PASS | 3 | **4** |
+| Final PASS | 3 | **4** — `batter_hits`, `batter_rbis`, `batter_total_bases`, `batter_strikeouts` |
+| Final PASS_WITH_RESTRICTIONS | 7 | **5** — `totals`, `spreads`, `pitcher_strikeouts`, `batter_runs_scored`, `pitcher_outs` |
+| Final VETO | 1 | **1** — `batter_home_runs` |
+| Final FAIL_AFTER_ITERATION | 0 | **1** — `h2h` |
+| Board rows production would reject | 8,511 of 23,457 (36.3%) | **0 of 16,982 (0.0%)** |
 
 ### The two gates — the one thing to understand
 

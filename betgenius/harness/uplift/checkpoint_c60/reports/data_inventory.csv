@@ -1,0 +1,32 @@
+file,kind,sizeMb,rows,fromDate,toDate
+api_pitcher_outs.jsonl,raw input,4.9,1830,,
+api_rs_bk_2024.jsonl,raw input,47.1,2338,,
+api_rs_bk_2026.jsonl,raw input,3.0,397,,
+boxscores.csv,raw input,25.8,321890,2024-04-01,2026-09-16
+odds_batter_hits.csv,raw input,54.8,300053,2024-04-01,2026-05-23
+odds_batter_home_runs.csv,raw input,42.7,247434,2024-04-01,2026-05-23
+odds_batter_rbis.csv,raw input,33.1,177478,2024-04-01,2026-05-23
+odds_batter_runs_scored_api.csv,raw input,21.5,116498,2024-04-01,2026-05-24
+odds_batter_strikeouts_api.csv,raw input,8.6,40167,2024-04-01,2026-05-17
+odds_batter_total_bases.csv,raw input,88.8,512403,2024-04-01,2026-05-23
+odds_h2h.csv,raw input,1.0,5050,2024-04-01,2026-05-23
+odds_pitcher_outs.csv,raw input,1.2,5753,2024-04-02,2025-05-28
+odds_pitcher_outs_api.csv,raw input,1.0,4708,2025-05-28,2026-05-24
+odds_pitcher_strikeouts.csv,raw input,7.3,35880,2024-04-01,2026-05-23
+odds_spreads.csv,raw input,1.3,6370,2024-04-01,2026-05-23
+odds_totals.csv,raw input,1.4,7321,2024-04-01,2026-05-23
+boxscores.csv (parsed),derived,,321890,2024-04-01,2026-09-16
+distinct games in box scores,derived,,5914,,
+distinct players in box scores,derived,,4419,,
+market batter_hits,graded candidates,,94209,2024-04-01,2026-07-17
+market batter_rbis,graded candidates,,71864,2024-04-01,2026-07-17
+market totals,graded candidates,,6259,2024-04-01,2026-07-17
+market spreads,graded candidates,,5685,2024-04-01,2026-07-17
+market batter_total_bases,graded candidates,,88372,2024-04-01,2026-07-17
+market batter_home_runs,graded candidates,,57013,2024-04-01,2025-10-29
+market pitcher_strikeouts,graded candidates,,19447,2024-04-01,2026-05-23
+market h2h,graded candidates,,4504,2024-04-01,2026-07-17
+market batter_runs_scored,graded candidates,,31012,2024-04-01,2026-08-17
+market pitcher_outs,graded candidates,,6686,2024-04-02,2026-05-24
+market batter_strikeouts,graded candidates,,27835,2024-04-01,2026-07-17
+ALL MARKETS,graded candidates,,412886,2024-04-01,2026-08-17

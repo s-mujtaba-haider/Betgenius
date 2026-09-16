@@ -1,0 +1,7 @@
+variant,marketsPassFullOOS,marketsPassVerdictWindow,markets,unitsFullOOS,unitsVerdictWindow,passing
+locked (headline),9,4,11,653.3,249.7,"batter_hits, batter_rbis, totals, spreads, batter_total_bases, pitcher_strikeouts, batter_runs_scored, pitcher_outs, batter_strikeouts"
+placebo lag 1d,8,3,11,493.8,144.5,"batter_hits, batter_rbis, totals, spreads, batter_total_bases, pitcher_strikeouts, h2h, batter_strikeouts"
+placebo lag 3d,9,6,11,670.5,279.0,"batter_hits, batter_rbis, spreads, batter_total_bases, pitcher_strikeouts, h2h, batter_runs_scored, pitcher_outs, batter_strikeouts"
+placebo lag 7d,7,4,11,445.6,71.8,"batter_hits, batter_rbis, spreads, batter_total_bases, pitcher_strikeouts, batter_runs_scored, batter_strikeouts"
+"median book, no line shopping",8,3,11,424.0,80.2,"batter_hits, batter_rbis, spreads, batter_total_bases, pitcher_strikeouts, batter_runs_scored, pitcher_outs, batter_strikeouts"
+"warm-up 15%, 12 refit blocks",8,5,11,613.5,236.9,"batter_hits, batter_rbis, totals, spreads, batter_total_bases, batter_runs_scored, pitcher_outs, batter_strikeouts"

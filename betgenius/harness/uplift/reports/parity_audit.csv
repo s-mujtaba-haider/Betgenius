@@ -1,0 +1,12 @@
+market,board,conf60,juice,breakeven,shippedOk,parity,rejected
+batter_hits,2415,1466,0,0,949,ev_filtered,1466
+batter_rbis,2091,142,0,0,1949,ev_filtered,142
+totals,544,491,0,0,53,ev_pass,491
+spreads,1877,345,0,0,1532,ev_pass,345
+batter_total_bases,7039,3270,0,0,3769,ev_filtered,3270
+batter_home_runs,23,1,0,0,22,ev_filtered,1
+pitcher_strikeouts,624,271,0,0,353,ev_filtered,271
+h2h,966,447,0,0,519,ev_pass,447
+batter_runs_scored,5049,1251,0,0,3798,ev_filtered,1251
+pitcher_outs,960,423,0,0,537,ev_filtered,423
+batter_strikeouts,1869,404,0,0,1465,ev_filtered,404
