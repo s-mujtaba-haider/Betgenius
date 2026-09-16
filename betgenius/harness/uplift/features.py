@@ -15,11 +15,21 @@ calendar date than the game being bet:
 Both are handed to the calibration stage as candidate signals alongside the
 market's own de-vigged price. Nothing here decides a bet on its own.
 """
+import os
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 import frames
+import hands
+
+# Round-3 experiment E19 (handedness) is REJECTED and OFF by default: it failed
+# its pre-registered nested test and an independent log-loss measurement showed
+# it adds nothing (gbm skill moves inside the known noise band; only 21 of 55
+# member-market cells improve). The code is kept so the measurement reproduces.
+# With the flag off, this module reproduces the _c60 cache byte for byte.
+USE_HANDS = os.environ.get("UPLIFT_HANDS", "") == "1"
 
 W = (25, 100)
 
@@ -750,6 +760,7 @@ def _build_prop(market, d, box, lag_days):
     for L in lines:
         h[f"c{L}"] = (h["stat"] > L).astype(float).where(h["stat"].notna())
     vcols = ["stat", "opp"] + [f"c{L}" for L in lines]
+    _hv = hands.split_key(h, box, market, vcols, lag_days) if USE_HANDS else None
     h = frames.asof_rollup(h, "player_id", vcols, windows=W, lag_days=lag_days)
     key = h.set_index(["player_id", "game_pk"])
     idx = pd.MultiIndex.from_arrays([d["playerId"], d["game_pk"]])
@@ -971,6 +982,9 @@ def _build_prop(market, d, box, lag_days):
     tmap = frames.team_name_map(box, d.drop_duplicates("game_pk")[["game_pk", "home_team", "away_team"]])
     d["isHome"] = (d["teamId"] == d["home_team"].map(tmap)).astype(float)
 
+    _hcols = (hands.emit_prop(d, _hv, box, market, lines, linev, pid, gpk, PRIOR_N)
+              if _hv is not None else [])
+
     cols = ["pLogit", "empP", "parP", "parPAdj", "parPPark", "parPNb", "parPW",
             "parPOpp", "parPBin", "expOpp", "slotPa", "oppGap", "teamPaPg25",
             "clr25", "clr100",
@@ -981,7 +995,8 @@ def _build_prop(market, d, box, lag_days):
             "parkRunRel", "parkHrRel", "oppBpKPerBf", "oppBpRunPerOut",
             "teamBpOutsPerGame",
             "mktTotalLine", "mktHomeWinP", "mktHomeTeamTotal", "mktAwayTeamTotal",
-            "slot25", "startShare25", "restDays", "dispOver", "dispUnder", "nBooks"]
+            "slot25", "startShare25", "restDays", "dispOver", "dispUnder",
+            "nBooks"] + _hcols
     if frames.MARKETS[market][0] == "pitcher":
         cols += ["spPitch5", "spPitch25", "spOuts5", "spOuts25", "spOutsSd25",
                  "spPitchPerOut", "spBfPerStart", "spKPerBf5", "spKPerBf25",

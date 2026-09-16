@@ -23,6 +23,15 @@ Eleven MLB markets, walk-forward and point-in-time over **2024-04-01 →
 2026-08-17** (868 days, three seasons), on **412,886 graded candidates** across
 **413,253 priced candidates** and up to 3,941 games per market.
 
+> **Round 3 changed nothing, and that is the result.** A deeper pass ran four
+> pre-registered experiments — richer price members, handedness, and two forms of
+> a price-anchored hybrid — and every one was rejected on criteria written before
+> its numbers existed. It also found that **the shipped model has less skill than
+> the market price on 9 of the 11 markets**, that a **twelve-month hole** in the
+> box scores silently deletes the middle of two markets, and that the warehouse
+> holds weather and Statcast tables the pipeline never opened. Write-up:
+> [`OPTIMISATION_ROUND3.md`](betgenius/harness/uplift/OPTIMISATION_ROUND3.md).
+
 > **Round 2 superseded the first table.** A second optimisation pass found that
 > the original board was **36% picks production would never show** — it was built
 > at a confidence floor of 55, and `isEvPassPick` rejects everything below 60.
