@@ -1,6 +1,5 @@
 import { useState } from "react";
-
-const SUPABASE_URL = "https://gzuzuqxvfjszlfclhcfz.supabase.co";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 
 interface TeamStats {
   team: string; abbrev: string; wins: number; losses: number;
@@ -55,7 +54,7 @@ export default function Stats() {
       try {
         const res = await fetch(SUPABASE_URL + "/functions/v1/team-stats", {
           method: "POST",
-          headers: { "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Content-Type": "application/json" },
+          headers: { "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
           body: JSON.stringify({ playerQuery: query }),
         });
         const data = await res.json();
@@ -72,7 +71,7 @@ export default function Stats() {
     try {
       const res = await fetch(SUPABASE_URL + "/functions/v1/team-stats", {
         method: "POST",
-        headers: { "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ team1, team2: team2 || undefined }),
       });
       const data = await res.json();
@@ -93,7 +92,7 @@ export default function Stats() {
       if (mode === "matchup" && matchupTeam) body.vsTeam = matchupTeam;
       const res = await fetch(SUPABASE_URL + "/functions/v1/team-stats", {
         method: "POST",
-        headers: { "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Content-Type": "application/json" },
+        headers: { "Authorization": `Bearer ${SUPABASE_ANON_KEY}`, "apikey": SUPABASE_ANON_KEY, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const data = await res.json();
