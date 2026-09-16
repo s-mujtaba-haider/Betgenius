@@ -1,0 +1,84 @@
+-- §1.12 paired-verification trail for D-133 Fix A.
+-- =============================================================================
+-- Audit:                     prior turn diff proposal (STEP 3 of D-133 audit)
+-- Pre-fix verification trail: 20260513000022, 20260513000023, 20260513000024
+-- Commit:                    b690970
+-- Push timestamp UTC:        2026-05-13 15:42:50 (approx, see git push log)
+-- Deploy timestamp UTC:      2026-05-13 15:42:55 (supabase CLI confirm)
+-- CEO §19.3 approval:        granted prior turn
+-- §1.12 protocol enhancement: D-131 (every factor-fix audit pairs with a 24h
+--                             fire-rate re-check migration before next cycle).
+-- =============================================================================
+-- THE FIX
+--
+-- Before D-133, process-games:2000 passed `odds: prop.odds` into
+-- calculateConfidenceScore. The trivialOdds gate at process-games:1246 reads
+-- `input.odds`. Because the dedup at process-games:3964-3992 keys
+-- `bestByProp` on `player + prop_type + pick_side`, two ExtractedProps exist
+-- per (player, prop_type) — one per side, each carrying its own row's odds.
+-- For favored-OVER trivial props the under-extracted ExtractedProp had
+-- `prop.odds` = the dog-side positive < 200, so `Math.abs(input.odds) >= 200`
+-- evaluated FALSE and yielded pen=-8 instead of the symmetric -15 that c4d2b42
+-- (D-127) promised. The D-039 side-aware lookup repaired only the OUTPUT
+-- `result.odds`, not the SCORING input.
+--
+-- D-133 hoists the existing sideAwareOdds `availableBooks?.find()` lookup
+-- above the calculateConfidenceScore call and passes `odds: sideAwareOdds`.
+-- Single semantic change. No new fields, no schema change, no math change.
+-- =============================================================================
+-- VERIFICATION QUERY (run after the next process-games cron tick — empirical
+-- cadence based on pick_history.created_at history is roughly daily ~14:00 UTC;
+-- next expected fire ~14:00 UTC on 2026-05-14).
+--
+--   SELECT
+--     player_name, prop_type, pick_side, line, odds, confidence,
+--     score_trivial_line_penalty AS pen, score_trivial_line_cap AS cap,
+--     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS') AS created_utc
+--   FROM pick_history
+--   WHERE created_at > '2026-05-13 15:42:55+00'::timestamptz
+--     AND line <= 0.5 AND ABS(odds) >= 200
+--   ORDER BY created_at ASC;
+--
+-- Expected post-D-133:
+--   - EVERY returned row has pen = -15 (symmetric across both sides). Pre-fix
+--     baseline (D-127 §1.12 cycle, 2026-05-13 14:02 UTC): 4 of 9 rows showed
+--     pen = -8 on the favored-OVER side; ALL 4 had |odds| >= 200 so per the
+--     post-fix logic must now show -15.
+--   - The cohort size should be at least ~5-10 per cron tick based on the
+--     prior 9-row sample at 14:02 UTC. If 0 rows surface, the cohort filter
+--     `line <= 0.5 AND ABS(odds) >= 200` came up empty in production (light
+--     slate / book selection drift). Re-check after one more tick.
+-- =============================================================================
+-- KNOWN LIMITATION (NOT addressed by Fix A — Bug B is deferred):
+--
+-- Even with Fix A, some rows may surface with pen=-15 + cap=false + conf > 65.
+-- That is NOT a Fix A regression. The cap predicate at process-games:1260
+-- (`if (isTrivialLine && trivialOdds && finalScore > 65)`) runs INSIDE
+-- calculateConfidenceScore against the PRE-bonus score, while scoreOneSide
+-- continues to add zScoreBonus + consistencyBonus + roleChangeBonus +
+-- vigFilterPenalty + usgBonus + regressionBonus + marketConfBonus +
+-- homeAwaySplitBonus + minutesFloorBonus + minutesVolumeBonus +
+-- minutesStabilityBonus + staleDataPenalty + playerInjuryPenalty AFTER the
+-- cap fires. The cap was always defeated by sufficient post-calc positives.
+--
+-- Bug B is queued for separate §19.3 review per the prior-turn audit. Do not
+-- score Fix A's §1.12 cycle as FAIL on cap=false alone — only on pen != -15.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   pen still -8 on any row: Fix A did not propagate to the writer. Inspect
+--     the row's created_at vs deploy timestamp; redeploy if propagation
+--     issue. If created_utc > deploy_utc AND pen=-8 persists, there is a
+--     SECOND parallel input.odds wiring site we missed (re-run the STEP 1
+--     grep in the prior-turn audit; only process-games:1246 should consume
+--     input.odds, but check for any new caller introduced between audit and
+--     re-verification).
+--
+--   pen = -15 but conf > 65 with cap=false: KNOWN — Bug B. Pass for Fix A.
+--
+--   pen = -15 AND (conf <= 65 OR cap=true on conf > 65 rows): full pass.
+--     Both D-127 and D-133 satisfied for the trivial_pen leg. Cap leg only
+--     resolved when Bug B ships.
+-- =============================================================================
+
+SELECT 1 AS d133_fix_a_verification_no_op;

@@ -1,0 +1,37 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env*.local
+prod-ca-2021.crt
+coverage/
+
+# Supabase public root cert — fetched locally for DENO_CERT, not vendored.
+# https://supabase-downloads.s3.amazonaws.com/prod/ssl/prod-ca-2021.crt
+prod-ca-2021.crt
+
+# D-240 visual_verify artifacts — session cookies must not be committed
+.puppeteer/session.json
+.puppeteer/screenshots/
+.puppeteer/dom/
+.archives/

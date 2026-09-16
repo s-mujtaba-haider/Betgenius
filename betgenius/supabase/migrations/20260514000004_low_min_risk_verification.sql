@@ -1,0 +1,117 @@
+-- D-136 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op for schema-clean apply.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after next process-games cron tick — empirical
+-- cadence ~14:00 UTC daily based on pick_history.created_at history):
+--
+-- Query A — Fire rate across new picks:
+--
+--   SELECT
+--     COUNT(*) AS total,
+--     COUNT(*) FILTER (WHERE score_low_min_risk <> 0) AS fired,
+--     COUNT(*) FILTER (WHERE score_low_min_risk > 0)  AS bonus_unders,
+--     COUNT(*) FILTER (WHERE score_low_min_risk < 0)  AS penalty_overs,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE score_low_min_risk <> 0)
+--             / NULLIF(COUNT(*), 0), 1) AS pct_fired
+--   FROM pick_history
+--   WHERE source = 'process-games' AND is_synthetic = false
+--     AND created_at > '2026-05-14 00:00:00+00'::timestamptz;
+--
+--   Expected: pct_fired in 5-15% range (most players don't have a >25%
+--     minutes drop from season avg; the factor SHOULD be selective).
+--     Pre-fix baseline: column did not exist; first cron tick post-deploy
+--     produces the first data points.
+--
+-- Query B — Side-flip discipline:
+--
+--   WITH paired AS (
+--     SELECT player_name, prop_type, line, game_date,
+--       MAX(CASE WHEN pick_side='over'  THEN score_low_min_risk END) AS over_pen,
+--       MAX(CASE WHEN pick_side='under' THEN score_low_min_risk END) AS under_pen
+--     FROM pick_history
+--     WHERE source='process-games' AND is_synthetic=false
+--       AND created_at > '2026-05-14 00:00:00+00'::timestamptz
+--       AND prop_type NOT IN ('spread','game_total')
+--     GROUP BY 1,2,3,4
+--     HAVING MAX(CASE WHEN pick_side='over' THEN 1 END) IS NOT NULL
+--        AND MAX(CASE WHEN pick_side='under' THEN 1 END) IS NOT NULL
+--   )
+--   SELECT COUNT(*) AS pairs,
+--     COUNT(*) FILTER (WHERE over_pen + under_pen <> 0) AS asymmetric,
+--     COUNT(*) FILTER (WHERE over_pen <> 0 OR under_pen <> 0) AS at_least_one_fired
+--   FROM paired;
+--
+--   Expected: asymmetric = 0 (over_pen + under_pen must sum to 0 for every
+--   prop where both sides scored, given the side-flip pattern).
+--
+-- Query C — Penalty distribution (magnitude bands):
+--
+--   SELECT score_low_min_risk, COUNT(*) AS n
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-14 00:00:00+00'::timestamptz
+--   GROUP BY 1 ORDER BY 1;
+--
+--   Expected values: only {-15, -10, -6, 0, 6, 10, 15} (× WEIGHTS.lowMinRisk=1.0).
+--   Anything else indicates a code-path bug.
+--
+-- Query D — Prop-type sanity (factor fires across ALL prop types,
+--           UNLIKE D-135 blowout_risk which has a prop-type gate):
+--
+--   SELECT prop_type,
+--     COUNT(*) AS total,
+--     COUNT(*) FILTER (WHERE score_low_min_risk <> 0) AS fired,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE score_low_min_risk <> 0)
+--             / NULLIF(COUNT(*), 0), 1) AS pct_fired
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-14 00:00:00+00'::timestamptz
+--   GROUP BY prop_type ORDER BY total DESC;
+--
+--   Expected: pct_fired roughly similar across prop_types (blocks, steals,
+--   turnovers, points, rebounds, assists). Factor is prop-type-agnostic.
+--   Strong variance (one prop type at 0% while others at 8%) would indicate
+--   an unintended interaction with another factor's gating.
+--
+-- Query E — Correlation with existing minutes factors (Tier 4 #10
+--           independence pre-check):
+--
+--   SELECT
+--     ROUND(CORR(score_low_min_risk, score_minutes_floor)::NUMERIC, 3)    AS r_min_floor,
+--     ROUND(CORR(score_low_min_risk, score_minutes_trend)::NUMERIC, 3)    AS r_min_trend,
+--     ROUND(CORR(score_low_min_risk, score_role_change)::NUMERIC, 3)      AS r_role,
+--     ROUND(CORR(score_low_min_risk, score_minutes_volume)::NUMERIC, 3)   AS r_min_vol,
+--     ROUND(CORR(score_low_min_risk, score_minutes_stability)::NUMERIC, 3) AS r_min_stab,
+--     COUNT(*) FILTER (WHERE score_low_min_risk <> 0) AS n_fires
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-14 00:00:00+00'::timestamptz;
+--
+--   Expected: |r| < 0.5 against all five existing minutes-bucket factors.
+--   Moderate correlation with minutes_trend (~0.3-0.5) is acceptable —
+--   they look at related but distinct signals. Strong correlation
+--   (|r| > 0.7) would mean redundancy and the Tier 4 #10 factor
+--   independence audit will surface it for collapse review.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   pct_fired = 0%: factor never firing. Inspect sample rows for
+--     gameLog length (need >=10), l5MinAvg (need > 0), seasonMinAvg (need > 0).
+--     Likely cause: gameLog cache issue, OR every player's L5 is within 75% of
+--     season avg in the current cohort (legitimate but unusual).
+--
+--   pct_fired > 30%: factor is over-triggering. Sample a few rows and
+--     compute L5 vs season manually to verify the predicate matches.
+--     Bucket boundary {0.75, 0.65, 0.5} may be too generous.
+--
+--   asymmetric > 0 on Query B: side-flip code path broken. Re-inspect
+--     L2153-ish region of process-games.
+--
+--   Penalty values outside {-15,-10,-6,0,6,10,15}: code-path bug — magnitude
+--     band logic produced an unexpected value.
+--
+--   |r| > 0.7 on Query E for any factor: redundancy with an existing minutes
+--     bucket. Open Tier 4 #10 follow-up; consider collapse design.
+-- =============================================================================
+
+SELECT 1 AS d136_low_min_risk_verification_no_op;

@@ -1,0 +1,180 @@
+-- D-140 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Will be renamed to .pending during the schema-only push to keep this
+-- file off prod until the §1.12 cycle observes clean post-fix data.
+--
+-- D-number note: spec referenced "D-134" but D-134 is already taken by
+-- Tier 1 #7 calibration reference fix in framework v2.38 (commit 48d5d38,
+-- shipped same day). Using D-140 (next available after D-133-D-139).
+--
+-- Closes §15.10 #11 (Bug B — cap-pre-bonus architectural ordering).
+-- Paired with D-133 (Bug A sideAwareOdds wiring, commit b690970) +
+-- D-127 (§15.10 #8 Option C symmetric trivial_pen, commit c4d2b42).
+-- Together: Bug A wiring + cap-site fix complete the symmetric
+-- trivial-line trust surface.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after at least 1 process-games cron tick
+-- post-deploy; full convergence at 24h alongside the four other open
+-- §1.12 cycles — D-133 Fix A + D-136 low_min_risk + D-137 blowout_risk
+-- + D-139 line_movement):
+--
+-- Query A — Trivial-line picks post-deploy (sample 30):
+--
+--   SELECT
+--     player_name, prop_type, pick_side, line, odds, confidence,
+--     score_trivial_line_penalty, score_trivial_line_cap,
+--     created_at
+--   FROM pick_history
+--   WHERE created_at > NOW() - INTERVAL '18 hours'
+--     AND line <= 0.5
+--     AND ABS(odds) >= 200
+--     AND source = 'process-games'
+--     AND is_synthetic = false
+--   ORDER BY created_at DESC LIMIT 30;
+--
+--   Expected post-fix: EVERY row with score_trivial_line_penalty = -15
+--   AND confidence > 65 has score_trivial_line_cap = TRUE.
+--   Pre-fix shape (the bug): some rows with penalty = -15 AND
+--   confidence > 65 AND cap = FALSE (i.e., bonuses inflated past the
+--   pre-bonus cap of 65). Duncan Robinson Blocks U0.5 -550 confidence
+--   72 + cap=FALSE was the canonical observed case in D-133 forensic.
+--
+-- Query B — Cap activation rate on confidence>65 trivials (smoking gun):
+--
+--   SELECT
+--     COUNT(*) FILTER (WHERE confidence > 65) AS over_65_count,
+--     COUNT(*) FILTER (WHERE confidence > 65 AND score_trivial_line_cap = TRUE) AS over_65_capped_count,
+--     COUNT(*) FILTER (WHERE confidence > 65 AND score_trivial_line_cap = FALSE) AS bug_b_violations
+--   FROM pick_history
+--   WHERE created_at > NOW() - INTERVAL '18 hours'
+--     AND line <= 0.5
+--     AND ABS(odds) >= 200
+--     AND source = 'process-games'
+--     AND is_synthetic = false;
+--
+--   Expected post-fix: bug_b_violations = 0. ALL trivial picks with
+--   confidence > 65 must show cap = TRUE.
+--   Note: confidence > 65 is technically impossible for a capped pick
+--   post-fix (cap forces to exactly 65). So a stronger formulation:
+--
+--   Expected post-fix: over_65_count = 0 entirely for the trivial
+--   subset (line <= 0.5 AND ABS(odds) >= 200 AND penalty = -15). No
+--   trivial double-juiced pick should exit scoreOneSide above 65.
+--
+-- Query C — Capped-but-still-65 distribution (positive case):
+--
+--   SELECT
+--     confidence, COUNT(*) AS n
+--   FROM pick_history
+--   WHERE created_at > NOW() - INTERVAL '18 hours'
+--     AND line <= 0.5
+--     AND ABS(odds) >= 200
+--     AND score_trivial_line_cap = TRUE
+--     AND source = 'process-games'
+--     AND is_synthetic = false
+--   GROUP BY 1 ORDER BY 1 DESC LIMIT 10;
+--
+--   Expected post-fix: ALL rows have confidence = 65 exactly. If any
+--   row shows confidence != 65 AND cap = TRUE, layer-2 setter is
+--   misfiring (writing cap=TRUE without setting finalScore=65 — a bug).
+--
+-- Query D — Layer-1 vs layer-2 disambiguation (which layer fired?):
+--
+--   The breakdown.trivialLineCap MAGNITUDE field (NOT persisted to a
+--   numeric column, but available in result.breakdown for in-memory
+--   inspection) shows: layer-1-only fire → magnitude = (65 - pre_bonus_score).
+--   layer-2 fire after layer-1 also fired → magnitude = (65 - post_bonus_score),
+--   where post_bonus_score is the inflated value. layer-2-only fire
+--   (pre-bonus was already <= 65 but bonuses pushed past 65) →
+--   magnitude = (65 - post_bonus_score), pre-bonus path bypassed
+--   layer-1 entirely. This field is not persisted to a DB column;
+--   inspect via the AI verdict text or process-games run_log if
+--   present.
+--
+-- Query E — Side-symmetry check (D-127 §15.10 #8 Option C interplay):
+--
+--   WITH paired AS (
+--     SELECT player_name, prop_type, line, game_date,
+--       MAX(CASE WHEN pick_side='over'  THEN confidence END) AS over_conf,
+--       MAX(CASE WHEN pick_side='under' THEN confidence END) AS under_conf,
+--       MAX(CASE WHEN pick_side='over'  THEN score_trivial_line_cap::INT END) AS over_cap,
+--       MAX(CASE WHEN pick_side='under' THEN score_trivial_line_cap::INT END) AS under_cap
+--     FROM pick_history
+--     WHERE created_at > NOW() - INTERVAL '18 hours'
+--       AND line <= 0.5
+--       AND source='process-games' AND is_synthetic=false
+--     GROUP BY 1,2,3,4
+--     HAVING MAX(CASE WHEN pick_side='over' THEN 1 END) = 1
+--        AND MAX(CASE WHEN pick_side='under' THEN 1 END) = 1
+--   )
+--   SELECT COUNT(*) AS pairs,
+--     COUNT(*) FILTER (WHERE over_cap = 1 OR under_cap = 1) AS at_least_one_capped,
+--     COUNT(*) FILTER (WHERE over_cap = 1 AND under_cap = 1) AS both_capped
+--   FROM paired;
+--
+--   Expected: any pair where ONE side hit cap (heavy juice on that
+--   side) should have that side at confidence 65. The OTHER side
+--   (the underdog leg with light or longshot odds) may or may not
+--   cap depending on its own odds — symmetric cap fires only when
+--   that LEG's odds are >= 200 in absolute value.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A any row shows penalty = -15 AND confidence > 65 AND
+--     cap = FALSE: layer-2 cap is not firing. Inspect:
+--     (a) the L2301 insertion site — confirm the if-block landed
+--         between the L2300 clamp and the L2302 D-133 reference comment;
+--     (b) sideAwareOdds at L2069 — confirm value matches the side's
+--         actual book odds (a wiring regression would break layer-2's
+--         Math.abs(sideAwareOdds) >= 200 guard);
+--     (c) breakdown.trivialLineCapApplied setter at the layer-2 block
+--         — confirm = 1 assignment landed (sanity-grep the production
+--         bundle).
+--
+--   Query B bug_b_violations > 0 AND Query A rows look correct:
+--     race condition between layer-1 set + layer-2 override. Inspect
+--     breakdown spread at L2317 — `...confidenceResult.breakdown` is
+--     the spread source; if layer-2 modifies the same nested object
+--     and the spread captures BOTH layer-1 and layer-2 writes,
+--     ordering is fine. If breakdown.trivialLineCapApplied is being
+--     overwritten back to 0 by some downstream code path, that's the
+--     real bug.
+--
+--   Query C confidence != 65 AND cap = TRUE: layer-2 setter wrote
+--     cap=TRUE without setting finalScore=65. The if-body has three
+--     statements (magnitude, applied, finalScore) — confirm all three
+--     present. Pre-edit pattern from L1320-1322 is the template.
+--
+--   Query D layer-1-only fire AND post_bonus > 65: layer-2 isn't firing.
+--     Inspect for code-path that skips the L2301 block (e.g., function
+--     early-return inserted somewhere between L2298 and L2301).
+--
+--   Query E sides asymmetric in expected ways: that's correct behavior,
+--     not a bug (only legs with |odds| >= 200 cap). Sides asymmetric
+--     in UNEXPECTED ways: D-127 §15.10 #8 Option C regression — check
+--     the L1305 trivialOdds redefinition is still Math.abs-based.
+-- =============================================================================
+-- INDEPENDENCE FROM OTHER OPEN §1.12 CYCLES
+--
+--   D-133 sideAwareOdds wiring (L2069 hoist): D-140's predicate reads
+--     sideAwareOdds — depends on D-133 being correct. If D-133 §1.12
+--     cycle finds a wiring regression, D-140 verification also breaks.
+--     Re-verify D-133 first if D-140 Query A shows wrong-side cap fires.
+--
+--   D-136 low_min_risk (L2221 declaration): independent. Touches
+--     different finalScore-update site at L2229. No interaction.
+--
+--   D-137 blowout_risk (L2240 declaration): independent. Touches
+--     different finalScore-update site at L2256. No interaction.
+--
+--   D-139 line_movement (L2269 declaration): independent. Touches
+--     finalScore-update site at L2298 — IMMEDIATELY before D-140's
+--     insertion at L2301. Any future re-ordering of factor blocks
+--     must keep D-140 cap AFTER all factor updates AND after the
+--     L2300 clamp.
+--
+--   All five cycles converge at the next process-games cron tick
+--   (~14:30 UTC May 14, 2026). Single five-way verification pass.
+-- =============================================================================
+
+SELECT 1 AS d140_bug_b_verification_no_op;

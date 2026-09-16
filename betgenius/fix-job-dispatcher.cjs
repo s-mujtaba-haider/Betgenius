@@ -1,0 +1,41 @@
+const fs = require('fs');
+let lines = fs.readFileSync('supabase/functions/job-dispatcher/index.ts', 'utf8').split('\n');
+lines.length = 177; // Cut off the broken part
+lines.push(
+'    return j({',
+'      success: true,',
+'      dispatched: 0,',
+'      skipped: 0,',
+'      failed: 0,',
+'      claimed: 0,',
+'      duration_ms: Date.now() - t0,',
+'    });',
+'  }',
+'',
+'  const results = await concurrentMap(claimed, MAX_CONCURRENCY, async (job) => {',
+'    const outcome = await invokeJob(job);',
+'    const finalStatus = await markJobCompleted(job.job_id, outcome.status, outcome.result, outcome.errorText);',
+'    ',
+'    if (finalStatus === "failed") {',
+'      await notify({ severity: "critical", title: "Job Failed", message: `Job ${job.job_id} (${job.function_name}) reached terminal failure status. Attempt count: ${job.attempt_count + 1}.\\nLast error: ${outcome.errorText}` });',
+'    }',
+'    ',
+'    return { job_id: job.job_id, function_name: job.function_name, status: finalStatus };',
+'  });',
+'',
+'  const dispatched = results.filter(r => r.status === "completed").length;',
+'  const skipped = results.filter(r => r.status === "skipped").length;',
+'  const failed = results.filter(r => r.status === "failed").length;',
+'',
+'  return j({',
+'    success: true,',
+'    dispatched,',
+'    skipped,',
+'    failed,',
+'    claimed: claimed.length,',
+'    duration_ms: Date.now() - t0,',
+'    per_job: results,',
+'  });',
+'});'
+);
+fs.writeFileSync('supabase/functions/job-dispatcher/index.ts', lines.join('\n'));

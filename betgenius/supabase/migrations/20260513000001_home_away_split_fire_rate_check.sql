@@ -1,0 +1,78 @@
+-- §1.12 paired-verification trail for score_home_away_split TRIVIAL_FIX.
+-- =============================================================================
+-- Audit:         /tmp/home_away_split_dead_factor_audit_may12.md
+-- Fix shipped:   May 12, 2026 (CEO §19.3 approval)
+-- Forward-ref:   D-131
+--
+-- The fix corrected a producer-side ESPN field-name bug at 6 call sites
+-- (fetchGameLog-style readers) that had silently populated `homeAway = ""`
+-- on every GameLogEntry since the function's inception. D-058 (April)
+-- fixed the downstream consumer at calculateHomeAwaySplit, but the
+-- producer was reading `eventInfo.homeAway` — a key that doesn't exist on
+-- the ESPN gamelog endpoint. The correct key is `eventInfo.atVs`
+-- ("vs" = home, "@" = away), independently confirmed by team-stats:248
+-- which had been using it correctly all along.
+--
+-- This migration is DOCUMENTATION-ONLY. It applies no DDL/DML. It exists
+-- to satisfy Cardinal Rule §1.12 ("Migration Is Complete Only After One
+-- Full Production Cycle Observed Cleanly") by recording the verification
+-- protocol on the audit-fix-verify trail before the next cron tick.
+--
+-- =============================================================================
+-- VERIFICATION QUERIES (run after next process-games cron tick, ~14:00 UTC)
+-- =============================================================================
+--
+-- Query 1 — Cache fill rate (does is_home populate post-fix?):
+--
+--   SELECT
+--     COUNT(*) AS new_rows,
+--     COUNT(is_home) AS with_home_data,
+--     COUNT(*) FILTER (WHERE is_home IS NULL) AS still_null,
+--     ROUND(100.0 * COUNT(is_home) / NULLIF(COUNT(*), 0), 1) AS fill_pct
+--   FROM cache_player_game_logs
+--   WHERE fetched_at >= '2026-05-13 00:00:00+00'::timestamptz;  -- D-145 typo fix (May 13): was created_at; real column is fetched_at per cache_foundation_phase1 schema.
+--
+--   Expected: fill_pct > 80% (only NULL when ESPN returns atVs as neither
+--   "vs" nor "@" — rare edge case like cancelled/postponed games).
+--   Pre-fix baseline: fill_pct = 0.0% on 6849/6849 cached rows.
+--
+-- =============================================================================
+-- Query 2 — Factor fire rate (does the consumer downstream now fire?):
+--
+--   SELECT
+--     COUNT(*) AS total_picks,
+--     COUNT(*) FILTER (WHERE score_home_away_split <> 0) AS fires,
+--     COUNT(*) FILTER (WHERE score_home_away_split = 0) AS zero,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE score_home_away_split <> 0)
+--             / NULLIF(COUNT(*), 0), 1) AS fire_rate_pct
+--   FROM pick_history
+--   WHERE source = 'process-games'
+--     AND is_synthetic = false
+--     AND created_at >= '2026-05-13 00:00:00+00'::timestamptz;
+--
+--   Expected: fire_rate_pct > 0% (typically 30-60% based on §15.7
+--   historical assumption — picks where |edgePct| >= 10 between
+--   player's home and away averages in their last-20 game window).
+--   Pre-fix baseline: 0 fires across 4,543 picks in ALL eras (pre-D-058,
+--   D-058 window, post-May-4).
+--
+-- =============================================================================
+-- §1.12 cycle complete when both queries pass.
+--
+-- If Query 1 fails (fill_pct < 80%): producer fix did not deploy cleanly —
+-- inspect a sample cached row's raw atVs payload from ESPN. Could indicate
+-- ESPN changed their API shape, or our deploy didn't propagate to all
+-- regions.
+--
+-- If Query 1 passes but Query 2 fails (fire_rate_pct = 0%): producer is
+-- writing correctly but consumer is still gated. Re-audit
+-- calculateHomeAwaySplit at process-games:1044-1068. Possible causes:
+--   - Most players have < 2 games in either home or away cohort in last-20
+--     (gate at L1060 — `homeVals.length < 2 || awayVals.length < 2`)
+--   - getStatValue returning null for the cohort's prop type
+--   - isDNPGame filter eliminating too many games
+--
+-- If both queries pass: declare the audit-fix-verify cycle complete and
+-- record outcome in next framework patch (v2.37 anticipated).
+
+SELECT 1 AS dummy_no_op_migration_for_documentation_trail;

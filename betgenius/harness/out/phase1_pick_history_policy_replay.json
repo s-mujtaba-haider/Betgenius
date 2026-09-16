@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-08-30T10:01:18.237Z",
+  "note": "Replay of graded MLB pick_history through current mlb_ev_policy (veto + side). ev_per_unit not on pick_history — EV floor not applied.",
+  "gradedRows": 116763,
+  "afterPolicyN": 5872,
+  "afterPolicy": {
+    "batter_total_bases": {
+      "n": 3053,
+      "wrPct": 58.57,
+      "roiPct": -1.45,
+      "verdict": "FAIL_roi"
+    },
+    "game_side": {
+      "n": 1354,
+      "wrPct": 53.55,
+      "roiPct": 4.22,
+      "verdict": "PASS"
+    },
+    "game_total": {
+      "n": 965,
+      "wrPct": 54.09,
+      "roiPct": 2.06,
+      "verdict": "PASS"
+    },
+    "batter_hits": {
+      "n": 500,
+      "wrPct": 50.8,
+      "roiPct": 2.07,
+      "verdict": "PASS"
+    }
+  }
+}

@@ -1,0 +1,135 @@
+-- D-147 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Closes framework D-117 (health-monitor detection gap).
+--
+-- D-147 added Check #4 to health-monitor edge function: per-function
+-- silent failure pattern detection. Groups error_log over last 30min
+-- by (function_name, error_type); for each group with count > 5,
+-- checks that function's most recent run_log entry. If status='success'
+-- or 'skipped' → warning notification (the May 9 outage shape).
+-- =============================================================================
+-- SCHEMA ADAPTATION NOTE
+--
+-- Spec called for `WHERE type = 'silent_failure_pattern'`. The
+-- notifications_log table has NO `type` column (verified by reading
+-- _shared/notify.ts insertAuditRow — columns are: severity, title,
+-- message, metadata JSONB, delivered_via). Adapted to filter via
+-- `metadata->>'type' = 'silent_failure_pattern'` — no schema change
+-- needed, lives entirely in the existing JSONB column. Same goes for
+-- function_name and error_type — both encoded in metadata, not
+-- standalone columns.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after ≥1 health-monitor tick post-deploy;
+-- cron schedule is every 30 min):
+--
+-- Query A — Confirm health-monitor cron fires post-deploy:
+--
+--   SELECT
+--     MAX(created_at)   AS last_health_monitor_run,
+--     COUNT(*)          AS runs_last_24h
+--   FROM run_log
+--   WHERE function_name = 'health-monitor'
+--     AND created_at >= NOW() - INTERVAL '24 hours';
+--
+--   Expected: last_health_monitor_run within last 30 min;
+--   runs_last_24h ≈ 48 (cron every 30 min × 24h).
+--
+-- Query B — Confirm D-147 detection is registered (only populates
+-- if a real failure pattern fires; empty is the expected healthy state):
+--
+--   SELECT
+--     COUNT(*)                                            AS warning_notifications,
+--     array_agg(DISTINCT metadata->>'function_name')      AS affected_functions,
+--     array_agg(DISTINCT metadata->>'error_type')         AS detected_error_types,
+--     MAX(created_at)                                     AS latest
+--   FROM notifications_log
+--   WHERE severity = 'warning'
+--     AND metadata->>'type' = 'silent_failure_pattern'
+--     AND created_at >= NOW() - INTERVAL '24 hours';
+--
+--   Expected: warning_notifications = 0 in healthy state.
+--   warning_notifications > 0 means D-147 caught a real pattern —
+--   that's exactly what it exists to do; CEO should investigate the
+--   affected_functions and detected_error_types arrays.
+--
+-- Query C — Synthetic check: simulate the threshold-exceeding state
+-- to verify the SELECT-side detection logic would have fired. This
+-- runs the SAME grouping query that the new Check #4 runs in the
+-- edge function (translated from PostgREST JSON aggregation to SQL):
+--
+--   SELECT
+--     function_name,
+--     error_type,
+--     COUNT(*)                        AS error_count,
+--     MAX(created_at)                 AS latest_error
+--   FROM error_log
+--   WHERE created_at >= NOW() - INTERVAL '30 minutes'
+--   GROUP BY function_name, error_type
+--   HAVING COUNT(*) > 5
+--   ORDER BY error_count DESC;
+--
+--   Expected: empty in healthy state. If non-empty, cross-reference
+--   each (function_name, error_type) row with Query D below to confirm
+--   the corresponding function's most recent run_log status.
+--
+-- Query D — Reverse-cross-check: for any row Query C surfaced, was
+-- the most recent run_log entry 'success' or 'skipped'? (i.e., would
+-- D-147 have tripped?):
+--
+--   WITH overage AS (
+--     SELECT function_name, error_type, COUNT(*) AS n
+--     FROM error_log
+--     WHERE created_at >= NOW() - INTERVAL '30 minutes'
+--     GROUP BY function_name, error_type
+--     HAVING COUNT(*) > 5
+--   ),
+--   latest_run AS (
+--     SELECT DISTINCT ON (function_name)
+--       function_name, status AS run_status, created_at AS run_at
+--     FROM run_log
+--     WHERE function_name IN (SELECT function_name FROM overage)
+--     ORDER BY function_name, created_at DESC
+--   )
+--   SELECT
+--     o.function_name, o.error_type, o.n,
+--     lr.run_status, lr.run_at,
+--     CASE WHEN lr.run_status IN ('success','skipped')
+--          THEN 'SHOULD HAVE TRIPPED'
+--          ELSE 'expected-no-trip (run_log shows failure)'
+--     END AS d147_verdict
+--   FROM overage o
+--   LEFT JOIN latest_run lr USING (function_name);
+--
+--   Expected: For each row with d147_verdict = 'SHOULD HAVE TRIPPED',
+--   confirm there's a matching notifications_log row with
+--   metadata->>'function_name' = o.function_name (via Query B).
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A last_health_monitor_run > 30 min ago: cron schedule
+--     misfiring. Inspect pg_cron entry for health-monitor job; check
+--     edge function deploy state.
+--
+--   Query A runs_last_24h << 48: cron schedule reduced cadence or
+--     function timing out. Inspect edge function logs.
+--
+--   Query D rows with d147_verdict = 'SHOULD HAVE TRIPPED' but Query B
+--     shows zero matching notifications: NEW CHECK NOT FIRING. Inspect
+--     Check #4 deployed bundle for `silent_failure_pattern` string;
+--     re-deploy from commit hash recorded in commit message.
+--
+--   Query B rows with severity=critical instead of warning: incorrect
+--     severity routing. The D-147 design is explicitly WARNING tier
+--     (critical reserved for total cron silence per Check #2).
+--
+-- =============================================================================
+-- INDEPENDENCE FROM EIGHT OPEN §1.12 CYCLES
+--
+-- D-133/D-136/D-137/D-139/D-140/D-141/D-142/D-144 all touch process-
+-- games or frontend or pick_history or the real_money_bets view.
+-- D-147 only modifies health-monitor's check enumeration. No overlap.
+-- Health-monitor is the catch-net for the other cycles' silent failure
+-- modes going forward.
+-- =============================================================================
+
+SELECT 1 AS d147_health_monitor_verification_no_op;

@@ -1,0 +1,165 @@
+-- D-144 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Closes D-132 Group B open follow-up.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after view CREATE OR REPLACE lands;
+-- view changes take effect immediately on next read — no cron cycle
+-- wait needed unlike edge-function ships):
+--
+-- Query A — Pin-vs-resolver alignment (smoking gun):
+--
+--   SELECT
+--     COUNT(*)                                                              AS total_with_bets_pick_id,
+--     COUNT(*) FILTER (WHERE matched_pick_id = pick_id)                     AS aligned,
+--     COUNT(*) FILTER (WHERE matched_pick_id IS NOT NULL
+--                       AND matched_pick_id <> pick_id)                    AS still_diverged
+--   FROM public.real_money_bets
+--   WHERE pick_id IS NOT NULL;
+--
+--   Expected post-fix: still_diverged = 0. Every bet with non-null
+--   pick_id resolves through the pinned_picks CTE.
+--   Pre-fix: D-132 noted ~3 divergent rows (Group B).
+--
+-- Query B — Group B specific (D-132 follow-up):
+--
+--   SELECT
+--     bet_id, pick_id AS bets_pick_id, matched_pick_id,
+--     matched_pick_source, matched_pick_confidence,
+--     is_matched, placed_at
+--   FROM public.real_money_bets
+--   WHERE pick_id IS NOT NULL
+--   ORDER BY placed_at DESC
+--   LIMIT 30;
+--
+--   Expected post-fix: matched_pick_id = pick_id for every row, and
+--   matched_pick_source = 'process-games' for D-132 Group B's 3 bets
+--   (which previously showed matched_pick_source = 'backfill').
+--
+-- Query C — View output shape (column count + names unchanged):
+--
+--   SELECT column_name, ordinal_position, data_type
+--   FROM information_schema.columns
+--   WHERE table_schema = 'public' AND table_name = 'real_money_bets'
+--   ORDER BY ordinal_position;
+--
+--   Expected: exactly 22 columns in the exact same order as pre-fix:
+--     1.  bet_id                  (uuid)
+--     2.  user_id                 (uuid)
+--     3.  placed_at               (timestamptz)
+--     4.  settled_at              (timestamptz)
+--     5.  player_name             (text)
+--     6.  prop_type               (text)
+--     7.  line                    (numeric)
+--     8.  pick_side               (text)
+--     9.  odds                    (integer)
+--     10. stake                   (numeric)
+--     11. status                  (text)
+--     12. result_value            (numeric)
+--     13. payout                  (numeric)
+--     14. book                    (text)
+--     15. bet_game_date_et        (text)
+--     16. matched_pick_id         (uuid)
+--     17. matched_pick_source     (text)
+--     18. matched_pick_confidence (integer)
+--     19. matched_pick_game_date  (text)
+--     20. matched_pick_created_at (timestamptz)
+--     21. is_matched              (boolean)
+--     22. sport                   (text)
+--   Any column count drift OR re-order is a regression. CREATE OR
+--   REPLACE VIEW would have errored with 42P16 at deploy time if the
+--   order changed — but a defensive check doesn't hurt.
+--
+-- Query D — Pin/resolver disagree but pinned wins (sanity check):
+--
+--   SELECT
+--     rmb.bet_id, rmb.pick_id, rmb.matched_pick_id,
+--     rmb.matched_pick_source AS pinned_source,
+--     (SELECT p.source FROM public.pick_history p
+--      WHERE lower(p.player_name) = lower(rmb.player_name)
+--        AND lower(p.prop_type)   = lower(rmb.prop_type)
+--        AND lower(p.pick_side)   = lower(rmb.pick_side)
+--        AND p.line               = rmb.line
+--        AND p.sport              = rmb.sport
+--        AND p.game_date IS NOT NULL
+--        AND ABS(p.game_date::int - rmb.bet_game_date_et::int) <= 1
+--      ORDER BY
+--        CASE p.source
+--          WHEN 'process-games' THEN 1
+--          WHEN 'dashboard'     THEN 2
+--          WHEN 'evaluator'     THEN 3
+--          ELSE 9
+--        END,
+--        p.confidence DESC NULLS LAST,
+--        p.created_at DESC
+--      LIMIT 1)                                                 AS resolver_would_pick_source
+--   FROM public.real_money_bets rmb
+--   WHERE rmb.pick_id IS NOT NULL
+--   LIMIT 20;
+--
+--   Expected: in MOST rows, pinned_source = resolver_would_pick_source
+--   (D-132's UPDATE chose organic, resolver also ranks process-games
+--   first, so they usually agree). In Group B's 3 rows, pinned_source
+--   = 'process-games' (correct, organic per D-132) while
+--   resolver_would_pick_source = 'backfill' (the bug — what the view
+--   used to show). This query empirically verifies the pinning is
+--   doing the right thing for the exact rows D-132 surfaced.
+--
+-- Query E — Performance UI sanity (the cosmetic divergence):
+--
+--   -- Pre-fix: 3 of CEO's recent bets showed matched_pick_confidence
+--   -- from synthetic backfill (different number than the organic
+--   -- confidence the algorithm actually produced).
+--   -- Post-fix: every CEO bet with pick_id reflects the organic
+--   -- pick_history row's confidence number.
+--
+--   SELECT
+--     bet_id, player_name, prop_type, line, pick_side,
+--     matched_pick_source, matched_pick_confidence,
+--     placed_at
+--   FROM public.real_money_bets
+--   WHERE pick_id IS NOT NULL
+--     AND placed_at >= '2026-05-07'
+--   ORDER BY placed_at DESC;
+--
+--   Expected: matched_pick_source = 'process-games' on every row
+--   (D-132 only relinked to organic). Performance UI now shows
+--   organic confidence numbers consistently.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A still_diverged > 0: pinned_picks CTE not firing OR
+--     pinned bet has pick_id pointing to a deleted pick_history row
+--     (referential integrity broken). Inspect: SELECT pick_id FROM
+--     bets WHERE id = <bet_id>; SELECT id FROM pick_history WHERE id
+--     = <that_pick_id>. If the second query returns empty, the FK
+--     is orphan — needs D-132-style transactional re-resolve.
+--
+--   Query B matched_pick_source != 'process-games' on any post-D-132
+--     bet: D-132 row count drifted (UPDATE was reverted somehow) OR
+--     pinned_picks CTE has a bug. Inspect bets.pick_id directly.
+--
+--   Query C column count != 22 OR ordinal_position drift: view
+--     re-creation failed; deploy did not apply. Roll back by
+--     restoring previous view definition from migration 20260429000001.
+--
+--   Query D resolver_would_pick_source = 'backfill' AND pinned_source
+--     != 'process-games': pinned_picks isn't winning, COALESCE order
+--     wrong (should be COALESCE(pp.*, rm.*) not COALESCE(rm.*, pp.*)).
+--     Inspect view definition: pg_get_viewdef('public.real_money_bets', true).
+--
+-- =============================================================================
+-- INDEPENDENCE FROM SEVEN OPEN §1.12 CYCLES
+--
+-- D-133/D-136/D-137/D-139/D-140/D-141/D-142 all touch process-games
+-- edge function OR frontend OR pick_history factor columns. D-144 is
+-- pure VIEW DEFINITION — no overlap. The view READS from pick_history
+-- but doesn't constrain how rows get written. If any of the 7 cycles
+-- regress, D-144 verification is unaffected. If D-144 regresses,
+-- those 7 cycles are unaffected.
+--
+-- Verification timing: view changes take effect on next read (no
+-- cron cycle wait). D-144 can be verified IMMEDIATELY after deploy.
+-- The other 7 cycles wait for ~14:30 UTC May 14 process-games tick.
+-- =============================================================================
+
+SELECT 1 AS d144_real_money_bets_verification_no_op;

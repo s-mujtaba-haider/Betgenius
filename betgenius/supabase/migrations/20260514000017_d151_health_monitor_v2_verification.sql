@@ -1,0 +1,151 @@
+-- D-151 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Closes D-148 v2 audit Findings #3, #12, #13 (all three D-147 flaws).
+--
+-- D-151 reshaped health-monitor Check #4 to:
+--   - Add slow-drain secondary detector (>3 errors / 6h) alongside the
+--     existing fast-burst detector (>5 / 30min). Closes Finding #3.
+--   - Widen error_log SELECT limit 500 → 5000. Closes Finding #12.
+--   - Branch on run_log status === null → critical 'silent_failure_pattern_no_run'
+--     notification. Closes Finding #13.
+-- =============================================================================
+-- SCHEMA ADAPTATION NOTE
+--
+-- notifications_log has no `type` column (D-147 verification migration
+-- documented this). D-151 inherits the JSONB encoding — three distinct
+-- metadata.type values now possible:
+--   - 'silent_failure_pattern'           (fast-burst, warning, D-147 original)
+--   - 'silent_failure_pattern_slow_drain' (slow-drain, warning, D-151 new)
+--   - 'silent_failure_pattern_no_run'     (null run_log, CRITICAL, D-151 new)
+--
+-- Verification queries below filter via `metadata->>'type' LIKE
+-- 'silent_failure_pattern%'` to capture all three.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after ≥1 health-monitor tick post-deploy;
+-- cron schedule is every 30 min):
+--
+-- Query A — Confirm health-monitor cron fires post-D-151:
+--
+--   SELECT
+--     MAX(created_at)   AS last_health_monitor_run,
+--     COUNT(*)          AS runs_last_24h
+--   FROM run_log
+--   WHERE function_name = 'health-monitor'
+--     AND created_at >= NOW() - INTERVAL '24 hours';
+--
+--   Expected: last_health_monitor_run within last 30 min;
+--   runs_last_24h ≈ 48.
+--
+-- Query B — Detection-type breakdown over last 24h:
+--
+--   SELECT
+--     metadata->>'type'                             AS detection_type,
+--     severity,
+--     COUNT(*)                                      AS notification_count,
+--     array_agg(DISTINCT metadata->>'function_name') AS affected_functions,
+--     MAX(created_at)                               AS latest
+--   FROM notifications_log
+--   WHERE severity IN ('warning', 'critical')
+--     AND metadata->>'type' LIKE 'silent_failure_pattern%'
+--     AND created_at >= NOW() - INTERVAL '24 hours'
+--   GROUP BY metadata->>'type', severity
+--   ORDER BY metadata->>'type';
+--
+--   Expected: empty in healthy state. If non-empty, D-151 is working
+--   as designed — investigate the affected_functions array.
+--   Severity expectation: 'silent_failure_pattern' + 'silent_failure_pattern_slow_drain'
+--   → warning; 'silent_failure_pattern_no_run' → critical.
+--
+-- Query C — Slow-drain rate simulation (Finding #3 math check):
+--
+--   The May 9 outage was 16 errors / 26h ≈ 0.62 errors/hour. In a 6h
+--   window, that's ~3.7 errors expected → trips >3 threshold. This
+--   query simulates what the new detector would see across 6h sliding
+--   windows of error_log data from the last 24h:
+--
+--   WITH sliding_6h AS (
+--     SELECT function_name, error_type,
+--            COUNT(*) AS errors_in_window
+--     FROM error_log
+--     WHERE created_at >= NOW() - INTERVAL '6 hours'
+--     GROUP BY function_name, error_type
+--   )
+--   SELECT *
+--   FROM sliding_6h
+--   WHERE errors_in_window > 3
+--   ORDER BY errors_in_window DESC;
+--
+--   Expected post-fix: rows here = potential slow-drain trips. Cross-
+--   reference with Query B's 'silent_failure_pattern_slow_drain' count.
+--
+-- Query D — error_log volume sanity (Finding #12 cap headroom check):
+--
+--   Confirms the new 5000-row cap is well above actual 6h error volume
+--   under normal operation. Spike windows during an outage would push
+--   higher; this query is a baseline reference.
+--
+--   SELECT
+--     DATE_TRUNC('hour', created_at) AS hour_bucket,
+--     COUNT(*)                       AS errors_in_hour
+--   FROM error_log
+--   WHERE created_at >= NOW() - INTERVAL '24 hours'
+--   GROUP BY hour_bucket
+--   ORDER BY hour_bucket DESC LIMIT 24;
+--
+--   Expected: per-hour counts << 5000. If any hour exceeds 800, the 6h
+--   sliding window risks approaching the 5000 cap and the truncation
+--   protection from Finding #12 starts to matter.
+--
+-- Query E — No-run-status simulation (Finding #13 critical-alert path):
+--
+--   Confirms which functions have ANY run_log row in the last 6h.
+--   Functions with errors but ZERO run_log rows should trip Check #4's
+--   new no-run branch at CRITICAL severity.
+--
+--   WITH funcs_with_errors AS (
+--     SELECT DISTINCT function_name FROM error_log
+--     WHERE created_at >= NOW() - INTERVAL '6 hours'
+--   ),
+--   funcs_with_runs AS (
+--     SELECT DISTINCT function_name FROM run_log
+--     WHERE created_at >= NOW() - INTERVAL '6 hours'
+--   )
+--   SELECT fe.function_name AS function_with_errors_no_recent_run
+--   FROM funcs_with_errors fe
+--   LEFT JOIN funcs_with_runs fr USING (function_name)
+--   WHERE fr.function_name IS NULL;
+--
+--   Expected: empty in healthy state. Any function listed here should
+--   appear in Query B with type='silent_failure_pattern_no_run' (IF its
+--   error count also crossed the per-(function, error_type) > 3 threshold
+--   in the 6h window).
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query B shows zero 'silent_failure_pattern_slow_drain' notifications
+--     after 24h despite Query C surfacing rows: detector not firing. Inspect
+--     deployed bundle for the slow-drain branch — grep for
+--     `silent_failure_pattern_slow_drain` string and the 6h window literal
+--     `Date.now() - 6 * 60 * 60 * 1000`.
+--
+--   Query B shows 'silent_failure_pattern_no_run' at WARNING severity (not
+--     CRITICAL): severity routing regressed. Inspect the
+--     `isNullStatus ? "critical" : "warning"` ternary in deployed bundle.
+--
+--   Query D shows hour-buckets approaching 5000: 5000 cap is too tight.
+--     Raise to 10000 OR switch to HEAD-count-per-group pattern.
+--
+--   Query E lists functions but Query B shows zero no-run notifications:
+--     either no per-(function, error_type) error_type crossed the > 3
+--     threshold (legitimate) OR the null-branch isn't firing. Walk through
+--     a single (function, error_type) group manually.
+-- =============================================================================
+-- INDEPENDENCE FROM EIGHT OPEN §1.12 CYCLES
+--
+-- D-151 ONLY modifies health-monitor's Check #4. Zero overlap with the
+-- process-games / frontend / view cycles converging at ~14:30 UTC May 14.
+-- If any of those cycles regress in a "silent failure" shape, D-151 is
+-- the catch-net that fires the notification.
+-- =============================================================================
+
+SELECT 1 AS d151_health_monitor_v2_verification_no_op;

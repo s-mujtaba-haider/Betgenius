@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-08-30T15:51:15.368Z",
+  "marketConfig": {
+    "cliMarket": "pitcher_outs",
+    "oddsMarketKey": "pitcher_outs",
+    "allowedSources": ["pick_history"],
+    "warehouseOddsAvailable": false
+  },
+  "warehouseExactKey_pitcher_outs": {
+    "rows": "26055",
+    "events": "2699",
+    "first_game": "2024-04-02",
+    "last_game": "2025-05-28"
+  },
+  "pickHistory_pitcher_outs": {
+    "rows": "1572",
+    "first_game": "2026-06-13",
+    "last_game": "2026-08-30"
+  },
+  "harnessReadonlyGrants": {
+    "cache_mlb_historical_odds": "SELECT ok",
+    "cache_mlb_historical_outcomes": "PERMISSION DENIED",
+    "cache_mlb_historical_bullpen": "PERMISSION DENIED",
+    "cache_mlb_boxscore_player_stats": "SELECT ok"
+  },
+  "recommendation": "Warehouse rows exist. market_config still warehouseOddsAvailable=false / pick_history-only. Do not flip the flag until a warehouse backtest is gated. Do not re-score."
+}

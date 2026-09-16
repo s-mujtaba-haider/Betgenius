@@ -1,0 +1,536 @@
+section,key,value
+meta,market,h2h
+meta,data_source,warehouse
+meta,clv_status,computed
+meta,generated_at,2026-09-06T12:24:49.448Z
+meta,window_start_iso,2026-04-01T00:00:00.000Z
+meta,window_end_iso,2026-05-25T00:00:00.000Z
+meta,detected_coverage_min,2023-05-03 17:40:00+00
+meta,detected_coverage_max,2026-05-24 23:21:00+00
+
+section,metric,value
+coverage,total_odds_rows_fetched,8884
+coverage,candidate_groups,405
+coverage,players_resolved,405
+coverage,players_unresolved,0
+coverage,scored_candidates,404
+coverage,gradeable_picks,398
+coverage,push_count,2
+coverage,void_count,4
+coverage,statcast_asof_count,0
+coverage,statcast_asof_hit_rate_pct,0
+coverage,excluded_no_agreeing_side,1
+
+section,tier_label,side,min_confidence,n,graded,wins,losses,pushes,voids,win_rate_pct,win_rate_ci_lo_pct,win_rate_ci_hi_pct,roi_pct,roi_ci_lo_pct,roi_ci_hi_pct,total_units,avg_clv_pct,pct_positive_clv_pct,clv_n,avg_no_vig_fair_prob_pct,avg_entry_implied_prob_pct,false_edge_flag
+tiers,all,all,0,404,398,233,165,2,4,58.5427135678392,53.64356754306803,63.27852909655154,10.705266597458117,2.022892670484733,20.121657853061066,42.606961057883304,0,0,404,52.59774561148033,53.592021007866975,false
+tiers,all,over,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,all,under,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,all,home,0,197,193,119,74,2,2,61.6580310880829,54.63433178165745,68.22670586213435,10.906290276844292,-1.6005503409484558,23.5768933649129,21.049140234309483,0,0,197,55.48783983365555,56.531723837679735,false
+tiers,all,away,0,207,205,114,91,0,2,55.60975609756098,48.76734524063504,62.24579368766017,10.516010157840903,-3.8172196827846188,24.127567954691198,21.557820823573852,0,0,207,49.8472694676711,50.794332807513676,false
+tiers,60+,all,60,265,263,155,108,0,2,58.935361216730044,52.90272512139249,64.71072977703257,10.353020009402968,-1.1648736037452245,21.71370959615249,27.22844262472981,0,0,265,53.321732634628255,54.349915120501535,false
+tiers,60+,over,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,60+,under,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,60+,home,60,122,122,77,45,0,0,63.114754098360656,54.274901515403194,71.1539200346846,10.421212522453773,-4.655535730123259,25.093699310014262,12.713879277393604,0,0,122,56.7768640412672,57.872035316582696,false
+tiers,60+,away,60,143,141,78,63,0,2,55.319148936170215,47.08029450555167,63.275856365852135,10.294016558394473,-6.4060963434561575,26.204996008831245,14.514563347336207,0,0,143,50.37399814784528,51.345029358809924,false
+tiers,recommendable,all,60,265,263,155,108,0,2,58.935361216730044,52.90272512139249,64.71072977703257,10.353020009402968,-1.1648736037452245,21.71370959615249,27.22844262472981,0,0,265,53.321732634628255,54.349915120501535,false
+tiers,recommendable,over,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,recommendable,under,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,recommendable,home,60,122,122,77,45,0,0,63.114754098360656,54.274901515403194,71.1539200346846,10.421212522453773,-4.655535730123259,25.093699310014262,12.713879277393604,0,0,122,56.7768640412672,57.872035316582696,false
+tiers,recommendable,away,60,143,141,78,63,0,2,55.319148936170215,47.08029450555167,63.275856365852135,10.294016558394473,-6.4060963434561575,26.204996008831245,14.514563347336207,0,0,143,50.37399814784528,51.345029358809924,false
+tiers,ev_pass,all,60,265,263,155,108,0,2,58.935361216730044,52.90272512139249,64.71072977703257,10.353020009402968,-1.1648736037452245,21.71370959615249,27.22844262472981,0,0,265,53.321732634628255,54.349915120501535,false
+tiers,ev_pass,over,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_pass,under,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_pass,home,60,122,122,77,45,0,0,63.114754098360656,54.274901515403194,71.1539200346846,10.421212522453773,-4.655535730123259,25.093699310014262,12.713879277393604,0,0,122,56.7768640412672,57.872035316582696,false
+tiers,ev_pass,away,60,143,141,78,63,0,2,55.319148936170215,47.08029450555167,63.275856365852135,10.294016558394473,-6.4060963434561575,26.204996008831245,14.514563347336207,0,0,143,50.37399814784528,51.345029358809924,false
+tiers,ev_filtered,all,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_filtered,over,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_filtered,under,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_filtered,home,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,ev_filtered,away,60,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,70+,all,70,176,174,99,75,0,2,56.896551724137936,49.467748351186955,64.02741760106399,6.13974812744334,-8.604750618389804,20.243410925547746,10.683161741751412,0,0,176,53.448286655793986,54.467096376513425,false
+tiers,70+,over,70,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,70+,under,70,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,70+,home,70,79,79,49,30,0,0,62.0253164556962,51.00187124119181,71.93350468055645,9.72952294421661,-9.591585435983232,27.569223141584743,7.686323125931121,0,0,79,56.731191983113135,57.811020580790476,false
+tiers,70+,away,70,97,95,50,45,0,2,52.63157894736842,42.68534816775178,62.37325786615872,3.154566964021352,-16.660503787008054,23.264222949344585,2.9968386158202844,0,0,97,50.77458025519381,51.74369418952492,false
+tiers,80+,all,80,81,80,48,32,0,1,60,49.045465002600395,70.03817240627868,10.969715721121357,-10.534345409990168,30.043571506685407,8.775772576897086,0,0,81,53.31452467516036,54.33251456955849,false
+tiers,80+,over,80,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,80+,under,80,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,80+,home,80,31,31,20,11,0,0,64.51612903225806,46.94795406033303,78.88334090883374,10.215764008086063,-19.475981267245427,40.486644697836084,3.1668868425066794,0,0,31,58.34971641665008,59.45037929715175,false
+tiers,80+,away,80,50,49,28,21,0,1,57.14285714285714,43.270493086881196,69.97668092380258,11.446705580388587,-16.052652021852584,38.461524326253446,5.608885734390408,0,0,50,50.192705795436744,51.15943843845066,false
+tiers,90+,all,90,27,27,17,10,0,0,62.96296296296296,44.22923440789071,78.46748704191924,14.037592577408587,-21.87861583764112,48.43430126815761,3.790149995900318,0,0,27,56.12825607414326,57.047946260004366,false
+tiers,90+,over,90,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,90+,under,90,0,0,0,0,0,0,0,0,0,0,0,0,0,,,0,,0,false
+tiers,90+,home,90,13,13,9,4,0,0,69.23076923076923,42.36934317473361,87.3192963469266,10.952338967041369,-30.498912790226157,49.91309591758885,1.423804065715378,0,0,13,62.55309926252737,63.55730773867971,false
+tiers,90+,away,90,14,14,8,6,0,0,57.14285714285714,32.59064457482749,78.61920109921633,16.902470929892427,-38.55800214822771,68.99226240203683,2.3663459301849397,0,0,14,50.16233025635798,51.00353917266298,false
+
+section,bucket_label,lo,hi,n,avg_confidence,realized_win_rate_pct
+calibration,0-59,0,60,135,49.79259259259259,57.77777777777777
+calibration,60-69,60,70,89,64.30337078651685,62.92134831460674
+calibration,70-79,70,80,94,74.02127659574468,54.25531914893617
+calibration,80-89,80,90,53,84.75471698113208,58.490566037735846
+calibration,90+,90,101,27,94.07407407407408,62.96296296296296
+
+section,label,n,win_rate_pct,roi_pct
+baselines,market_favorite,398,41.45728643216081,-13.011498694609127
+baselines,flat_bet_all,398,58.5427135678392,10.705266597458117
+baselines,coin_flip_ev,398,50,-4.880750599873958
+
+section,metric,value
+drawdown,n,398
+drawdown,final_cumulative_units,42.606961057883304
+drawdown,peak_units,49.47710576255017
+drawdown,max_drawdown_units,10.855022378897011
+
+section,metric,value
+sanity,calibrated_confidence_max_over,
+sanity,calibrated_confidence_max_under,
+sanity,false_edge_flagged_tiers,
+m3_gate,pass,false
+m3_gate,graded,263
+m3_gate,roi_pct,10.353020009402968
+m3_gate,roi_ci_lo_pct,-1.1648736037452245
+m3_gate,roi_ci_hi_pct,21.71370959615249
+m3_gate,avg_clv_pct,0
+m3_gate,pct_positive_clv_pct,0
+m3_gate,clv_n,265
+m3_gate,bonus_clv_positive,false
+m3_gate,reason,graded n=263 < 500 and ROI CI lower bound -1.16% <= 0%
+ev_gate_all,pass,false
+ev_gate_all,graded,263
+ev_gate_all,roi_pct,10.353020009402968
+ev_gate_all,roi_ci_lo_pct,-1.1648736037452245
+ev_gate_all,roi_ci_hi_pct,21.71370959615249
+ev_gate_all,avg_clv_pct,0
+ev_gate_all,pct_positive_clv_pct,0
+ev_gate_all,clv_n,265
+ev_gate_all,bonus_clv_positive,false
+ev_gate_all,reason,graded n=263 < 500 and ROI CI lower bound -1.16% <= 0%
+ev_gate_over,pass,false
+ev_gate_over,graded,0
+ev_gate_over,roi_pct,0
+ev_gate_over,roi_ci_lo_pct,0
+ev_gate_over,roi_ci_hi_pct,0
+ev_gate_over,avg_clv_pct,
+ev_gate_over,pct_positive_clv_pct,
+ev_gate_over,clv_n,0
+ev_gate_over,bonus_clv_positive,false
+ev_gate_over,reason,no graded picks in ev_pass slice
+ev_gate_under,pass,false
+ev_gate_under,graded,0
+ev_gate_under,roi_pct,0
+ev_gate_under,roi_ci_lo_pct,0
+ev_gate_under,roi_ci_hi_pct,0
+ev_gate_under,avg_clv_pct,
+ev_gate_under,pct_positive_clv_pct,
+ev_gate_under,clv_n,0
+ev_gate_under,bonus_clv_positive,false
+ev_gate_under,reason,no graded picks in ev_pass slice
+
+section,event_id,player_name,line,reason,detail
+excluded,d39ff9cf8baccfeb8924d92a8ef7f7f7,Pittsburgh Pirates @ Milwaukee Brewers,0,no_agreeing_side,projected=0 equals line
+
+section,event_id,player_id,player_name,commence_time,pick_side,line,entry_odds,entry_bookmaker,closing_odds,closing_bookmaker,confidence,confidence_pre_cap,projected_stat,win_prob,edge_vs_implied,ev_per_unit,unbettable_over_breakeven,context_completeness,actual_stat,hit,voided,void_reason,clv_pct,unit_profit
+picks,a06835fe8f4774ce140569b5ea8415bf,0,Boston Red Sox @ Baltimore Orioles,2026-04-25 16:06:00+00,home,0,-113,draftkings,-113,draftkings,68,68,1.04,,,,,0.75,-16,false,false,,0,-1
+picks,be47d30294aeb48696725d5dbe33216a,0,Seattle Mariners @ St. Louis Cardinals,2026-04-25 18:16:00+00,away,0,-139,lowvig,-139,lowvig,58,58,-0.56,,,,,0.75,2,true,false,,0,0.7194244604316546
+picks,76173d6fb6052a6141d640d803185876,0,Cleveland Guardians @ Toronto Blue Jays,2026-04-25 19:08:00+00,home,0,-141,betus,-141,betus,53,53,0.11999999999999966,,,,,0.875,2,true,false,,0,0.7092198581560284
+picks,5ea60d3f2b8cbb37652324db287ef423,0,Miami Marlins @ San Francisco Giants,2026-04-25 20:06:00+00,home,0,-105,betus,-105,betus,58,58,0.33999999999999986,,,,,0.75,4,true,false,,0,0.9523809523809523
+picks,31a831e88d76ddeb493400030e7b7881,0,Washington Nationals @ Chicago White Sox,2026-04-25 20:11:00+00,home,0,-133,betonlineag,-133,betonlineag,69,69,0.8500000000000005,,,,,0.75,-3,false,false,,0,-1
+picks,63131db348d369a559938449619679e9,0,Minnesota Twins @ Tampa Bay Rays,2026-04-25 20:11:00+00,away,0,117,betus,117,betus,41,41,-0.02999999999999936,,,,,0.875,-5,false,false,,0,-1
+picks,08936c478449a51f7fe13f0d1640984f,0,San Diego Padres @ Arizona Diamondbacks,2026-04-25 22:06:00+00,away,0,102,lowvig,102,lowvig,67,67,-1.6400000000000001,,,,,0.875,2,true,false,,0,1.02
+picks,637539eefe84344993cdd0d125a3e0fa,0,Athletics @ Texas Rangers,2026-04-25 23:06:00+00,away,0,112,lowvig,112,lowvig,61,61,-0.6200000000000001,,,,,0.875,-1,false,false,,0,-1
+picks,17a28912aee00dc855f859e2835228d9,0,Pittsburgh Pirates @ Milwaukee Brewers,2026-04-25 23:11:00+00,away,0,125,lowvig,125,lowvig,64,64,-0.8700000000000006,,,,,0.875,3,true,false,,0,1.25
+picks,b266f49858dc754c6db869ecff6d52d5,0,New York Yankees @ Houston Astros,2026-04-25 23:11:00+00,away,0,-150,betus,-150,betus,84,84,-1.87,,,,,0.875,5,true,false,,0,0.6666666666666666
+picks,d8627b6c88e823c4e5eadd5bb0041769,0,Los Angeles Angels @ Kansas City Royals,2026-04-25 23:11:00+00,away,0,128,betrivers,128,betrivers,84,84,-2.0300000000000002,,,,,0.75,-11,false,false,,0,-1
+picks,0230d646bd78d15e54bbc955a0e7d747,0,Chicago Cubs @ Los Angeles Dodgers,2026-04-25 23:16:00+00,away,0,114,betrivers,114,betrivers,89,89,-2.7800000000000002,,,,,0.75,-8,false,false,,0,-1
+picks,4231dc4bed4b8aac32157bce916837c9,0,Philadelphia Phillies @ Atlanta Braves,2026-04-25 23:16:00+00,home,0,-130,betus,-130,betus,76,76,1.4299999999999997,,,,,0.75,-3,false,false,,0,-1
+picks,923d805add7039794f2363537d65f6c3,0,Detroit Tigers @ Cincinnati Reds,2026-04-25 23:16:00+00,away,0,-106,lowvig,-106,lowvig,64,64,-0.9500000000000002,,,,,0.75,-7,false,false,,0,-1
+picks,7ec692536ced485b4f6b8d0e30b4fef8,0,Boston Red Sox @ Baltimore Orioles,2026-04-26 17:36:00+00,away,0,123,betrivers,123,betrivers,65,65,-0.9499999999999997,,,,,0.625,2,true,false,,0,1.23
+picks,c26a6d846d17f3b6d042903c4207d68f,0,Philadelphia Phillies @ Atlanta Braves,2026-04-26 17:36:00+00,home,0,-207,betonlineag,-207,betonlineag,98,98,3.2099999999999995,,,,,0.75,4,true,false,,0,0.4830917874396135
+picks,f98073ff54e69128fe75a3c5776fb520,0,Cleveland Guardians @ Toronto Blue Jays,2026-04-26 17:38:00+00,home,0,-125,betus,-125,betus,79,79,1.3200000000000003,,,,,0.875,2,true,false,,0,0.8
+picks,4bfe574e7c5269d65b3a9936e5793ada,0,Detroit Tigers @ Cincinnati Reds,2026-04-26 17:40:50+00,home,0,-105,fanatics,-105,fanatics,66,66,0.6099999999999999,,,,,0.75,-5,false,false,,0,-1
+picks,3b5d0ef6c7e43cabe937c7a9f10067e9,0,Colorado Rockies @ New York Mets,2026-04-26 17:41:00+00,home,0,-222,mybookieag,-222,mybookieag,59,59,0.8399999999999999,,,,,0.75,-2,false,false,,0,-1
+picks,cc556f65adbf4288f6798535aeee908d,0,Minnesota Twins @ Tampa Bay Rays,2026-04-26 17:41:00+00,home,0,-143,betus,-143,betus,67,67,0.20999999999999996,,,,,0.875,2,true,false,,0,0.6993006993006993
+picks,1e288a31989294698b1a4901c9fda486,0,Washington Nationals @ Chicago White Sox,2026-04-26 18:11:00+00,away,0,106,betus,106,betus,65,65,-0.33000000000000007,,,,,0.75,1,true,false,,0,1.06
+picks,b5cfe25f8464fa7df106032a0f8176cb,0,New York Yankees @ Houston Astros,2026-04-26 18:11:00+00,home,0,115,williamhill_us,115,williamhill_us,45,45,0.21999999999999975,,,,,0.875,3,true,false,,0,1.15
+picks,70d642527538cc1ee9ace67b17830b01,0,Seattle Mariners @ St. Louis Cardinals,2026-04-26 18:16:00+00,away,0,-127,betus,-127,betus,55,55,-0.5700000000000003,,,,,0.75,1,true,false,,0,0.7874015748031497
+picks,d8f901c0fc526d986a568d86c64039d5,0,Athletics @ Texas Rangers,2026-04-26 18:36:00+00,home,0,-110,betus,-110,betus,59,59,0.47999999999999954,,,,,0.875,-1,false,false,,0,-1
+picks,02dcaedecc84abb3770b936306df02d9,0,San Diego Padres @ Arizona Diamondbacks,2026-04-26 20:06:00+00,away,0,-130,betus,-130,betus,78,78,-2.47,,,,,0.875,-5,false,false,,0,-1
+picks,f837a42730f5b62ac990bb62b5c144a3,0,Miami Marlins @ San Francisco Giants,2026-04-26 20:06:00+00,home,0,-118,betus,-118,betus,70,70,0.3599999999999999,,,,,0.75,3,true,false,,0,0.847457627118644
+picks,a9e65cafbd1db60c65e945dc6e13fcdf,0,Los Angeles Angels @ Kansas City Royals,2026-04-26 20:10:00+00,home,0,-109,betus,-109,betus,67,67,0.38000000000000034,,,,,0.75,2,true,false,,0,0.9174311926605505
+picks,1461fb537b3598f4090a3bd48ac75aa0,0,Chicago Cubs @ Los Angeles Dodgers,2026-04-26 20:11:00+00,away,0,107,mybookieag,107,mybookieag,36,36,-0.14999999999999947,,,,,0.75,-6,false,false,,0,-1
+picks,0ac87629ee3c61883fb75f522f9e964d,0,Colorado Rockies @ New York Mets,2026-04-26 21:11:00+00,home,0,-155,betmgm,-155,betmgm,59,59,0.8399999999999999,,,,,0.75,-2,false,false,,0,-1
+picks,1a4159875887b1b0c4fe65b367df29a7,0,Tampa Bay Rays @ Cleveland Guardians,2026-04-27 22:11:00+00,home,0,-131,betonlineag,-131,betonlineag,61,61,0.9700000000000002,,,,,0.75,-1,false,false,,0,-1
+picks,4231e596c0ccb42a62c16bf46b6854a6,0,St. Louis Cardinals @ Pittsburgh Pirates,2026-04-27 22:41:00+00,home,0,-115,betonlineag,-115,betonlineag,62,62,1.4000000000000004,,,,,0.75,-2,false,false,,0,-1
+picks,eb2a21d7a425f6a975d1eae9da93e4c7,0,Boston Red Sox @ Toronto Blue Jays,2026-04-27 23:08:00+00,home,0,-127,betonlineag,-127,betonlineag,77,77,2.06,,,,,0.875,-5,false,false,,0,-1
+picks,aede5ca829ddcbc5ee6726a1c0a03117,0,Los Angeles Angels @ Chicago White Sox,2026-04-27 23:40:00+00,away,0,101,betonlineag,101,betonlineag,75,75,-2.3,,,,,0.75,-1,false,false,,0,-1
+picks,0b45fce085ac92932833ba131d0e395d,0,Seattle Mariners @ Minnesota Twins,2026-04-27 23:41:00+00,home,0,113,betonlineag,113,betonlineag,46,46,0.41000000000000014,,,,,0.75,7,true,false,,0,1.13
+picks,371ff765cd40348073b510b2f45d81e9,0,New York Yankees @ Texas Rangers,2026-04-28 00:06:00+00,away,0,-155,lowvig,-155,lowvig,76,76,-0.48999999999999977,,,,,0.875,1,true,false,,0,0.6451612903225806
+picks,717163f13d80f9495ad5b88b9396ca1a,0,Chicago Cubs @ San Diego Padres,2026-04-28 01:41:00+00,away,0,105,lowvig,105,lowvig,80,80,-1.7399999999999998,,,,,0.75,5,true,false,,0,1.05
+picks,65f2df473a540a92e7f974a290ed36fb,0,Miami Marlins @ Los Angeles Dodgers,2026-04-28 02:11:00+00,home,0,-275,lowvig,-275,lowvig,90,90,1.9999999999999996,,,,,0.75,-1,false,false,,0,-1
+picks,b2b5566d4285c0ab7ca9f78f4d1a6de7,0,Tampa Bay Rays @ Cleveland Guardians,2026-04-28 22:11:00+00,away,0,113,betus,113,betus,75,75,-0.5,,,,,0.75,1,true,false,,0,1.13
+picks,3c9ebf868da49e615e589bd0d839b640,0,Houston Astros @ Baltimore Orioles,2026-04-28 22:36:00+00,away,0,119,lowvig,119,lowvig,84,84,-1.83,,,,,0.625,-2,false,false,,0,-1
+picks,5a82b72d720f0eb369a8aaea7d673273,0,St. Louis Cardinals @ Pittsburgh Pirates,2026-04-28 22:41:00+00,home,0,-148,betus,-148,betus,73,73,2.22,,,,,0.875,-4,false,false,,0,-1
+picks,781a040a058473c689200f515770de83,0,Colorado Rockies @ Cincinnati Reds,2026-04-28 22:41:00+00,home,0,-187,betonlineag,-187,betonlineag,58,58,0.9299999999999997,,,,,0.875,5,true,false,,0,0.5347593582887701
+picks,ca628e132f0ee9d811d1967c7062a0a5,0,San Francisco Giants @ Philadelphia Phillies,2026-04-28 22:41:00+00,away,0,138,fanduel,138,fanduel,79,79,-0.7999999999999998,,,,,0.875,-7,false,false,,0,-1
+picks,5a48e526a92801449cb2aff612e11b5f,0,Boston Red Sox @ Toronto Blue Jays,2026-04-28 23:08:00+00,away,0,-101,betus,-101,betus,75,75,-0.3999999999999999,,,,,0.875,-3,false,false,,0,-1
+picks,fbf763600d3ccdeb10333812e326159f,0,Washington Nationals @ New York Mets,2026-04-28 23:11:00+00,home,0,-175,lowvig,-175,lowvig,61,61,0.4900000000000002,,,,,0.875,8,true,false,,0,0.5714285714285714
+picks,6015a24988595d49a325507fa8543243,0,Detroit Tigers @ Atlanta Braves,2026-04-28 23:16:00+00,home,0,-120,betus,-120,betus,67,67,0.8500000000000001,,,,,0.875,3,true,false,,0,0.8333333333333334
+picks,be00405883c8d7ad0c220c8af4c08a53,0,Los Angeles Angels @ Chicago White Sox,2026-04-28 23:40:00+00,away,0,-125,betus,-125,betus,64,64,-0.5300000000000002,,,,,0.875,-3,false,false,,0,-1
+picks,72f79061defb394c2e533967c55edb30,0,Arizona Diamondbacks @ Milwaukee Brewers,2026-04-28 23:41:00+00,home,0,-128,betus,-128,betus,77,77,1.5199999999999996,,,,,0.875,11,true,false,,0,0.78125
+picks,7401e0a3694fdfd518a0b949987e61b4,0,Seattle Mariners @ Minnesota Twins,2026-04-28 23:41:00+00,home,0,108,lowvig,108,lowvig,58,58,0.9200000000000008,,,,,0.875,-6,false,false,,0,-1
+picks,bb7e51c3ed5e76ca658d46e6b586c0fa,0,New York Yankees @ Texas Rangers,2026-04-29 00:06:00+00,away,0,-120,fanatics,-120,fanatics,82,82,-1.5,,,,,0.875,-3,false,false,,0,-1
+picks,630b5c008c0741c01c32f890068fa598,0,Kansas City Royals @ Athletics,2026-04-29 01:41:00+00,away,0,-103,lowvig,-103,lowvig,77,77,-0.9900000000000002,,,,,0.75,-3,false,false,,0,-1
+picks,d221d6de333533ced3489663067a588d,0,Chicago Cubs @ San Diego Padres,2026-04-29 01:41:00+00,away,0,-114,betrivers,-114,betrivers,83,83,-1.5199999999999996,,,,,0.875,1,true,false,,0,0.8771929824561403
+picks,54e35854b4573f13cd3a3491cd75cfa1,0,Miami Marlins @ Los Angeles Dodgers,2026-04-29 02:11:00+00,home,0,-260,betus,-260,betus,75,75,1.0499999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,abd0114b226ed04c6bd4daac824f5241,0,Los Angeles Angels @ Chicago White Sox,2026-04-29 17:11:00+00,home,0,105,betrivers,105,betrivers,75,75,1.0999999999999996,,,,,0.875,1,true,false,,0,1.05
+picks,3bf2df80de60f0bf82343a646a188fb2,0,Seattle Mariners @ Minnesota Twins,2026-04-29 17:41:00+00,home,0,121,betonlineag,121,betonlineag,37,37,0.0600000000000005,,,,,0.875,-2,false,false,,0,-1
+picks,de142860d352b18879f2382e67ab3e2e,0,Tampa Bay Rays @ Cleveland Guardians,2026-04-29 18:31:00+00,home,0,-111,betus,-111,betus,35,35,0.1499999999999999,,,,,0.875,2,true,false,,0,0.9009009009009009
+picks,af3e6454c0293bcd38866af00fb22cc1,0,New York Yankees @ Texas Rangers,2026-04-29 18:36:00+00,away,0,-112,betus,-112,betus,82,82,-1.5,,,,,0.875,-3,false,false,,0,-1
+picks,c0a29accc7d25369ec83132f9e4034da,0,Boston Red Sox @ Toronto Blue Jays,2026-04-29 19:08:00+00,home,0,-115,betrivers,-115,betrivers,63,63,0.2599999999999998,,,,,0.875,7,true,false,,0,0.8695652173913043
+picks,80411c6402609069c4467ccdcb494273,0,Miami Marlins @ Los Angeles Dodgers,2026-04-29 19:11:00+00,home,0,-223,betonlineag,-223,betonlineag,75,75,1.0499999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,dbde00d498a1f217c0ee8968123b069f,0,Chicago Cubs @ San Diego Padres,2026-04-29 20:11:00+00,away,0,102,betus,102,betus,83,83,-1.5199999999999996,,,,,0.875,1,true,false,,0,1.02
+picks,0b82fc67da784ef2d4225438c8e33b6a,0,San Francisco Giants @ Philadelphia Phillies,2026-04-29 22:41:00+00,home,0,-148,fanduel,-148,fanduel,63,63,0.71,,,,,0.875,1,true,false,,0,0.6756756756756757
+picks,7760595a4e43ffc332f44c4146b7c5ef,0,Colorado Rockies @ Cincinnati Reds,2026-04-29 22:41:00+00,away,0,138,betrivers,138,betrivers,61,61,-0.02999999999999936,,,,,0.875,11,true,false,,0,1.38
+picks,e837e7b2a838ec74034cfbc99b119fb2,0,St. Louis Cardinals @ Pittsburgh Pirates,2026-04-29 22:41:00+00,away,0,114,draftkings,114,draftkings,68,68,-0.0699999999999994,,,,,0.875,1,true,false,,0,1.14
+picks,8fd17a4be77506eba9c4446e52b3ce71,0,Washington Nationals @ New York Mets,2026-04-29 23:11:00+00,away,0,140,betmgm,140,betmgm,86,86,-1.77,,,,,0.875,12,true,false,,0,1.4
+picks,68d4de1e01d8567e0d2e4a137d4b254b,0,Detroit Tigers @ Atlanta Braves,2026-04-29 23:16:00+00,home,0,126,williamhill_us,126,williamhill_us,73,73,1.0199999999999996,,,,,0.875,1,true,false,,0,1.26
+picks,dbb1f14488d5ad0f783dce845101d4c1,0,Arizona Diamondbacks @ Milwaukee Brewers,2026-04-29 23:41:00+00,away,0,114,draftkings,114,draftkings,67,67,-1.2000000000000002,,,,,0.875,4,true,false,,0,1.14
+picks,1893671667b0416333a1bb815e98c138,0,Kansas City Royals @ Athletics,2026-04-30 01:41:00+00,home,0,-115,betus,-115,betus,72,72,1.29,,,,,0.75,3,true,false,,0,0.8695652173913043
+picks,0abd6580f0a4c91cb98db1774d582be8,0,Detroit Tigers @ Atlanta Braves,2026-04-30 16:16:00+00,home,0,-122,fanduel,-122,fanduel,70,70,0.9300000000000002,,,,,0.875,-3,false,false,,0,-1
+picks,6f84f4f2e016877657f3d3ae23ce6760,0,Houston Astros @ Baltimore Orioles,2026-04-30 16:36:00+00,away,0,117,betonlineag,117,betonlineag,85,85,-2.6500000000000004,,,,,0.75,-7,false,false,,0,-1
+picks,75e319bc9e7b409bff4aedc4aeb21051,0,San Francisco Giants @ Philadelphia Phillies,2026-04-30 16:36:00+00,home,0,-144,fanduel,-144,fanduel,76,76,1.2700000000000005,,,,,0.875,1,true,false,,0,0.6944444444444444
+picks,a43beaa62a7673615a11856370287f3b,0,St. Louis Cardinals @ Pittsburgh Pirates,2026-04-30 16:36:00+00,home,0,-225,betmgm,-225,betmgm,45,45,0.79,,,,,0.875,-5,false,false,,0,-1
+picks,c229774bb80147623f1c232bad890e16,0,Colorado Rockies @ Cincinnati Reds,2026-04-30 16:42:00+00,home,0,-154,betonlineag,-154,betonlineag,39,39,0.5099999999999998,,,,,0.875,2,true,false,,0,0.6493506493506493
+picks,d1e8ca71cf93b52520848723fb9b56a3,0,Washington Nationals @ New York Mets,2026-04-30 17:11:00+00,away,0,170,betmgm,170,betmgm,69,69,-0.35999999999999943,,,,,0.875,1,true,false,,0,1.7
+picks,e5babd0fb427836d74e73a544af17f39,0,Arizona Diamondbacks @ Milwaukee Brewers,2026-04-30 17:41:00+00,home,0,-120,betmgm,-120,betmgm,66,66,1.04,,,,,0.875,12,true,false,,0,0.8333333333333334
+picks,c31726958fc1b67f38d3673aa8931ab7,0,Kansas City Royals @ Athletics,2026-04-30 19:06:00+00,home,0,-120,betus,-120,betus,72,72,1.29,,,,,0.75,3,true,false,,0,0.8333333333333334
+picks,d90908eede84c449de24cbd9b202bcf7,0,Houston Astros @ Baltimore Orioles,2026-04-30 19:46:00+00,away,0,115,betus,115,betus,85,85,-2.6500000000000004,,,,,0.75,-7,false,false,,0,-1
+picks,ed214f686a500c098b505d0dd09f23cd,0,San Francisco Giants @ Philadelphia Phillies,2026-04-30 21:36:00+00,home,0,-140,betus,-140,betus,76,76,1.2700000000000005,,,,,0.875,1,true,false,,0,0.7142857142857143
+picks,788f4dc2e6058c5b7725dafd62fd9b9d,0,Toronto Blue Jays @ Minnesota Twins,2026-04-30 23:41:00+00,away,0,-128,betus,-128,betus,66,66,-0.8500000000000001,,,,,0.875,-6,false,false,,0,-1
+picks,32248ad614446ff9ecba4120375bb93d,0,Arizona Diamondbacks @ Chicago Cubs,2026-05-01 18:21:00+00,home,0,-152,fanduel,-152,fanduel,64,64,1.5300000000000002,,,,,0.875,1,true,false,,0,0.6578947368421053
+picks,eb5e5ee05cf9e2c9e3df8f51d9835b52,0,Texas Rangers @ Detroit Tigers,2026-05-01 22:41:00+00,away,0,103,draftkings,103,draftkings,60,60,-0.10000000000000053,,,,,0.875,1,true,false,,0,1.03
+picks,a469364d09b62046dd2c9d0acf413e9b,0,Milwaukee Brewers @ Washington Nationals,2026-05-01 22:46:00+00,away,0,-150,lowvig,-150,lowvig,79,79,-1.7599999999999998,,,,,0.875,5,true,false,,0,0.6666666666666666
+picks,f9bc114c35828121793d26f1d0d40338,0,Cincinnati Reds @ Pittsburgh Pirates,2026-05-01 22:46:00+00,home,0,-128,betus,-128,betus,75,75,1.8899999999999997,,,,,0.875,8,true,false,,0,0.78125
+picks,f451d4c00cab2b041332088186c10c3c,0,Baltimore Orioles @ New York Yankees,2026-05-01 23:06:00+00,home,0,-180,betus,-180,betus,51,51,0.09999999999999964,,,,,0.875,5,true,false,,0,0.5555555555555556
+picks,224916189ace451ec4c3a758ac5d3b0d,0,Philadelphia Phillies @ Miami Marlins,2026-05-01 23:11:00+00,away,0,-111,lowvig,-111,lowvig,58,58,-0.5,,,,,0.875,1,true,false,,0,0.9009009009009009
+picks,5c57e8c626d8c6627101848a75f83307,0,San Francisco Giants @ Tampa Bay Rays,2026-05-01 23:11:00+00,home,0,-135,betus,-135,betus,56,56,0.16999999999999993,,,,,0.875,3,true,false,,0,0.7407407407407407
+picks,71bed1a7ce55f688df69c714d2376fe7,0,Houston Astros @ Boston Red Sox,2026-05-01 23:11:00+00,home,0,-116,lowvig,-116,lowvig,73,73,1,,,,,0.875,2,true,false,,0,0.8620689655172413
+picks,d4c3dbfeab9d45e50dea2e86b3da477a,0,Toronto Blue Jays @ Minnesota Twins,2026-05-02 00:11:00+00,away,0,-103,betus,-103,betus,59,59,-0.5500000000000003,,,,,0.875,7,true,false,,0,0.970873786407767
+picks,4331dd522336be02de34b61018be0cc9,0,Los Angeles Dodgers @ St. Louis Cardinals,2026-05-02 00:16:00+00,home,0,155,betrivers,155,betrivers,89,89,2.0699999999999994,,,,,0.875,1,true,false,,0,1.55
+picks,6f2e9ec22774fd2d53ca6ed64f1ec7e5,0,Atlanta Braves @ Colorado Rockies,2026-05-02 00:41:00+00,away,0,-175,betonlineag,-175,betonlineag,62,62,-1.54,,,,,0.875,8,true,false,,0,0.5714285714285714
+picks,99cbbfbfd9560db3b77799bea7dfc475,0,New York Mets @ Los Angeles Angels,2026-05-02 01:39:00+00,home,0,100,betrivers,100,betrivers,46,46,0.17999999999999972,,,,,0.875,1,true,false,,0,1
+picks,153461ac6d07b9cf3c047b0052a27400,0,Cleveland Guardians @ Athletics,2026-05-02 01:41:00+00,away,0,-113,lowvig,-113,lowvig,44,44,-0.14000000000000057,,,,,0.625,8,true,false,,0,0.8849557522123894
+picks,4c46549aafa11d0400c4c8c87e755dda,0,Chicago White Sox @ San Diego Padres,2026-05-02 01:41:00+00,home,0,-142,betus,-142,betus,50,50,0.9300000000000002,,,,,0.75,-4,false,false,,0,-1
+picks,a69ddb925b6880022ed2ad0e0f2787fd,0,Kansas City Royals @ Seattle Mariners,2026-05-02 01:46:00+00,home,0,-137,mybookieag,-137,mybookieag,57,57,0.6400000000000001,,,,,0.75,-1,false,false,,0,-1
+picks,e9452f8c1e4f22f3d7ff43170252ddfe,0,Baltimore Orioles @ New York Yankees,2026-05-02 17:40:00+00,home,0,-168,betonlineag,-168,betonlineag,60,60,0.6899999999999995,,,,,0.75,5,true,false,,0,0.5952380952380952
+picks,c0137f0b36b1eea6d91260c926fe437e,0,Toronto Blue Jays @ Minnesota Twins,2026-05-02 18:11:00+00,away,0,-132,fanduel,-132,fanduel,59,59,-0.5500000000000003,,,,,0.75,7,true,false,,0,0.7575757575757576
+picks,2a3a64708f7d4e8c0f5ee57ea757d07c,0,Arizona Diamondbacks @ Chicago Cubs,2026-05-02 18:21:00+00,home,0,-157,betonlineag,-157,betonlineag,94,94,3.59,,,,,0.75,2,true,false,,0,0.6369426751592356
+picks,7bda241ffa570175ee12fdbd71a4b3c9,0,Cincinnati Reds @ Pittsburgh Pirates,2026-05-02 20:05:00+00,away,0,117,betonlineag,117,betonlineag,43,43,-0.29000000000000004,,,,,0.75,-10,false,false,,0,-1
+picks,446e036e67d7b97011f14ad76cab4645,0,Cleveland Guardians @ Athletics,2026-05-02 20:06:00+00,away,0,123,betus,123,betus,44,44,-0.16999999999999993,,,,,0.625,8,true,false,,0,1.23
+picks,7dd5007f59f84948d08db8b63132cdec,0,Milwaukee Brewers @ Washington Nationals,2026-05-02 20:06:00+00,away,0,-125,betus,-125,betus,77,77,-1.17,,,,,0.75,3,true,false,,0,0.8
+picks,27aba50ebc7d419dd836a458e12b2faf,0,Houston Astros @ Boston Red Sox,2026-05-02 20:11:00+00,away,0,125,lowvig,125,lowvig,72,72,-0.18999999999999995,,,,,0.75,3,true,false,,0,1.25
+picks,ad24319e5623a8196399f98734f3be87,0,Philadelphia Phillies @ Miami Marlins,2026-05-02 20:11:00+00,home,0,-129,betrivers,-129,betrivers,73,73,1.1599999999999997,,,,,0.875,4,true,false,,0,0.7751937984496124
+picks,a5c3ef5e48ad39a2a1e04b385a33f7f0,0,San Francisco Giants @ Tampa Bay Rays,2026-05-02 22:11:00+00,home,0,102,lowvig,102,lowvig,53,53,0.019999999999999574,,,,,0.875,4,true,false,,0,1.02
+picks,3d047ad3bc82a8e990a4aeafa447568f,0,Los Angeles Dodgers @ St. Louis Cardinals,2026-05-02 23:16:00+00,home,0,119,betonlineag,119,betonlineag,89,89,2.0699999999999994,,,,,0.75,1,true,false,,0,1.19
+picks,8a401fa09b77692deee8ed01cd058b3d,0,Texas Rangers @ Detroit Tigers,2026-05-02 23:16:00+00,home,0,-127,betus,-127,betus,51,51,0.48999999999999977,,,,,0.75,4,true,false,,0,0.7874015748031497
+picks,d5dfcb82d0a54536cff3e16f1858d180,0,Atlanta Braves @ Colorado Rockies,2026-05-03 00:11:00+00,away,0,-198,betonlineag,-198,betonlineag,56,56,-0.1200000000000001,,,,,0.75,5,true,false,,0,0.5050505050505051
+picks,826eb43891b621623989f26eb6deccab,0,Chicago White Sox @ San Diego Padres,2026-05-03 00:41:00+00,home,0,-168,betus,-168,betus,40,40,0.6100000000000003,,,,,0.75,1,true,false,,0,0.5952380952380952
+picks,b23ef59a61f5e3a71d93b5ae6eed4786,0,New York Mets @ Los Angeles Angels,2026-05-03 01:39:00+00,home,0,108,fanduel,108,fanduel,52,52,0.6400000000000001,,,,,0.75,-4,false,false,,0,-1
+picks,383d74609e0b5f77bfaf7eaa55477b31,0,Kansas City Royals @ Seattle Mariners,2026-05-03 01:41:00+00,away,0,122,betus,122,betus,58,58,-0.45999999999999996,,,,,0.75,3,true,false,,0,1.22
+picks,341da475ed0042be75b5bc44221f8161,0,Toronto Blue Jays @ Minnesota Twins,2026-05-03 16:46:00+00,away,0,-104,betonlineag,-104,betonlineag,75,75,-0.5900000000000003,,,,,0.75,-1,false,false,,0,-1
+picks,092612a571aeb504211ec7f4950924e3,0,Baltimore Orioles @ New York Yankees,2026-05-03 17:36:00+00,home,0,-273,betus,-273,betus,92,92,2.5300000000000002,,,,,0.875,8,true,false,,0,0.3663003663003663
+picks,1c691cd82a568ab8542e6672e53d0125,0,Milwaukee Brewers @ Washington Nationals,2026-05-03 17:36:00+00,away,0,-145,betmgm,-145,betmgm,60,60,-0.5899999999999999,,,,,0.875,-1,false,false,,0,-1
+picks,b7ecafff68e95721e956a1a960acdd98,0,Cincinnati Reds @ Pittsburgh Pirates,2026-05-03 17:36:00+00,home,0,-113,betus,-113,betus,59,59,0.1299999999999999,,,,,0.875,1,true,false,,0,0.8849557522123894
+picks,c07320ad7cda17703d445ae8f3b85376,0,Houston Astros @ Boston Red Sox,2026-05-03 17:39:00+00,home,0,-167,betrivers,-167,betrivers,50,50,0.25,,,,,0.75,-2,false,false,,0,-1
+picks,4c6f75a0f0a2e467d79983253235c3a9,0,Philadelphia Phillies @ Miami Marlins,2026-05-03 17:41:00+00,away,0,-136,betus,-136,betus,47,47,-0.1200000000000001,,,,,0.875,5,true,false,,0,0.7352941176470589
+picks,83a816db7e0b75a4f8d0b9a486ad3113,0,San Francisco Giants @ Tampa Bay Rays,2026-05-03 17:41:00+00,home,0,-117,lowvig,-117,lowvig,82,82,1.42,,,,,0.875,1,true,false,,0,0.8547008547008547
+picks,8ca3a46477683553d785413b73444311,0,Los Angeles Dodgers @ St. Louis Cardinals,2026-05-03 18:16:00+00,away,0,-125,lowvig,-125,lowvig,59,59,-1.33,,,,,0.75,3,true,false,,0,0.8
+picks,b7ad1d7b238b8062d64011d24d284989,0,Arizona Diamondbacks @ Chicago Cubs,2026-05-03 18:21:00+00,home,0,-153,betus,-153,betus,82,82,1.7599999999999998,,,,,0.75,4,true,false,,0,0.6535947712418301
+picks,9e48c32033c5db8cdc98fcd3ecdc2aa2,0,Atlanta Braves @ Colorado Rockies,2026-05-03 19:11:00+00,away,0,-137,betus,-137,betus,56,56,-0.1200000000000001,,,,,0.75,5,true,false,,0,0.7299270072992701
+picks,ba204fb233ca7bb67ee89a3dd893e188,0,Cleveland Guardians @ Athletics,2026-05-03 20:06:00+00,away,0,-125,betus,-125,betus,73,73,-0.6599999999999997,,,,,0.625,-6,false,false,,0,-1
+picks,257b715ef1fa8b967fb27a46de2d3021,0,New York Mets @ Los Angeles Angels,2026-05-03 20:08:00+00,home,0,118,betonlineag,118,betonlineag,52,52,0.6400000000000001,,,,,0.75,-4,false,false,,0,-1
+picks,60f28cce3cfa86c53a2a227c6532203a,0,Chicago White Sox @ San Diego Padres,2026-05-03 20:11:00+00,home,0,-155,betonlineag,-155,betonlineag,40,40,0.6100000000000003,,,,,0.75,1,true,false,,0,0.6451612903225806
+picks,e05ec850dc5af5d56ee55a4acb831ae9,0,Kansas City Royals @ Seattle Mariners,2026-05-03 20:11:00+00,away,0,100,fanduel,100,fanduel,58,58,-0.45999999999999996,,,,,0.75,3,true,false,,0,1
+picks,b713b3ae079ed7d21c2a9f7edb043f6b,0,Texas Rangers @ Detroit Tigers,2026-05-03 23:21:00+00,home,0,-118,betmgm,-118,betmgm,54,54,0.6699999999999999,,,,,0.75,6,true,false,,0,0.847457627118644
+picks,80044e6fc3586ebcf9f4df924a6f9519,0,New York Mets @ Colorado Rockies,2026-05-04 21:41:00+00,home,0,121,betonlineag,121,betonlineag,38,38,0.5699999999999998,,,,,0.75,-2,false,false,,0,-1
+picks,42cd2c9d9860ded679366dcdfe136ea7,0,Boston Red Sox @ Detroit Tigers,2026-05-04 22:11:00+00,away,0,-115,mybookieag,-115,mybookieag,51,51,-0.6200000000000001,,,,,0.75,1,true,false,,0,0.8695652173913043
+picks,724956d85946d94ae169ea8b4f5299b3,0,Toronto Blue Jays @ Tampa Bay Rays,2026-05-04 22:41:00+00,home,0,-122,betus,-122,betus,71,71,0.3200000000000003,,,,,0.875,4,true,false,,0,0.819672131147541
+picks,a8b6869ab87cab44f73e7d8fe9c435f5,0,Philadelphia Phillies @ Miami Marlins,2026-05-04 22:41:00+00,home,0,-108,betus,-108,betus,74,74,1.0499999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,1be0149112c46951b21b30f3277a53dd,0,Baltimore Orioles @ New York Yankees,2026-05-04 23:06:00+00,home,0,-205,lowvig,-205,lowvig,86,86,1.7400000000000002,,,,,0.75,11,true,false,,0,0.4878048780487805
+picks,25d5af851ff059eb0a390e1f5908f926,0,Cincinnati Reds @ Chicago Cubs,2026-05-04 23:11:00+00,home,0,-208,mybookieag,-208,mybookieag,75,75,1.2799999999999998,,,,,0.75,1,true,false,,0,0.4807692307692308
+picks,286159b7ccc29dea1805a4ce6218be0e,0,Cleveland Guardians @ Kansas City Royals,2026-05-04 23:41:00+00,home,0,-111,betus,-111,betus,72,72,0.39000000000000057,,,,,0.75,4,true,false,,0,0.9009009009009009
+picks,6768391de7087c252e7f2dae8ec9bd0b,0,Milwaukee Brewers @ St. Louis Cardinals,2026-05-04 23:46:00+00,away,0,-126,betus,-126,betus,71,71,-1.6500000000000004,,,,,0.75,-3,false,false,,0,-1
+picks,29183afced82bafdf09738bf1fa00600,0,Los Angeles Dodgers @ Houston Astros,2026-05-05 00:11:00+00,away,0,-190,betus,-190,betus,64,64,-0.47999999999999954,,,,,0.875,-1,false,false,,0,-1
+picks,e07f1907da5ba8bebef841815c5cd9a1,0,Chicago White Sox @ Los Angeles Angels,2026-05-05 01:39:00+00,away,0,135,betrivers,135,betrivers,81,81,-1.2799999999999998,,,,,0.75,-1,false,false,,0,-1
+picks,6afb68c3e91d245e69a9eec05286476d,0,Atlanta Braves @ Seattle Mariners,2026-05-05 01:41:00+00,away,0,122,betus,122,betus,87,87,-1.3499999999999996,,,,,0.75,1,true,false,,0,1.22
+picks,a6a446c7235d0fcd72e04a211f04e87a,0,San Diego Padres @ San Francisco Giants,2026-05-05 01:46:00+00,away,0,-128,betus,-128,betus,38,38,-0.28000000000000025,,,,,0.75,5,true,false,,0,0.78125
+picks,692aeb05691cac285d594067d9c4a24e,0,Baltimore Orioles @ Miami Marlins,2026-05-05 22:41:00+00,home,0,-137,betonlineag,-137,betonlineag,70,70,0.8099999999999996,,,,,0.875,-2,false,false,,0,-1
+picks,71ef508a8cbaa38a8e77f003e58f92aa,0,Boston Red Sox @ Detroit Tigers,2026-05-05 22:41:00+00,home,0,-142,betonlineag,-142,betonlineag,50,50,0.19999999999999973,,,,,0.75,-7,false,false,,0,-1
+picks,b30fec61cfbf1f3dfe4bb5e70a150f48,0,Athletics @ Philadelphia Phillies,2026-05-05 22:41:00+00,home,0,-200,betmgm,-200,betmgm,69,69,0.41000000000000014,,,,,0.75,8,true,false,,0,0.5
+picks,d0147770323bf6c913a672f31ac49256,0,Toronto Blue Jays @ Tampa Bay Rays,2026-05-05 22:41:00+00,away,0,124,betus,124,betus,46,46,-0.2599999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,d1bb060e1d2465b94fde23b308c82f30,0,Minnesota Twins @ Washington Nationals,2026-05-05 22:46:00+00,away,0,-112,lowvig,-112,lowvig,54,54,-0.9900000000000002,,,,,0.875,8,true,false,,0,0.8928571428571429
+picks,642027e0dc5d6fe0e383f9c8b6453d6c,0,Texas Rangers @ New York Yankees,2026-05-05 23:06:00+00,home,0,-126,fanduel,-126,fanduel,55,55,0.5699999999999998,,,,,0.875,3,true,false,,0,0.7936507936507936
+picks,7cdd4e1d6b845aedaf71e33a78a0f164,0,Cincinnati Reds @ Chicago Cubs,2026-05-05 23:40:00+00,home,0,-163,betus,-163,betus,88,88,2.1399999999999997,,,,,0.875,1,true,false,,0,0.6134969325153374
+picks,725a2bc29fdee3828f24905b97afda08,0,Cleveland Guardians @ Kansas City Royals,2026-05-05 23:41:00+00,away,0,-110,betus,-110,betus,71,71,-1.54,,,,,0.75,-2,false,false,,0,-1
+picks,6ce90524a09ef856d3a08a7038715209,0,Los Angeles Dodgers @ Houston Astros,2026-05-06 00:11:00+00,away,0,-205,betonlineag,-205,betonlineag,74,74,-2.0200000000000005,,,,,0.875,10,true,false,,0,0.4878048780487805
+picks,a3d49ab06b3c4cfdcaeec1ee6be2c11f,0,Chicago White Sox @ Los Angeles Angels,2026-05-06 01:39:00+00,away,0,100,betrivers,100,betrivers,77,77,-0.73,,,,,0.75,-6,false,false,,0,-1
+picks,732ae7d99e94ec771af4f2525709bb66,0,Atlanta Braves @ Seattle Mariners,2026-05-06 01:41:00+00,away,0,122,betonlineag,122,betonlineag,100,100,-2.32,,,,,0.75,-2,false,false,,0,-1
+picks,8ce45c11dc2d0ef2edaaf6ecd5f2b8ff,0,Pittsburgh Pirates @ Arizona Diamondbacks,2026-05-06 01:41:00+00,away,0,121,lowvig,121,lowvig,95,95,-3.1500000000000004,,,,,0.875,1,true,false,,0,1.21
+picks,90becb516bb091bc1f699dadd4f5e4ef,0,San Diego Padres @ San Francisco Giants,2026-05-06 01:46:00+00,away,0,127,betus,127,betus,91,91,-2.73,,,,,0.75,4,true,false,,0,1.27
+picks,30985b2de1c1ed30f2e2fd8caf711d21,0,Toronto Blue Jays @ Tampa Bay Rays,2026-05-06 17:11:00+00,away,0,130,williamhill_us,130,williamhill_us,41,41,-0.040000000000000036,,,,,0.875,-3,false,false,,0,-1
+picks,71fad9f636c723c1e774d7aa9651880b,0,Milwaukee Brewers @ St. Louis Cardinals,2026-05-06 17:16:00+00,home,0,-105,williamhill_us,-105,williamhill_us,74,74,0.75,,,,,0.875,-4,false,false,,0,-1
+picks,de734f0e0ca302bf4a6c20844ec6127c,0,Los Angeles Dodgers @ Houston Astros,2026-05-06 18:11:00+00,away,0,-205,betus,-205,betus,74,74,-2.0200000000000005,,,,,0.875,10,true,false,,0,0.4878048780487805
+picks,bd85ab302972ab39355e0e7baa91a454,0,San Diego Padres @ San Francisco Giants,2026-05-06 19:46:00+00,away,0,-102,betonlineag,-102,betonlineag,91,91,-2.73,,,,,0.875,4,true,false,,0,0.9803921568627451
+picks,7c30fa11564865dd19f2a9c4a7e9d937,0,Chicago White Sox @ Los Angeles Angels,2026-05-06 20:08:00+00,away,0,-112,mybookieag,-112,mybookieag,77,77,-0.73,,,,,0.875,-6,false,false,,0,-1
+picks,1f8259cdeb29bfd068ffa5cbaea3e8d7,0,Atlanta Braves @ Seattle Mariners,2026-05-06 20:10:00+00,away,0,117,draftkings,117,draftkings,100,100,-2.32,,,,,0.875,-2,false,false,,0,-1
+picks,4a14bd2383b640b8cf105c59c99fa882,0,Boston Red Sox @ Detroit Tigers,2026-05-06 22:41:00+00,away,0,-106,betus,-106,betus,73,73,-0.9199999999999999,,,,,0.875,4,true,false,,0,0.9433962264150944
+picks,7dd3ac6bd80317fdd884080b8d94dd77,0,Baltimore Orioles @ Miami Marlins,2026-05-06 22:41:00+00,away,0,118,betmgm,118,betmgm,51,51,-0.41999999999999993,,,,,0.875,3,true,false,,0,1.18
+picks,8379550b6a949466b56d6ddffad2b2fe,0,Athletics @ Philadelphia Phillies,2026-05-06 22:41:00+00,home,0,-156,betonlineag,-156,betonlineag,71,71,0.3599999999999999,,,,,0.875,3,true,false,,0,0.6410256410256411
+picks,50bf885c9e829f1de48161f3ec47e5dc,0,Minnesota Twins @ Washington Nationals,2026-05-06 22:46:00+00,away,0,-109,betus,-109,betus,72,72,-2.0999999999999996,,,,,0.75,-13,false,false,,0,-1
+picks,895be7e0cbc697eeffc1f4c9fb60613b,0,Texas Rangers @ New York Yankees,2026-05-06 23:06:00+00,home,0,-167,betonlineag,-167,betonlineag,93,93,2.38,,,,,0.875,-5,false,false,,0,-1
+picks,30d2a93f1ca79f37c19806e74ed1cdab,0,Cleveland Guardians @ Kansas City Royals,2026-05-06 23:41:00+00,away,0,124,betonlineag,124,betonlineag,73,73,-2.01,,,,,0.875,2,true,false,,0,1.24
+picks,a524558d8c67f4e0116d63123b26e426,0,Cincinnati Reds @ Chicago Cubs,2026-05-06 23:41:00+00,home,0,-161,betus,-161,betus,97,97,2.5500000000000003,,,,,0.875,1,true,false,,0,0.6211180124223602
+picks,3d9ff7b926b247cb73447ca5c7a7428e,0,New York Mets @ Colorado Rockies,2026-05-07 01:21:00+00,home,0,140,betrivers,140,betrivers,51,51,0.7400000000000002,,,,,0.875,4,true,false,,0,1.4
+picks,de899b461227924fc52c2f9492e9fe56,0,Pittsburgh Pirates @ Arizona Diamondbacks,2026-05-07 01:41:00+00,away,0,-120,betus,-120,betus,94,94,-2.8099999999999996,,,,,0.875,2,true,false,,0,0.8333333333333334
+picks,1c3063ee80bf14181773650f89724edd,0,Texas Rangers @ New York Yankees,2026-05-07 16:36:00+00,home,0,-156,lowvig,-156,lowvig,84,84,2.0199999999999996,,,,,0.875,7,true,false,,0,0.6410256410256411
+picks,ba055e6ad1137117eef850d15d9c8c97,0,Minnesota Twins @ Washington Nationals,2026-05-07 17:06:00+00,home,0,-118,betrivers,-118,betrivers,70,70,0.20999999999999996,,,,,0.875,2,true,false,,0,0.847457627118644
+picks,6ea660d6d55e2a5168fd92eb01e16b87,0,Cleveland Guardians @ Kansas City Royals,2026-05-07 18:11:00+00,home,0,-137,betonlineag,-137,betonlineag,82,82,0.8799999999999999,,,,,0.875,-3,false,false,,0,-1
+picks,d995ce8d9df4c182c1ecade37bac292d,0,Cincinnati Reds @ Chicago Cubs,2026-05-07 18:21:00+00,home,0,-189,betonlineag,-189,betonlineag,98,98,2.46,,,,,0.875,5,true,false,,0,0.5291005291005291
+picks,db06eeec096bc60532c3b1aa5d4235a0,0,New York Mets @ Colorado Rockies,2026-05-07 19:11:00+00,home,0,131,betonlineag,131,betonlineag,51,51,0.7400000000000002,,,,,0.875,4,true,false,,0,1.31
+picks,4d8a7d6f10d4e381df3410c93345b071,0,Pittsburgh Pirates @ Arizona Diamondbacks,2026-05-07 19:41:00+00,away,0,100,betus,100,betus,94,94,-2.8099999999999996,,,,,0.875,2,true,false,,0,1
+picks,01ce87afc3b701c0bae09b62dc95f87c,0,Baltimore Orioles @ Miami Marlins,2026-05-07 22:41:00+00,home,0,-122,betonlineag,-122,betonlineag,64,64,0.5800000000000001,,,,,0.875,1,true,false,,0,0.819672131147541
+picks,b24e92041f215692dc57c17a67275bcf,0,Athletics @ Philadelphia Phillies,2026-05-07 22:41:00+00,away,0,115,betus,115,betus,52,52,-0.5999999999999996,,,,,0.875,11,true,false,,0,1.15
+picks,587e3aa8ddaf7a5719f0d0f55b446db9,0,Tampa Bay Rays @ Boston Red Sox,2026-05-07 23:11:00+00,home,0,-108,betus,-108,betus,58,58,0.48999999999999977,,,,,0.875,-4,false,false,,0,-1
+picks,fb98c375df55f7f70d2f35b2209bdd61,0,St. Louis Cardinals @ San Diego Padres,2026-05-08 02:11:00+00,home,0,-159,betonlineag,-159,betonlineag,62,62,0.5100000000000002,,,,,0.875,-6,false,false,,0,-1
+picks,40150285b21b0e818a39c0940eca75d7,0,Houston Astros @ Cincinnati Reds,2026-05-08 22:11:00+00,away,0,110,betus,110,betus,58,58,-0.040000000000000036,,,,,0.875,10,true,false,,0,1.1
+picks,0f65cc2fecae3661933682f1525e806d,0,Colorado Rockies @ Philadelphia Phillies,2026-05-08 22:41:00+00,away,0,196,betonlineag,196,betonlineag,74,74,-0.98,,,,,0.875,2,true,false,,0,1.96
+picks,76929aa734500b152f347bbddf390165,0,Athletics @ Baltimore Orioles,2026-05-08 23:06:00+00,home,0,-130,lowvig,-130,lowvig,56,56,0.4900000000000002,,,,,0.75,-1,false,false,,0,-1
+picks,92c3e303601373eee3d37fbb858409af,0,Los Angeles Angels @ Toronto Blue Jays,2026-05-08 23:08:00+00,home,0,-147,lowvig,-147,lowvig,60,60,1.1400000000000001,,,,,0.875,2,true,false,,0,0.6802721088435374
+picks,739421696ed76f3cffaf12c7db22c763,0,Tampa Bay Rays @ Boston Red Sox,2026-05-08 23:11:00+00,home,0,-125,betus,-125,betus,49,49,0.010000000000000231,,,,,0.875,2,true,false,,0,0.8
+picks,ad17b69505e6a7e7c4c06dc7f6b91ac6,0,Washington Nationals @ Miami Marlins,2026-05-08 23:11:00+00,away,0,125,betonlineag,125,betonlineag,86,86,-1.4000000000000004,,,,,0.875,1,true,false,,0,1.25
+picks,d0f880a5482c5178286681a63048600f,0,Minnesota Twins @ Cleveland Guardians,2026-05-08 23:16:00+00,home,0,-142,betus,-142,betus,57,57,0.6699999999999999,,,,,0.875,2,true,false,,0,0.704225352112676
+picks,3d859a4947ba1d62e82366cdebc59d78,0,New York Yankees @ Milwaukee Brewers,2026-05-08 23:41:00+00,away,0,-118,betus,-118,betus,76,76,-0.4399999999999995,,,,,0.875,-6,false,false,,0,-1
+picks,6aa50c59681975bb7beff37ab4f46bb5,0,Detroit Tigers @ Kansas City Royals,2026-05-08 23:41:00+00,away,0,129,betonlineag,129,betonlineag,44,44,-0.43999999999999995,,,,,0.875,-1,false,false,,0,-1
+picks,79db8c5227deae699a7b9c123aaf6d3f,0,Seattle Mariners @ Chicago White Sox,2026-05-08 23:41:00+00,away,0,-132,betus,-132,betus,64,64,-0.6100000000000003,,,,,0.875,4,true,false,,0,0.7575757575757576
+picks,d03f5e26dab4993281752b81c816fe4b,0,Chicago Cubs @ Texas Rangers,2026-05-09 00:06:00+00,away,0,-122,betus,-122,betus,100,100,-2.9799999999999995,,,,,0.875,-6,false,false,,0,-1
+picks,bb96582815dabc42936e794a19c74217,0,New York Mets @ Arizona Diamondbacks,2026-05-09 01:41:00+00,away,0,-125,fanatics,-125,fanatics,68,68,-1.1800000000000006,,,,,0.875,-1,false,false,,0,-1
+picks,24892453777c4e3f95360ff530e09902,0,St. Louis Cardinals @ San Diego Padres,2026-05-09 01:46:00+00,home,0,-141,betus,-141,betus,60,60,0.8800000000000003,,,,,0.875,2,true,false,,0,0.7092198581560284
+picks,9faf187505c47b0f5009cb7d7da5200c,0,Atlanta Braves @ Los Angeles Dodgers,2026-05-09 02:11:00+00,home,0,-107,betus,-107,betus,67,67,0.47999999999999954,,,,,0.875,-5,false,false,,0,-1
+picks,41bf6d60c7067923fe9afa91c708aaa6,0,Pittsburgh Pirates @ San Francisco Giants,2026-05-09 02:16:00+00,away,0,-104,lowvig,-104,lowvig,79,79,-1.42,,,,,0.875,10,true,false,,0,0.9615384615384616
+picks,6dce302dd60dfcdf0b0f75b0c7526958,0,Los Angeles Angels @ Toronto Blue Jays,2026-05-09 19:08:00+00,home,0,-179,mybookieag,-179,mybookieag,65,65,0.73,,,,,0.875,13,true,false,,0,0.5586592178770949
+picks,177cdddf981aae461d064d643293c5f4,0,Athletics @ Baltimore Orioles,2026-05-09 20:06:00+00,away,0,108,lowvig,108,lowvig,79,79,-1.5899999999999999,,,,,0.625,4,true,false,,0,1.08
+picks,07fcb9aa4b08eff491227a6d817d08a7,0,Washington Nationals @ Miami Marlins,2026-05-09 20:11:00+00,away,0,145,lowvig,145,lowvig,84,84,-0.8599999999999994,,,,,0.875,-1,false,false,,0,-1
+picks,4cb11bc70bb01deb01ccc535f614ba59,0,Houston Astros @ Cincinnati Reds,2026-05-09 20:11:00+00,away,0,142,lowvig,142,lowvig,67,67,-0.040000000000000036,,,,,0.75,-2,false,false,,0,-1
+picks,a1e4d36a83b260dbab61a4f965b6abea,0,Tampa Bay Rays @ Boston Red Sox,2026-05-09 20:11:00+00,home,0,-140,betonlineag,-140,betonlineag,55,55,0.4099999999999997,,,,,0.5,0,,false,,0,
+picks,3d093f3fea09b2f77b6ccf058d9061ea,0,Colorado Rockies @ Philadelphia Phillies,2026-05-09 22:06:00+00,away,0,162,williamhill_us,162,williamhill_us,68,68,-0.41000000000000014,,,,,0.75,-6,false,false,,0,-1
+picks,9fd60ef171dd7d6b753c07fe32aa37f6,0,Minnesota Twins @ Cleveland Guardians,2026-05-09 22:11:00+00,away,0,108,betus,108,betus,70,70,-1.4299999999999997,,,,,0.75,1,true,false,,0,1.08
+picks,0d5568f7e3f7c4adba722775d2895494,0,Chicago Cubs @ Texas Rangers,2026-05-09 23:06:00+00,away,0,-125,lowvig,-125,lowvig,100,100,-2.9799999999999995,,,,,0.875,-6,false,false,,0,-1
+picks,6c26284a3ba72def6e7e0c9db9893fc8,0,Seattle Mariners @ Chicago White Sox,2026-05-09 23:11:00+00,away,0,-122,lowvig,-122,lowvig,73,73,-0.8099999999999996,,,,,0.75,-5,false,false,,0,-1
+picks,bf49c6516b601ce34a25f268cb202250,0,New York Yankees @ Milwaukee Brewers,2026-05-09 23:11:00+00,home,0,117,betus,117,betus,46,46,0.040000000000000036,,,,,0.875,1,true,false,,0,1.17
+picks,dd95987c051582f99dbe07d5424b2a03,0,Detroit Tigers @ Kansas City Royals,2026-05-09 23:11:00+00,away,0,122,lowvig,122,lowvig,51,51,-0.54,,,,,0.75,-4,false,false,,0,-1
+picks,5e7a25171efa4aba6c2670c7d93dbde3,0,New York Mets @ Arizona Diamondbacks,2026-05-09 23:16:00+00,away,0,-105,betus,-105,betus,68,68,-1.1800000000000006,,,,,0.875,-1,false,false,,0,-1
+picks,863ff6f33ea468e7a6bac4be2626648a,0,St. Louis Cardinals @ San Diego Padres,2026-05-09 23:16:00+00,home,0,-132,betonlineag,-132,betonlineag,60,60,0.8800000000000003,,,,,0.75,2,true,false,,0,0.7575757575757576
+picks,54ac0c67d3a1921cfede4e125572526e,0,Pittsburgh Pirates @ San Francisco Giants,2026-05-10 01:06:00+00,away,0,-104,lowvig,-104,lowvig,85,85,-1.8200000000000003,,,,,0.75,-1,false,false,,0,-1
+picks,4e0f5d6412cdfd2b0ade4fee11642753,0,Atlanta Braves @ Los Angeles Dodgers,2026-05-10 01:11:00+00,away,0,163,betonlineag,163,betonlineag,46,46,-0.7100000000000004,,,,,0.75,5,true,false,,0,1.63
+picks,2f41717fcce350329e8ac46662be3d88,0,Washington Nationals @ Miami Marlins,2026-05-10 16:16:00+00,away,0,117,betus,117,betus,81,81,-0.8399999999999999,,,,,0.875,-3,false,false,,0,-1
+picks,42a6a833eaecf112c826202eb1d596f9,0,Athletics @ Baltimore Orioles,2026-05-10 17:36:00+00,away,0,-102,draftkings,-102,draftkings,90,90,-1.96,,,,,0.625,-1,false,false,,0,-1
+picks,6dd9cd4491079d3cedf1f7d3ff85b358,0,Colorado Rockies @ Philadelphia Phillies,2026-05-10 17:36:00+00,home,0,-290,betus,-290,betus,64,64,0.9100000000000001,,,,,0.75,6,true,false,,0,0.3448275862068966
+picks,73c2cde50707b32c9767a0a8fbb2e7d2,0,Tampa Bay Rays @ Boston Red Sox,2026-05-10 17:36:00+00,home,0,-144,fanduel,-144,fanduel,69,69,0.8200000000000003,,,,,0.75,-3,false,false,,0,-1
+picks,9bfd5fd962a5ede4a98e0c595c9db46f,0,Los Angeles Angels @ Toronto Blue Jays,2026-05-10 17:39:00+00,home,0,-103,betus,-103,betus,45,45,0.6100000000000003,,,,,0.875,-5,false,false,,0,-1
+picks,4d2a59061aec314f7265432aacbe8df1,0,Minnesota Twins @ Cleveland Guardians,2026-05-10 17:41:00+00,home,0,-158,betus,-158,betus,75,75,1.21,,,,,0.75,-1,false,false,,0,-1
+picks,3751eb6375883244bf07ebaa76d74e35,0,Houston Astros @ Cincinnati Reds,2026-05-10 17:41:51+00,away,0,100,draftkings,100,draftkings,80,80,-1.5100000000000002,,,,,0.75,-5,false,false,,0,-1
+picks,d58ee5722b0d27c98714b46a090df16f,0,Seattle Mariners @ Chicago White Sox,2026-05-10 18:11:00+00,home,0,117,betus,117,betus,59,59,0.3199999999999994,,,,,0.75,1,true,false,,0,1.17
+picks,e254b4d802742c85bc156989d1b71346,0,New York Yankees @ Milwaukee Brewers,2026-05-10 18:11:00+00,home,0,-115,lowvig,-115,lowvig,59,59,0.1200000000000001,,,,,0.875,1,true,false,,0,0.8695652173913043
+picks,f39e9272c26acb799cf16afa62e26316,0,Chicago Cubs @ Texas Rangers,2026-05-10 18:36:00+00,away,0,106,betus,106,betus,59,59,-0.73,,,,,0.875,-3,false,false,,0,-1
+picks,24f0fb743655b2176ff9d2f1d17bc2d0,0,Pittsburgh Pirates @ San Francisco Giants,2026-05-10 20:06:00+00,away,0,113,betonlineag,113,betonlineag,85,85,-1.8200000000000003,,,,,0.75,-1,false,false,,0,-1
+picks,1a0f51cf52137e602d477a383aededcd,0,New York Mets @ Arizona Diamondbacks,2026-05-10 20:11:00+00,home,0,-109,mybookieag,-109,mybookieag,51,51,0.3700000000000001,,,,,0.875,4,true,false,,0,0.9174311926605505
+picks,ab56a10bb0c4a672e1d846d67e7f703e,0,Atlanta Braves @ Los Angeles Dodgers,2026-05-10 20:11:00+00,away,0,122,betonlineag,122,betonlineag,46,46,-0.7100000000000004,,,,,0.875,5,true,false,,0,1.22
+picks,bdfc7e1e5ee8e2389bbdfb8f9521a582,0,St. Louis Cardinals @ San Diego Padres,2026-05-10 20:11:00+00,away,0,114,betonlineag,114,betonlineag,72,72,-0.22999999999999954,,,,,0.875,-1,false,false,,0,-1
+picks,1a85cdf5d7c53f361d8dd4b822af8f09,0,Detroit Tigers @ Kansas City Royals,2026-05-10 23:21:00+00,away,0,112,betrivers,112,betrivers,62,62,-1.87,,,,,0.75,3,true,false,,0,1.12
+picks,5469c15e3925b64e5437f4ebe23e9b60,0,Los Angeles Angels @ Cleveland Guardians,2026-05-11 22:11:00+00,home,0,-155,betonlineag,-155,betonlineag,72,72,1.6300000000000003,,,,,0.75,5,true,false,,0,0.6451612903225806
+picks,a96772c4a288f0b16b88697b8dfdd837,0,New York Yankees @ Baltimore Orioles,2026-05-11 22:36:00+00,away,0,-143,betus,-143,betus,76,76,-1.9400000000000004,,,,,0.625,-1,false,false,,0,-1
+picks,8ca76871aa74f5f88b3dba57c6e6e48c,0,Tampa Bay Rays @ Toronto Blue Jays,2026-05-11 23:08:00+00,home,0,-116,betus,-116,betus,49,49,0.3200000000000003,,,,,0.875,-3,false,false,,0,-1
+picks,aead05342952ab70ff6c1a772b4295d4,0,Arizona Diamondbacks @ Texas Rangers,2026-05-12 00:06:00+00,home,0,-106,betonlineag,-106,betonlineag,53,53,0.22000000000000064,,,,,0.875,3,true,false,,0,0.9433962264150944
+picks,80622319ceec1faf47baaee869656e13,0,Seattle Mariners @ Houston Astros,2026-05-12 00:11:00+00,away,0,-146,betus,-146,betus,72,72,-0.9099999999999993,,,,,0.875,8,true,false,,0,0.684931506849315
+picks,875a5a258588aff680ae69335167dec2,0,San Francisco Giants @ Los Angeles Dodgers,2026-05-12 02:11:00+00,home,0,-180,lowvig,-180,lowvig,90,90,2.78,,,,,0.75,-4,false,false,,0,-1
+picks,9936f843966ef49b29f8f61cd41491f1,0,Los Angeles Angels @ Cleveland Guardians,2026-05-12 22:11:00+00,away,0,122,betonlineag,122,betonlineag,55,55,-0.09999999999999964,,,,,0.75,-1,false,false,,0,-1
+picks,6d160243347bd35cdb3abf1b2690fda8,0,New York Yankees @ Baltimore Orioles,2026-05-12 22:36:00+00,away,0,-136,lowvig,-136,lowvig,83,83,-2.1500000000000004,,,,,0.625,4,true,false,,0,0.7352941176470589
+picks,6c8098ab353355d002d66e825b4217ab,0,Washington Nationals @ Cincinnati Reds,2026-05-12 22:41:00+00,away,0,124,draftkings,124,draftkings,77,77,-0.4800000000000004,,,,,0.75,6,true,false,,0,1.24
+picks,79fa6c856d2a95ff10cb955ab2d424e2,0,Colorado Rockies @ Pittsburgh Pirates,2026-05-12 22:41:00+00,home,0,-267,lowvig,-267,lowvig,95,95,3.36,,,,,0.75,2,true,false,,0,0.37453183520599254
+picks,07b1faa56850a94bfd3921725fe520a2,0,Philadelphia Phillies @ Boston Red Sox,2026-05-12 22:46:00+00,away,0,-136,lowvig,-136,lowvig,50,50,-0.22999999999999998,,,,,0.75,1,true,false,,0,0.7352941176470589
+picks,b2c44ca94237edf5b7270d7dde706835,0,Tampa Bay Rays @ Toronto Blue Jays,2026-05-12 23:08:00+00,home,0,106,betus,106,betus,43,43,0.08000000000000007,,,,,0.875,-1,false,false,,0,-1
+picks,fe40950314ca87c69985e8a1a37c8822,0,Detroit Tigers @ New York Mets,2026-05-12 23:11:00+00,home,0,-139,lowvig,-139,lowvig,66,66,0.48,,,,,0.875,8,true,false,,0,0.7194244604316546
+picks,744c4597586797d5f7e9be094f031f11,0,Chicago Cubs @ Atlanta Braves,2026-05-12 23:16:00+00,home,0,-115,betus,-115,betus,57,57,0.019999999999999574,,,,,0.875,3,true,false,,0,0.8695652173913043
+picks,a0a43f882e4a4ab92fa1024e42f33be0,0,San Diego Padres @ Milwaukee Brewers,2026-05-12 23:41:00+00,away,0,131,lowvig,131,lowvig,51,51,-1,,,,,0.875,-2,false,false,,0,-1
+picks,ad3552c4909328a0be4de1ec98e97bcf,0,Miami Marlins @ Minnesota Twins,2026-05-12 23:41:00+00,home,0,-103,lowvig,-103,lowvig,53,53,1.0600000000000005,,,,,0.75,3,true,false,,0,0.970873786407767
+picks,c125a2382938301b1e4462c3600de32b,0,Kansas City Royals @ Chicago White Sox,2026-05-12 23:41:00+00,home,0,102,fanduel,102,fanduel,54,54,0.3200000000000003,,,,,0.75,1,true,false,,0,1.02
+picks,34393ecc2b2d109779095b1d4935225b,0,Arizona Diamondbacks @ Texas Rangers,2026-05-13 00:06:00+00,away,0,109,draftkings,109,draftkings,58,58,-0.0699999999999994,,,,,0.875,-1,false,false,,0,-1
+picks,a1fa0d550bd68cf44d71f0657fa93d6a,0,Seattle Mariners @ Houston Astros,2026-05-13 00:11:00+00,away,0,-180,draftkings,-180,draftkings,91,91,-2.11,,,,,0.875,-1,false,false,,0,-1
+picks,265d87925f501ac50a2a12c6b5a91354,0,St. Louis Cardinals @ Athletics,2026-05-13 01:41:00+00,home,0,-152,mybookieag,-152,mybookieag,59,59,0.1900000000000004,,,,,0.625,4,true,false,,0,0.6578947368421053
+picks,a0929cf66d445eec19f118010165e95c,0,San Francisco Giants @ Los Angeles Dodgers,2026-05-13 02:11:00+00,home,0,-300,betus,-300,betus,51,51,0.7999999999999998,,,,,0.75,4,true,false,,0,0.3333333333333333
+picks,21ff18fdfd96a55a86867197e834497e,0,New York Yankees @ Baltimore Orioles,2026-05-13 17:06:00+00,away,0,-152,lowvig,-152,lowvig,74,74,-1.8199999999999998,,,,,0.625,-7,false,false,,0,-1
+picks,67da7d89e932aa7075b0600f26224572,0,Los Angeles Angels @ Cleveland Guardians,2026-05-13 17:11:00+00,home,0,-154,lowvig,-154,lowvig,75,75,1.83,,,,,0.75,2,true,false,,0,0.6493506493506493
+picks,198e79fae18be9cb416f60f6da4d7996,0,Colorado Rockies @ Pittsburgh Pirates,2026-05-13 22:41:00+00,home,0,-177,lowvig,-177,lowvig,75,75,1.87,,,,,0.75,-6,false,false,,0,-1
+picks,4546828df054a4ac1c7634c94b4c7012,0,Washington Nationals @ Cincinnati Reds,2026-05-13 22:41:00+00,away,0,158,betonlineag,158,betonlineag,97,97,-0.9799999999999995,,,,,0.75,1,true,false,,0,1.58
+picks,002b9c5446f97ad6146eb0b6da64db25,0,Philadelphia Phillies @ Boston Red Sox,2026-05-13 22:46:00+00,home,0,-126,lowvig,-126,lowvig,67,67,1.0199999999999996,,,,,0.75,2,true,false,,0,0.7936507936507936
+picks,70e80bbf99890d3a610a98c21f3a7419,0,Tampa Bay Rays @ Toronto Blue Jays,2026-05-13 23:08:00+00,home,0,-142,betonlineag,-142,betonlineag,60,60,0.79,,,,,0.875,2,true,false,,0,0.704225352112676
+picks,ca6c0da9264577ed9bb23ff05ee77801,0,Detroit Tigers @ New York Mets,2026-05-13 23:11:00+00,away,0,106,betonlineag,106,betonlineag,42,42,-0.2599999999999998,,,,,0.75,-1,false,false,,0,-1
+picks,1ae3a00c8d26de69bd61ddda56e9dba1,0,Chicago Cubs @ Atlanta Braves,2026-05-13 23:16:00+00,away,0,-126,mybookieag,-126,mybookieag,43,43,-0.05999999999999961,,,,,0.875,-3,false,false,,0,-1
+picks,15bc05498c54cf822aedf7434d3a8bc6,0,San Diego Padres @ Milwaukee Brewers,2026-05-13 23:41:00+00,home,0,-154,lowvig,-154,lowvig,68,68,0.31000000000000005,,,,,0.875,-2,false,false,,0,-1
+picks,18791fe8f5ff31b64bb2cff4f5af59a0,0,Miami Marlins @ Minnesota Twins,2026-05-13 23:41:00+00,away,0,-128,lowvig,-128,lowvig,66,66,-1.04,,,,,0.75,4,true,false,,0,0.78125
+picks,4d53bfb528444dbb7721172c9851e6c9,0,Kansas City Royals @ Chicago White Sox,2026-05-13 23:41:00+00,away,0,-108,betus,-108,betus,63,63,-0.8900000000000001,,,,,0.875,-1,false,false,,0,-1
+picks,4ea6eeeb6626c218d536f9bca6edbeae,0,Arizona Diamondbacks @ Texas Rangers,2026-05-14 00:06:00+00,home,0,101,lowvig,101,lowvig,55,55,0.03000000000000025,,,,,0.5,,,true,no_final_score,0,
+picks,6ff5fdd2fde54dc43326a02792b3e79f,0,Seattle Mariners @ Houston Astros,2026-05-14 00:11:00+00,home,0,128,betonlineag,128,betonlineag,48,48,0.4499999999999993,,,,,0.875,-5,false,false,,0,-1
+picks,d27ba1c4cb8a441ca047f3a9054aab48,0,St. Louis Cardinals @ Athletics,2026-05-14 01:41:00+00,away,0,125,betrivers,125,betrivers,65,65,-1.25,,,,,0.625,1,true,false,,0,1.25
+picks,7018d88c446b88b45928fc75ec91e83c,0,San Francisco Giants @ Los Angeles Dodgers,2026-05-14 02:11:00+00,away,0,210,betonlineag,210,betonlineag,53,53,-0.10000000000000009,,,,,0.875,-3,false,false,,0,-1
+picks,b707c40c030d32a5c6a52e12bdee39fd,0,Colorado Rockies @ Pittsburgh Pirates,2026-05-14 16:36:00+00,home,0,-163,lowvig,-163,lowvig,68,68,1.42,,,,,0.875,5,true,false,,0,0.6134969325153374
+picks,8abdf6d45a3ff089cc31a3d8ae9454b2,0,Washington Nationals @ Cincinnati Reds,2026-05-14 16:41:00+00,home,0,-146,lowvig,-146,lowvig,48,48,0.1299999999999999,,,,,0.75,14,true,false,,0,0.684931506849315
+picks,e24302ea9f75de2f74247cff5426bb72,0,Detroit Tigers @ New York Mets,2026-05-14 17:11:00+00,away,0,138,fanduel,138,fanduel,46,46,-0.45999999999999996,,,,,0.875,-5,false,false,,0,-1
+picks,0fd9dcf5dd607b0b9074ed98709c23da,0,Miami Marlins @ Minnesota Twins,2026-05-14 17:41:00+00,home,0,-101,betonlineag,-101,betonlineag,78,78,1.7700000000000005,,,,,0.875,8,true,false,,0,0.9900990099009901
+picks,679760ad793188b79273efa2408440ac,0,San Diego Padres @ Milwaukee Brewers,2026-05-14 17:41:00+00,home,0,-133,betus,-133,betus,94,94,2.5100000000000002,,,,,0.875,6,true,false,,0,0.7518796992481203
+picks,901a26e0d74ceaadd9981af23f8e1a15,0,Seattle Mariners @ Houston Astros,2026-05-14 18:11:00+00,home,0,-101,mybookieag,-101,mybookieag,48,48,0.4499999999999993,,,,,0.875,-5,false,false,,0,-1
+picks,07fe304b5fb4622bc1a942801ac904f6,0,St. Louis Cardinals @ Athletics,2026-05-14 19:06:00+00,away,0,107,lowvig,107,lowvig,65,65,-1.25,,,,,0.75,1,true,false,,0,1.07
+picks,6e7d9b2e9bc1d87a475e2a29d5c86b92,0,Philadelphia Phillies @ Boston Red Sox,2026-05-14 22:46:00+00,home,0,-113,betrivers,-113,betrivers,55,55,0.3899999999999997,,,,,0.875,-2,false,false,,0,-1
+picks,797493921ce7c293a19900840d42e2e1,0,Chicago Cubs @ Atlanta Braves,2026-05-14 23:16:00+00,home,0,-186,draftkings,-186,draftkings,61,61,0.4500000000000002,,,,,0.875,-2,false,false,,0,-1
+picks,3e233aef78a3a5c98e1d9fc4ba450901,0,Kansas City Royals @ Chicago White Sox,2026-05-14 23:41:00+00,away,0,-129,lowvig,-129,lowvig,64,64,-1.4000000000000004,,,,,0.875,-4,false,false,,0,-1
+picks,bc2f7272b3d5ef426608824387a95824,0,San Francisco Giants @ Los Angeles Dodgers,2026-05-15 02:11:00+00,home,0,-163,lowvig,-163,lowvig,54,54,1.1199999999999997,,,,,0.5,,,true,no_final_score,0,
+picks,a051c6df269a83813b248ea222859c65,0,Philadelphia Phillies @ Pittsburgh Pirates,2026-05-15 22:41:00+00,home,0,-129,lowvig,-129,lowvig,75,75,2.29,,,,,0.875,-2,false,false,,0,-1
+picks,19b80d07edae4ffcb25b42667963c877,0,Toronto Blue Jays @ Detroit Tigers,2026-05-15 22:46:00+00,away,0,-119,betus,-119,betus,61,61,-0.31000000000000005,,,,,0.875,-1,false,false,,0,-1
+picks,44a4350d4a8392d58e49e092bee941e9,0,Baltimore Orioles @ Washington Nationals,2026-05-15 22:46:00+00,home,0,123,betonlineag,123,betonlineag,34,34,0.15000000000000036,,,,,0.875,1,true,false,,0,1.23
+picks,29396edfdade5878dbc35fa23dfd31bd,0,Milwaukee Brewers @ Minnesota Twins,2026-05-15 23:11:00+00,away,0,-105,williamhill_us,-105,williamhill_us,55,55,-0.04999999999999982,,,,,0.875,1,true,false,,0,0.9523809523809523
+picks,2aee6b065d2ab7dd34a7bf34c50ecf64,0,Miami Marlins @ Tampa Bay Rays,2026-05-15 23:11:00+00,home,0,-115,lowvig,-115,lowvig,61,61,0.3200000000000003,,,,,0.875,5,true,false,,0,0.8695652173913043
+picks,d5256fecb9779436e7900fb3f1b19363,0,Cincinnati Reds @ Cleveland Guardians,2026-05-15 23:11:00+00,away,0,122,williamhill_us,122,williamhill_us,63,63,-0.33000000000000007,,,,,0.875,1,true,false,,0,1.22
+picks,0a103297db91d5bd1abf13d04b710c2a,0,Boston Red Sox @ Atlanta Braves,2026-05-15 23:16:00+00,home,0,-143,lowvig,-143,lowvig,70,70,1.2799999999999998,,,,,0.875,1,true,false,,0,0.6993006993006993
+picks,afc970260745e8fb77f25865b9aa1d1e,0,New York Yankees @ New York Mets,2026-05-15 23:16:00+00,away,0,-140,betmgm,-140,betmgm,65,65,-0.94,,,,,0.875,3,true,false,,0,0.7142857142857143
+picks,36e963840422a477a4a60c1d4b1b2879,0,Chicago Cubs @ Chicago White Sox,2026-05-15 23:41:00+00,away,0,-123,betonlineag,-123,betonlineag,42,42,-0.6400000000000006,,,,,0.875,5,true,false,,0,0.8130081300813008
+picks,4323e1f1f88640843f73a6482a7730d5,0,Texas Rangers @ Houston Astros,2026-05-16 00:11:00+00,home,0,100,betus,100,betus,42,42,0.16999999999999993,,,,,0.875,3,true,false,,0,1
+picks,857412c718e5a9787f2d262c8ad16cd5,0,Kansas City Royals @ St. Louis Cardinals,2026-05-16 00:16:00+00,home,0,-102,betus,-102,betus,62,62,0.9700000000000006,,,,,0.875,2,true,false,,0,0.9803921568627451
+picks,204926b2f2e00788f62385d3af31d828,0,Arizona Diamondbacks @ Colorado Rockies,2026-05-16 00:41:00+00,away,0,-112,betus,-112,betus,74,74,-0.5599999999999996,,,,,0.875,-2,false,false,,0,-1
+picks,8a72d8b519cc92911419682fb63aaf67,0,Los Angeles Dodgers @ Los Angeles Angels,2026-05-16 01:39:00+00,away,0,-177,betonlineag,-177,betonlineag,60,60,-1.0299999999999998,,,,,0.875,13,true,false,,0,0.5649717514124294
+picks,2f427e779ce4322fa3631629afb6f614,0,San Francisco Giants @ Athletics,2026-05-16 01:41:00+00,home,0,-124,betus,-124,betus,84,84,2.4499999999999997,,,,,0.75,-2,false,false,,0,-1
+picks,919b933a4af691070848a940a7d07a84,0,San Diego Padres @ Seattle Mariners,2026-05-16 01:41:00+00,home,0,-125,betus,-125,betus,87,87,1.29,,,,,0.875,-3,false,false,,0,-1
+picks,6b2d5ebb90ade419f4d5c59b95c1b301,0,Toronto Blue Jays @ Detroit Tigers,2026-05-16 17:11:00+00,home,0,-105,betonlineag,-105,betonlineag,51,51,0.22999999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,f1f5588e7499f45638568bb30db784a3,0,Kansas City Royals @ St. Louis Cardinals,2026-05-16 18:16:00+00,home,0,-109,betus,-109,betus,62,62,0.9700000000000006,,,,,0.875,2,true,false,,0,0.9174311926605505
+picks,e794b5b54765be45db1d4e7681c62e39,0,Arizona Diamondbacks @ Colorado Rockies,2026-05-16 19:11:00+00,away,0,-138,betus,-138,betus,74,74,-0.5599999999999996,,,,,0.875,-2,false,false,,0,-1
+picks,2638aded4f2e2359a902072c9d2fba22,0,Philadelphia Phillies @ Pittsburgh Pirates,2026-05-16 20:06:00+00,away,0,-162,bovada,-162,bovada,69,69,-0.54,,,,,0.875,6,true,false,,0,0.6172839506172839
+picks,cc7b9980605dd66040b354031b4491c8,0,Baltimore Orioles @ Washington Nationals,2026-05-16 20:06:00+00,home,0,-103,betus,-103,betus,74,74,1.79,,,,,0.875,10,true,false,,0,0.970873786407767
+picks,c0881b4a195ada00f7db5d84c6cef8b7,0,Miami Marlins @ Tampa Bay Rays,2026-05-16 20:11:00+00,home,0,-128,lowvig,-128,lowvig,65,65,0.4800000000000004,,,,,0.875,-5,false,false,,0,-1
+picks,8cb0cf3de3f70a1993a155d8d3cfef98,0,Cincinnati Reds @ Cleveland Guardians,2026-05-16 22:11:00+00,home,0,-147,betus,-147,betus,81,81,1.9499999999999997,,,,,0.875,3,true,false,,0,0.6802721088435374
+picks,4b228f8e92985dcf7be730bd8e8c2c5d,0,Chicago Cubs @ Chicago White Sox,2026-05-16 23:11:00+00,away,0,100,betonlineag,100,betonlineag,38,38,-0.27999999999999936,,,,,0.875,-5,false,false,,0,-1
+picks,58b1dff480365011b5d7ad2e1c40baae,0,Texas Rangers @ Houston Astros,2026-05-16 23:11:00+00,home,0,130,williamhill_us,130,williamhill_us,42,42,0.16999999999999993,,,,,0.875,3,true,false,,0,1.3
+picks,a5e515bbcd25515bb500f052064aa31d,0,Milwaukee Brewers @ Minnesota Twins,2026-05-16 23:11:00+00,away,0,-127,betonlineag,-127,betonlineag,56,56,-0.03000000000000025,,,,,0.875,1,true,false,,0,0.7874015748031497
+picks,c53d7080fd560dbde65770d1a7facbfd,0,New York Yankees @ New York Mets,2026-05-16 23:16:00+00,home,0,107,lowvig,107,lowvig,77,77,0.5999999999999996,,,,,0.875,3,true,false,,0,1.07
+picks,ca5e359ff82548cecbaa7a8695e9fbf0,0,Boston Red Sox @ Atlanta Braves,2026-05-16 23:16:00+00,home,0,-111,betonlineag,-111,betonlineag,64,64,1.0700000000000003,,,,,0.875,-1,false,false,,0,-1
+picks,d89740dbc48f3d782b0e473629494f6b,0,San Diego Padres @ Seattle Mariners,2026-05-16 23:16:00+00,home,0,-165,betrivers,-165,betrivers,87,87,1.29,,,,,0.875,-3,false,false,,0,-1
+picks,a6224f9c00c2799d9f58de009bf48393,0,Los Angeles Dodgers @ Los Angeles Angels,2026-05-17 01:39:00+00,away,0,-134,lowvig,-134,lowvig,88,88,-1.8200000000000003,,,,,0.875,9,true,false,,0,0.746268656716418
+picks,8c4164a5b90b37ee80487fbe77607394,0,San Francisco Giants @ Athletics,2026-05-17 01:41:00+00,home,0,-127,betonlineag,-127,betonlineag,71,71,2.0000000000000004,,,,,0.75,-9,false,false,,0,-1
+picks,996ae6b240fb1d4c4f902121937d3569,0,Miami Marlins @ Tampa Bay Rays,2026-05-17 16:16:00+00,home,0,-142,betus,-142,betus,75,75,1.0999999999999996,,,,,0.875,3,true,false,,0,0.704225352112676
+picks,36d5609a0cc871bc0455884cbbeb54a7,0,Baltimore Orioles @ Washington Nationals,2026-05-17 17:36:00+00,home,0,105,betus,105,betus,81,81,1.67,,,,,0.875,-4,false,false,,0,-1
+picks,bfb9f1713a1e1d5af34925cdf9b13a7e,0,Boston Red Sox @ Atlanta Braves,2026-05-17 17:36:00+00,home,0,-143,lowvig,-143,lowvig,91,91,2.6199999999999997,,,,,0.875,7,true,false,,0,0.6993006993006993
+picks,d125d71e5b57f505a63c57086e78bfea,0,Philadelphia Phillies @ Pittsburgh Pirates,2026-05-17 17:36:00+00,home,0,-123,lowvig,-123,lowvig,47,47,0.3599999999999999,,,,,0.875,-6,false,false,,0,-1
+picks,0d9a62c64d2a238adaad12a20dcdbf30,0,Toronto Blue Jays @ Detroit Tigers,2026-05-17 17:41:00+00,away,0,-119,betonlineag,-119,betonlineag,83,83,-1.5,,,,,0.875,3,true,false,,0,0.8403361344537815
+picks,2012acf4d020399d425e3b100b9eb0b8,0,Cincinnati Reds @ Cleveland Guardians,2026-05-17 17:41:00+00,home,0,-152,betus,-152,betus,83,83,1.6999999999999997,,,,,0.875,7,true,false,,0,0.6578947368421053
+picks,8669868fab8f7f8ccddf468e6ac88d5b,0,New York Yankees @ New York Mets,2026-05-17 17:41:00+00,home,0,-110,betmgm,-110,betmgm,74,74,0.2400000000000002,,,,,0.875,1,true,false,,0,0.9090909090909091
+picks,0fb188572539c3bf9558877136a1c260,0,Milwaukee Brewers @ Minnesota Twins,2026-05-17 18:11:00+00,away,0,-129,draftkings,-129,draftkings,73,73,-0.8199999999999998,,,,,0.875,-1,false,false,,0,-1
+picks,116182ae8e8405948f5510df38eec4e8,0,Chicago Cubs @ Chicago White Sox,2026-05-17 18:11:00+00,away,0,-123,betonlineag,-123,betonlineag,45,45,-0.6799999999999997,,,,,0.875,-1,false,false,,0,-1
+picks,c4ad12dbd84b0112939a27411ee0bf4d,0,Texas Rangers @ Houston Astros,2026-05-17 18:11:00+00,home,0,111,betonlineag,111,betonlineag,61,61,0.75,,,,,0.875,-8,false,false,,0,-1
+picks,202f16f2a36544c76cedfaacc4e45ada,0,Kansas City Royals @ St. Louis Cardinals,2026-05-17 18:16:00+00,home,0,-114,mybookieag,-114,mybookieag,75,75,1.1100000000000003,,,,,0.875,-2,false,false,,0,-1
+picks,8732923778f83df576e551800c5f68d9,0,Arizona Diamondbacks @ Colorado Rockies,2026-05-17 19:11:00+00,away,0,-131,mybookieag,-131,mybookieag,62,62,-0.6400000000000006,,,,,0.875,2,true,false,,0,0.7633587786259542
+picks,b51f77ee601ba774b0fc72ab78459a22,0,San Francisco Giants @ Athletics,2026-05-17 20:06:00+00,home,0,-142,betus,-142,betus,71,71,2.0000000000000004,,,,,0.75,-9,false,false,,0,-1
+picks,dd1591797593585fc5c6ed59ebb7a738,0,Los Angeles Dodgers @ Los Angeles Angels,2026-05-17 20:08:00+00,away,0,-138,betus,-138,betus,88,88,-1.8200000000000003,,,,,0.875,9,true,false,,0,0.7246376811594203
+picks,4a7ed5c0f59bf539dffd13712f0d22e3,0,San Diego Padres @ Seattle Mariners,2026-05-17 23:21:00+00,home,0,-147,betus,-147,betus,73,73,1.0899999999999999,,,,,0.875,-5,false,false,,0,-1
+picks,0659b2fd47b200a2c0fe612b8a32e5b1,0,Cincinnati Reds @ Philadelphia Phillies,2026-05-18 22:41:00+00,away,0,106,lowvig,106,lowvig,34,34,-0.009999999999999787,,,,,0.875,-1,false,false,,0,-1
+picks,5d7782b4079153d44f30c8b3b9ccf495,0,Baltimore Orioles @ Tampa Bay Rays,2026-05-18 22:41:00+00,home,0,-138,betonlineag,-138,betonlineag,85,85,2.13,,,,,0.875,10,true,false,,0,0.7246376811594203
+picks,60ea4be5f7a9bd97fd35cbbbe9e208fa,0,Atlanta Braves @ Miami Marlins,2026-05-18 22:41:00+00,away,0,100,betus,100,betus,63,63,-0.9999999999999996,,,,,0.875,-12,false,false,,0,-1
+picks,6990aa317792d95bc36b258c5662a9b4,0,Cleveland Guardians @ Detroit Tigers,2026-05-18 22:41:00+00,away,0,134,draftkings,134,draftkings,59,59,-0.35000000000000053,,,,,0.875,6,true,false,,0,1.34
+picks,8bf07e3c1ae5450be5661196332a989f,0,New York Mets @ Washington Nationals,2026-05-18 22:46:00+00,away,0,-117,betus,-117,betus,59,59,-0.6899999999999995,,,,,0.875,9,true,false,,0,0.8547008547008547
+picks,13038bc4537d05af00935232c7a96b21,0,Toronto Blue Jays @ New York Yankees,2026-05-18 23:06:00+00,home,0,-158,betonlineag,-158,betonlineag,62,62,0.8000000000000003,,,,,0.875,1,true,false,,0,0.6329113924050633
+picks,82ca2e0ae47260f1183ee3abf8a69169,0,Boston Red Sox @ Kansas City Royals,2026-05-18 23:11:00+00,away,0,-109,betus,-109,betus,48,48,-0.48,,,,,0.875,2,true,false,,0,0.9174311926605505
+picks,42fd4ebc22c3536132b84d9c0a55ef29,0,Houston Astros @ Minnesota Twins,2026-05-18 23:41:00+00,home,0,-104,betrivers,-104,betrivers,90,90,2.74,,,,,0.875,3,true,false,,0,0.9615384615384616
+picks,a18a19981ef7d4e6c9f6244dc08e597a,0,Milwaukee Brewers @ Chicago Cubs,2026-05-18 23:41:00+00,home,0,-155,lowvig,-155,lowvig,68,68,1.79,,,,,0.875,-6,false,false,,0,-1
+picks,13c307bac70250bed56ce2a649cc492e,0,Texas Rangers @ Colorado Rockies,2026-05-19 00:41:00+00,away,0,-144,betus,-144,betus,48,48,-0.54,,,,,0.875,10,true,false,,0,0.6944444444444444
+picks,a8e5153e31f262e9df1bef1566519c3f,0,Athletics @ Los Angeles Angels,2026-05-19 01:39:00+00,away,0,-127,lowvig,-127,lowvig,47,47,-0.1200000000000001,,,,,0.875,8,true,false,,0,0.7874015748031497
+picks,14c70bb665938baff9719079a82cbb93,0,Chicago White Sox @ Seattle Mariners,2026-05-19 01:41:00+00,home,0,-152,betonlineag,-152,betonlineag,72,72,1.4900000000000002,,,,,0.875,-1,false,false,,0,-1
+picks,d98976061eadebf5d9ba5c0632212976,0,Los Angeles Dodgers @ San Diego Padres,2026-05-19 01:41:00+00,away,0,-135,betus,-135,betus,94,94,-1.2699999999999996,,,,,0.875,1,true,false,,0,0.7407407407407407
+picks,daf39ff0f5f85b7da76274b743b1ab1f,0,San Francisco Giants @ Arizona Diamondbacks,2026-05-19 01:41:00+00,away,0,121,lowvig,121,lowvig,52,52,-0.6099999999999999,,,,,0.875,-2,false,false,,0,-1
+picks,ae09768ff9ace4d90b4d8b78be0ac325,0,Atlanta Braves @ Miami Marlins,2026-05-19 20:11:00+00,away,0,-138,fanduel,-138,fanduel,86,86,-3.0799999999999996,,,,,0.875,4,true,false,,0,0.7246376811594203
+picks,54706a0490ebce80c512adf788e6b1d2,0,Cincinnati Reds @ Philadelphia Phillies,2026-05-19 22:41:00+00,away,0,124,draftkings,124,draftkings,66,66,-1.3400000000000003,,,,,0.875,3,true,false,,0,1.24
+picks,c974a8cecb0d3237e2c78f1920c5eaf3,0,Baltimore Orioles @ Tampa Bay Rays,2026-05-19 22:41:00+00,home,0,-108,mybookieag,-108,mybookieag,73,73,1.0899999999999994,,,,,0.875,3,true,false,,0,0.9259259259259259
+picks,d830cdcc631105b0bba70245ff339e90,0,Cleveland Guardians @ Detroit Tigers,2026-05-19 22:41:00+00,away,0,-154,lowvig,-154,lowvig,85,85,-1.3800000000000003,,,,,0.875,1,true,false,,0,0.6493506493506493
+picks,9ba5958467f2222cf1204d56f898ed51,0,New York Mets @ Washington Nationals,2026-05-19 22:46:00+00,home,0,124,betus,124,betus,39,39,0.040000000000000036,,,,,0.875,3,true,false,,0,1.24
+picks,71b59fe2207f3970c30c5dacc7d3956d,0,Toronto Blue Jays @ New York Yankees,2026-05-19 23:06:00+00,away,0,116,betus,116,betus,50,50,-0.029999999999999805,,,,,0.875,-1,false,false,,0,-1
+picks,97bf3716f67af1bbeb31d15893f46ec1,0,Houston Astros @ Minnesota Twins,2026-05-19 23:41:00+00,home,0,-136,betonlineag,-136,betonlineag,90,90,2.74,,,,,0.875,-1,false,false,,0,-1
+picks,a1ca821baa20137a228b1dff8e70c21d,0,Milwaukee Brewers @ Chicago Cubs,2026-05-19 23:41:00+00,home,0,105,betus,105,betus,46,46,0.04999999999999982,,,,,0.875,-3,false,false,,0,-1
+picks,ec5b231b8737543f956f9575bc81de01,0,Boston Red Sox @ Kansas City Royals,2026-05-19 23:41:00+00,away,0,-126,fanduel,-126,fanduel,66,66,-1.31,,,,,0.875,6,true,false,,0,0.7936507936507936
+picks,9dc0d5b7cb72b6692039e5b9a98b9c02,0,Pittsburgh Pirates @ St. Louis Cardinals,2026-05-19 23:46:00+00,away,0,103,lowvig,103,lowvig,51,51,-1.52,,,,,0.875,-3,false,false,,0,-1
+picks,0df79000a907b712204a8a3cf32bd442,0,Texas Rangers @ Colorado Rockies,2026-05-20 00:41:00+00,away,0,-101,betus,-101,betus,73,73,-1.1600000000000001,,,,,0.875,1,true,false,,0,0.9900990099009901
+picks,36672faae36a4b8104686a4a2068f311,0,Athletics @ Los Angeles Angels,2026-05-20 01:39:00+00,away,0,122,betus,122,betus,89,89,-2.0500000000000003,,,,,0.875,1,true,false,,0,1.22
+picks,00aa355eed768f248a9d925736ced07e,0,San Francisco Giants @ Arizona Diamondbacks,2026-05-20 01:41:00+00,away,0,113,betus,113,betus,53,53,-0.03000000000000025,,,,,0.875,-3,false,false,,0,-1
+picks,17b57496d4b06d4d4ecabf5046cb5e37,0,Chicago White Sox @ Seattle Mariners,2026-05-20 01:41:00+00,home,0,-138,lowvig,-138,lowvig,55,55,0.77,,,,,0.875,1,true,false,,0,0.7246376811594203
+picks,d66cf630e36e9449d187a5ac8311303c,0,Los Angeles Dodgers @ San Diego Padres,2026-05-20 01:41:00+00,away,0,-156,fanduel,-156,fanduel,88,88,-0.3900000000000001,,,,,0.875,4,true,false,,0,0.6410256410256411
+picks,44f850d55bfab7238e84fbd1b0e4c76f,0,Cincinnati Reds @ Philadelphia Phillies,2026-05-20 17:06:00+00,away,0,133,betonlineag,133,betonlineag,63,63,-1.1600000000000001,,,,,0.875,5,true,false,,0,1.33
+picks,7da6a18b316119afbe4c2a58d5c2cbce,0,Baltimore Orioles @ Tampa Bay Rays,2026-05-20 17:11:00+00,home,0,-112,betus,-112,betus,77,77,1.4900000000000002,,,,,0.875,2,true,false,,0,0.8928571428571429
+picks,831c912e2cd0016f96881ac551738e6e,0,Houston Astros @ Minnesota Twins,2026-05-20 17:41:00+00,home,0,-145,betonlineag,-145,betonlineag,88,88,2.4899999999999998,,,,,0.875,3,true,false,,0,0.6896551724137931
+picks,3846930337f62766087b0490c958713e,0,Texas Rangers @ Colorado Rockies,2026-05-20 19:10:00+00,away,0,-117,betus,-117,betus,73,73,-1.1600000000000001,,,,,0.875,1,true,false,,0,0.8547008547008547
+picks,0d1fe29e67867b51d29c32056784a512,0,San Francisco Giants @ Arizona Diamondbacks,2026-05-20 19:41:00+00,away,0,101,betus,101,betus,53,53,-0.03000000000000025,,,,,0.875,-3,false,false,,0,-1
+picks,b0078538407a959dc03f5469df863662,0,Chicago White Sox @ Seattle Mariners,2026-05-20 20:11:00+00,home,0,-132,lowvig,-132,lowvig,55,55,0.77,,,,,0.875,1,true,false,,0,0.7575757575757576
+picks,cc55d7d8e85462a3aa9f55084d696c51,0,Cleveland Guardians @ Detroit Tigers,2026-05-20 22:41:00+00,away,0,-115,betonlineag,-115,betonlineag,72,72,-0.8699999999999997,,,,,0.875,1,true,false,,0,0.8695652173913043
+picks,ce352adc7aae36822a5575bb25b54ff8,0,Atlanta Braves @ Miami Marlins,2026-05-20 22:41:00+00,away,0,-177,betus,-177,betus,87,87,-2.27,,,,,0.875,8,true,false,,0,0.5649717514124294
+picks,2d368724e0c14ae2d63c7f7016e17330,0,New York Mets @ Washington Nationals,2026-05-20 22:46:00+00,away,0,-120,lowvig,-120,lowvig,36,36,-0.25,,,,,0.875,-4,false,false,,0,-1
+picks,e4390656e1c8d9fd196a4745760cdf05,0,Toronto Blue Jays @ New York Yankees,2026-05-20 23:06:00+00,home,0,-166,lowvig,-166,lowvig,55,55,0.050000000000000266,,,,,0.875,-1,false,false,,0,-1
+picks,005a4910f335d19816293b6d19644bd0,0,Boston Red Sox @ Kansas City Royals,2026-05-20 23:41:00+00,away,0,105,betus,105,betus,52,52,-0.17999999999999972,,,,,0.875,1,true,false,,0,1.05
+picks,7a000dccd00ad40a268d4d9160f1e0d3,0,Milwaukee Brewers @ Chicago Cubs,2026-05-20 23:41:00+00,away,0,104,draftkings,104,draftkings,84,84,-1.1999999999999997,,,,,0.875,5,true,false,,0,1.04
+picks,9090dcea2ce4abd32e09245a44d713d7,0,Pittsburgh Pirates @ St. Louis Cardinals,2026-05-20 23:46:00+00,away,0,102,betus,102,betus,29,29,-0.28000000000000025,,,,,0.875,7,true,false,,0,1.02
+picks,eb71b24bcac6134977abdc1add17dd0a,0,Los Angeles Dodgers @ San Diego Padres,2026-05-21 00:41:00+00,away,0,-187,lowvig,-187,lowvig,83,83,-0.5500000000000003,,,,,0.5,,,true,no_final_score,0,
+picks,359cc9aec9f8a43ddd53ba06ce331765,0,Athletics @ Los Angeles Angels,2026-05-21 01:39:00+00,away,0,-122,betrivers,-122,betrivers,54,54,-0.46999999999999975,,,,,0.875,1,true,false,,0,0.819672131147541
+picks,427339d860a9d7bf7b2075fa02850c56,0,Cleveland Guardians @ Detroit Tigers,2026-05-21 17:11:00+00,away,0,110,williamhill_us,110,williamhill_us,72,72,-0.79,,,,,0.875,2,true,false,,0,1.1
+picks,6297516eb97ef4842f3fc5b36d64adb2,0,Pittsburgh Pirates @ St. Louis Cardinals,2026-05-21 17:16:00+00,away,0,-114,betus,-114,betus,72,72,-2.27,,,,,0.875,4,true,false,,0,0.8771929824561403
+picks,6a7d1b1febdcfcc35087e32a118d0e3e,0,New York Mets @ Washington Nationals,2026-05-21 20:06:00+00,home,0,100,williamhill_us,100,williamhill_us,72,72,1.7400000000000002,,,,,0.875,-1,false,false,,0,-1
+picks,fa85c6e14d2b480b97a6f0004286ec0b,0,Atlanta Braves @ Miami Marlins,2026-05-21 22:41:00+00,away,0,-133,betonlineag,-133,betonlineag,91,91,-1.7399999999999998,,,,,0.875,6,true,false,,0,0.7518796992481203
+picks,cce976ea22886df248e92176cb5f8f26,0,Toronto Blue Jays @ New York Yankees,2026-05-21 23:06:00+00,away,0,125,betus,125,betus,69,69,-1.6499999999999995,,,,,0.875,2,true,false,,0,1.25
+picks,ad313997692fb82ede49e0b3e0c17525,0,Athletics @ Los Angeles Angels,2026-05-22 01:39:00+00,away,0,109,betonlineag,109,betonlineag,73,73,-1.3199999999999998,,,,,0.5,,,true,no_final_score,0,
+picks,ba2cf88267a9c181d7eed83a461dbaab,0,Colorado Rockies @ Arizona Diamondbacks,2026-05-22 01:41:00+00,away,0,185,betrivers,185,betrivers,41,41,-0.08000000000000007,,,,,0.875,1,true,false,,0,1.85
+picks,a5ab3fe9c783f6349643c38556202b88,0,Houston Astros @ Chicago Cubs,2026-05-22 18:21:00+00,away,0,126,williamhill_us,126,williamhill_us,62,62,-0.21999999999999975,,,,,0.875,2,true,false,,0,1.26
+picks,ea533201c1219a43e8c91415af4065b2,0,Cleveland Guardians @ Philadelphia Phillies,2026-05-22 22:41:00+00,home,0,-175,betus,-175,betus,57,57,0.04999999999999982,,,,,0.875,-1,false,false,,0,-1
+picks,7298c47d240347dac3ccc27327e2dd9c,0,Tampa Bay Rays @ New York Yankees,2026-05-22 23:06:00+00,away,0,128,draftkings,128,draftkings,84,84,-1.4800000000000004,,,,,0.875,2,true,false,,0,1.28
+picks,b76277870735bb77b65fe5d409036cf6,0,Pittsburgh Pirates @ Toronto Blue Jays,2026-05-22 23:08:00+00,home,0,-155,betus,-155,betus,70,70,0.3299999999999992,,,,,0.875,4,true,false,,0,0.6451612903225806
+picks,a29760479f428402af00a34cffbc00cf,0,New York Mets @ Miami Marlins,2026-05-22 23:11:00+00,away,0,102,lowvig,102,lowvig,76,76,-0.9500000000000002,,,,,0.875,-1,false,false,,0,-1
+picks,ed5e4f7c7c0c51b06ffd0fdf93ce8f17,0,Minnesota Twins @ Boston Red Sox,2026-05-22 23:11:00+00,away,0,135,lowvig,135,lowvig,62,62,-0.5,,,,,0.875,2,true,false,,0,1.35
+picks,7299c6da7b62235dd67f58484e58a33b,0,Washington Nationals @ Atlanta Braves,2026-05-22 23:15:00+00,home,0,-180,betonlineag,-180,betonlineag,67,67,0.8900000000000006,,,,,0.875,1,true,false,,0,0.5555555555555556
+picks,668e5f71f74fad13739788e98ce12084,0,Detroit Tigers @ Baltimore Orioles,2026-05-22 23:16:00+00,home,0,-123,betus,-123,betus,39,39,0.22999999999999954,,,,,0.75,3,true,false,,0,0.8130081300813008
+picks,0fec3ff922e35049f5bbc3e899ce1cef,0,Los Angeles Dodgers @ Milwaukee Brewers,2026-05-22 23:41:00+00,away,0,101,lowvig,101,lowvig,61,61,-0.05000000000000071,,,,,0.875,-4,false,false,,0,-1
+picks,79b579806db1b97214fad9783eef88cd,0,Seattle Mariners @ Kansas City Royals,2026-05-22 23:41:00+00,away,0,-110,betonlineag,-110,betonlineag,72,72,-1.27,,,,,0.875,2,true,false,,0,0.9090909090909091
+picks,35a7408a1687fdea6b7052d86f74cdb5,0,Texas Rangers @ Los Angeles Angels,2026-05-23 01:39:00+00,away,0,-152,betonlineag,-152,betonlineag,56,56,-0.31999999999999984,,,,,0.875,-3,false,false,,0,-1
+picks,30849d75479678c5245fbaa4ea9919ec,0,Athletics @ San Diego Padres,2026-05-23 01:41:00+00,away,0,110,betrivers,110,betrivers,75,75,-1.3599999999999999,,,,,0.875,-2,false,false,,0,-1
+picks,9a684c8b4ec22835fc3fd145e7796370,0,Colorado Rockies @ Arizona Diamondbacks,2026-05-23 01:41:00+00,home,0,-218,lowvig,-218,lowvig,75,75,0.34999999999999964,,,,,0.875,1,true,false,,0,0.45871559633027525
+picks,2e525c53c28c114fe0aeaafcbe01e2be,0,Chicago White Sox @ San Francisco Giants,2026-05-23 02:16:00+00,away,0,-107,lowvig,-107,lowvig,85,85,-1.5300000000000002,,,,,0.875,-7,false,false,,0,-1
+picks,8b80dbee1665ae5e68b02b12836273c5,0,St. Louis Cardinals @ Cincinnati Reds,2026-05-23 17:11:00+00,away,0,-104,fanduel,-104,fanduel,68,68,-0.33000000000000007,,,,,0.875,7,true,false,,0,0.9615384615384616
+picks,5e73a3b37ba9f2d7f8672112ad0b5d3a,0,Houston Astros @ Chicago Cubs,2026-05-23 18:21:00+00,home,0,-145,lowvig,-145,lowvig,23,23,0.009999999999999787,,,,,0.875,-3,false,false,,0,-1
+picks,1d419a4245a0f02f79282579190123f2,0,Pittsburgh Pirates @ Toronto Blue Jays,2026-05-23 19:08:00+00,away,0,-146,betonlineag,-146,betonlineag,76,76,-1.3800000000000003,,,,,0.875,-3,false,false,,0,-1
+picks,bb14f988c4cc921c1b5286bf757183f6,0,Cleveland Guardians @ Philadelphia Phillies,2026-05-23 20:06:00+00,home,0,-171,betus,-171,betus,61,61,0.8699999999999997,,,,,0.875,3,true,false,,0,0.5847953216374269
+picks,d414dc60c44b7705cece8354be2575d1,0,Chicago White Sox @ San Francisco Giants,2026-05-23 20:06:00+00,away,0,-102,fanduel,-102,fanduel,85,85,-1.5300000000000002,,,,,0.875,-7,false,false,,0,-1
+picks,203ad61a573433f885122e8811cd8350,0,Seattle Mariners @ Kansas City Royals,2026-05-23 20:11:00+00,away,0,-121,betus,-121,betus,73,73,-1.1100000000000003,,,,,0.75,-5,false,false,,0,-1
+picks,613fbf2d89b0e9cffb2d70ebdbe1f178,0,Minnesota Twins @ Boston Red Sox,2026-05-23 20:11:00+00,away,0,113,lowvig,113,lowvig,73,73,-0.45999999999999996,,,,,0.75,2,true,false,,0,1.13
+picks,8cd9a8c51a76ba56fe6f4a174a01a9ee,0,New York Mets @ Miami Marlins,2026-05-23 20:11:00+00,home,0,-108,betonlineag,-108,betonlineag,50,50,0.29000000000000004,,,,,0.875,3,true,false,,0,0.9259259259259259
+picks,8d35e402aab765eeda746ea98f694dc6,0,Washington Nationals @ Atlanta Braves,2026-05-23 20:11:00+00,home,0,-160,lowvig,-160,lowvig,87,87,2.4299999999999997,,,,,0.75,-2,false,false,,0,-1
+picks,188966d9ba86d03383806bac10bc777c,0,St. Louis Cardinals @ Cincinnati Reds,2026-05-23 23:16:00+00,away,0,-105,betus,-105,betus,68,68,-0.33000000000000007,,,,,0.75,7,true,false,,0,0.9523809523809523
+picks,e8edd4604077b2fc638f1b2e3db08545,0,Los Angeles Dodgers @ Milwaukee Brewers,2026-05-23 23:16:00+00,home,0,104,betus,104,betus,84,84,2.16,,,,,0.875,-8,false,false,,0,-1
+picks,1b110a61227c86ab2f069fb32d6720af,0,Athletics @ San Diego Padres,2026-05-24 01:41:00+00,away,0,-121,draftkings,-121,draftkings,53,53,-0.020000000000000018,,,,,0.75,3,true,false,,0,0.8264462809917356
+picks,cdafb9b5d32150ff1e65098271c992b2,0,Texas Rangers @ Los Angeles Angels,2026-05-24 02:06:00+00,away,0,-138,betus,-138,betus,64,64,-0.7100000000000004,,,,,0.75,-1,false,false,,0,-1
+picks,aa331215453a8e2dcfbcdcaa7cacecbe,0,Colorado Rockies @ Arizona Diamondbacks,2026-05-24 02:11:00+00,away,0,161,lowvig,161,lowvig,46,46,-0.3199999999999994,,,,,0.875,-8,false,false,,0,-1
+picks,f70aa43669ed4dd4d5fa56bbe2964822,0,Pittsburgh Pirates @ Toronto Blue Jays,2026-05-24 16:16:00+00,home,0,-168,betonlineag,-168,betonlineag,60,60,0.04999999999999982,,,,,0.875,-3,false,false,,0,-1
+picks,491a9de98e8b6561bbf422febc6f39af,0,Detroit Tigers @ Baltimore Orioles,2026-05-24 16:36:00+00,home,0,-122,betonlineag,-122,betonlineag,52,52,0.13999999999999968,,,,,0.625,2,true,false,,0,0.819672131147541
+picks,6810bebc827ff6339e19bf57045954c2,0,Cleveland Guardians @ Philadelphia Phillies,2026-05-24 17:36:00+00,away,0,-112,lowvig,-112,lowvig,87,87,-2.1700000000000004,,,,,0.875,2,true,false,,0,0.8928571428571429
+picks,8f29a5e5e5da656a595405cea1f3dbae,0,Tampa Bay Rays @ New York Yankees,2026-05-24 17:36:00+00,away,0,120,betus,120,betus,61,61,-0.14999999999999947,,,,,0.75,-2,false,false,,0,-1
+picks,3d426f5b8c4503c96291d847232b352e,0,Minnesota Twins @ Boston Red Sox,2026-05-24 17:37:00+00,home,0,-170,betus,-170,betus,54,54,0.029999999999999805,,,,,0.875,-1,false,false,,0,-1
+picks,24764298bc8225d9b8c29e943649671f,0,New York Mets @ Miami Marlins,2026-05-24 17:41:00+00,home,0,-123,betus,-123,betus,67,67,0.8399999999999999,,,,,0.875,4,true,false,,0,0.8130081300813008
+picks,0c7eacfb6fcc01d117cceb47c958a392,0,Seattle Mariners @ Kansas City Royals,2026-05-24 18:11:00+00,away,0,-115,betus,-115,betus,58,58,-0.7199999999999998,,,,,0.875,-2,false,false,,0,-1
+picks,30932455872c68aa6d63646b48a38fc5,0,Los Angeles Dodgers @ Milwaukee Brewers,2026-05-24 18:11:00+00,away,0,-143,lowvig,-143,lowvig,85,85,-1.6799999999999997,,,,,0.875,4,true,false,,0,0.6993006993006993
+picks,35fc54e79ed63979cd762e9846ada0c2,0,St. Louis Cardinals @ Cincinnati Reds,2026-05-24 18:11:00+00,home,0,-114,betus,-114,betus,43,43,0.7199999999999998,,,,,0.625,0,,false,,0,
+picks,fb835eef241cc0456eb7fed048643f00,0,Houston Astros @ Chicago Cubs,2026-05-24 18:21:00+00,home,0,-165,betus,-165,betus,44,44,1.0799999999999996,,,,,0.75,-3,false,false,,0,-1
+picks,bcb23e6708172d9bcdc2a18e01b320ce,0,Chicago White Sox @ San Francisco Giants,2026-05-24 20:06:00+00,home,0,-122,betrivers,-122,betrivers,65,65,0.3700000000000001,,,,,0.75,3,true,false,,0,0.819672131147541
+picks,00df9acbb37e0b01ff82cec41f4c57b8,0,Washington Nationals @ Atlanta Braves,2026-05-24 20:11:00+00,home,0,-152,fanduel,-152,fanduel,72,72,1.7200000000000002,,,,,0.75,-1,false,false,,0,-1
+picks,36c39001c1807b1162a5ddb493c32855,0,Athletics @ San Diego Padres,2026-05-24 20:11:00+00,away,0,153,betonlineag,153,betonlineag,53,53,-0.020000000000000018,,,,,0.75,3,true,false,,0,1.53
+picks,928ebc4404b9485931a3c4232720dc5b,0,Colorado Rockies @ Arizona Diamondbacks,2026-05-24 20:11:00+00,away,0,170,betrivers,170,betrivers,46,46,-0.3199999999999994,,,,,0.875,-8,false,false,,0,-1
+picks,a3077ecb7ee3e8827e0af9e701b5e0b7,0,Detroit Tigers @ Baltimore Orioles,2026-05-24 22:06:00+00,home,0,-124,betus,-124,betus,52,52,0.13999999999999968,,,,,0.625,2,true,false,,0,0.8064516129032258
+picks,65d8670f338a88af5bde23a17924de49,0,Texas Rangers @ Los Angeles Angels,2026-05-24 23:21:00+00,away,0,109,betonlineag,109,betonlineag,64,64,-0.7100000000000004,,,,,0.75,-1,false,false,,0,-1

@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+// D-388 SHIP 2 — frozen-slate root cause probe.
+//
+// Hypotheses:
+//   B1 (upstream stale): fetch-odds-mlb pulls once early; props_cache
+//      shows ONE row per (player, prop, side) for today with old timestamp;
+//      process-games-mlb re-scores the same input every tick → no change.
+//   B2 (merge drops):    fetch-odds-mlb DOES re-pull intraday and props_cache
+//      shows changing line/odds across the day, BUT recommendations_cache
+//      stays frozen at the first-write line/odds because the
+//      ON CONFLICT MERGE doesn't update those columns.
+//   Other:               new (player, prop, side) tuples enter props_cache
+//      late in the day but never reach recommendations_cache.
+
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(__dirname, "..");
+const envLocal = readFileSync(resolve(projectRoot, ".env.local"), "utf8");
+const SUPABASE_URL = envLocal.match(/VITE_SUPABASE_URL=["']?([^"'\n]+)/)[1];
+const SERVICE_ROLE = envLocal.match(/SUPABASE_SERVICE_ROLE_KEY=["']?([^"'\n]+)/)[1];
+const H = { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` };
+
+async function rest(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });
+  if (!res.ok) return { error: `${res.status} ${(await res.text()).slice(0, 200)}` };
+  return { data: await res.json() };
+}
+
+async function main() {
+  const today = new Date().toISOString().slice(0, 10);
+  const out = { ts: new Date().toISOString() };
+
+  // (1) Sample 5 distinct (player_name, prop_type, pick_side) tuples on today's MLB slate
+  console.log("=== (1) Sample 5 distinct MLB props from today's recommendations_cache ===");
+  const recs = await rest(`recommendations_cache?sport=eq.mlb&game_date=eq.${today}&select=player_name,prop_type,pick_side,line,odds,confidence,created_at,last_writer&order=created_at.desc&limit=200`);
+  if (recs.error) { console.error(recs.error); return; }
+  // Pick a deterministic sample
+  const seen = new Set();
+  const sample = [];
+  for (const r of recs.data) {
+    const key = `${r.player_name}|${r.prop_type}|${r.pick_side}`;
+    if (seen.has(key)) continue;
+    if (!r.line || !r.odds) continue;
+    seen.add(key);
+    sample.push(r);
+    if (sample.length >= 5) break;
+  }
+  for (const r of sample) console.log(`  ${r.player_name} ${r.prop_type} ${r.pick_side} line=${r.line} odds=${r.odds} created_at=${r.created_at.slice(0, 19)} updated_at=${(r.updated_at ?? r.created_at)?.slice(0, 19) ?? "-"} last_writer=${r.last_writer}`);
+
+  // (2) For each sample, dump ALL rows in recommendations_cache for that (player|prop|side) today.
+  console.log("\n=== (2) recommendations_cache intraday history per sample (does one row update, or are there multiple rows?) ===");
+  out.rec_cache_per_sample = [];
+  for (const s of sample) {
+    const enc = (v) => encodeURIComponent(v);
+    const url = `recommendations_cache?sport=eq.mlb&game_date=eq.${today}&player_name=eq.${enc(s.player_name)}&prop_type=eq.${enc(s.prop_type)}&pick_side=eq.${enc(s.pick_side)}&select=line,odds,confidence,created_at,last_writer&order=created_at.asc`;
+    const r = await rest(url);
+    if (r.error) { console.log(`  ${s.player_name}: ${r.error}`); continue; }
+    console.log(`  ${s.player_name} ${s.prop_type} ${s.pick_side}: ${r.data.length} row(s) in rec_cache today`);
+    for (const row of r.data) console.log(`    line=${row.line} odds=${row.odds} conf=${row.confidence} created_at=${row.created_at.slice(0, 19)} updated_at=${(row.updated_at ?? row.created_at)?.slice(0, 19) ?? "-"} writer=${row.last_writer}`);
+    out.rec_cache_per_sample.push({ key: `${s.player_name}|${s.prop_type}|${s.pick_side}`, rows: r.data });
+  }
+
+  // (3) For each sample, dump ALL rows in props_cache for that (player|prop|side) today.
+  //    props_cache may have line/odds spread across multiple bookmakers — check time-spread vs bookmaker-spread.
+  console.log("\n=== (3) props_cache intraday history per sample (does the INPUT update intraday?) ===");
+  out.props_cache_per_sample = [];
+  for (const s of sample) {
+    const enc = (v) => encodeURIComponent(v);
+    // props_cache stores per-bookmaker rows; we want to know if there are multiple snapshots over time
+    const url = `props_cache?sport=eq.mlb&game_date=eq.${today.replace(/-/g, "")}&player_name=eq.${enc(s.player_name)}&prop_type=eq.${enc(s.prop_type)}&pick_side=eq.${enc(s.pick_side)}&select=line,odds,bookmaker,created_at,updated_at&order=created_at.asc&limit=50`;
+    const r = await rest(url);
+    if (r.error) { console.log(`  ${s.player_name}: ${r.error}`); continue; }
+    console.log(`  ${s.player_name} ${s.prop_type} ${s.pick_side}: ${r.data.length} row(s) in props_cache today`);
+    if (r.data.length === 0) {
+      // Try non-dashed game_date format
+      const url2 = `props_cache?sport=eq.mlb&game_date=eq.${today}&player_name=eq.${enc(s.player_name)}&prop_type=eq.${enc(s.prop_type)}&pick_side=eq.${enc(s.pick_side)}&select=line,odds,bookmaker,created_at,updated_at&order=created_at.asc&limit=50`;
+      const r2 = await rest(url2);
+      if (!r2.error) {
+        console.log(`    retry with dashed date: ${r2.data.length} row(s)`);
+        for (const row of r2.data.slice(0, 8)) console.log(`    line=${row.line} odds=${row.odds} book=${row.bookmaker} created_at=${row.created_at.slice(0, 19)} updated_at=${(row.updated_at ?? row.created_at)?.slice(0, 19) ?? "-"}`);
+        out.props_cache_per_sample.push({ key: `${s.player_name}|${s.prop_type}|${s.pick_side}`, rows: r2.data });
+        continue;
+      }
+    }
+    for (const row of r.data.slice(0, 8)) console.log(`    line=${row.line} odds=${row.odds} book=${row.bookmaker} created_at=${row.created_at.slice(0, 19)} updated_at=${(row.updated_at ?? row.created_at)?.slice(0, 19) ?? "-"}`);
+    out.props_cache_per_sample.push({ key: `${s.player_name}|${s.prop_type}|${s.pick_side}`, rows: r.data });
+  }
+
+  // (4) fetch-odds-mlb: cron_heartbeat to check intraday firing cadence
+  console.log("\n=== (4) fetch-odds-mlb heartbeat cadence + props_cache update_at distribution ===");
+  const hb = await rest("cron_heartbeat?job_name=eq.fetch-odds-mlb&select=last_fired_at,last_status,last_duration_ms,consecutive_failures,expected_interval_seconds&limit=1");
+  if (!hb.error && hb.data[0]) {
+    console.log(`  last_fired_at: ${hb.data[0].last_fired_at}  status=${hb.data[0].last_status}  dur=${hb.data[0].last_duration_ms}ms  fails=${hb.data[0].consecutive_failures}  interval=${hb.data[0].expected_interval_seconds}s`);
+  }
+
+  // (5) props_cache: how many distinct created_at timestamps for today's MLB props? (= cron-fire count)
+  console.log("\n=== (5) props_cache created_at distribution for today (= number of distinct fetch-odds-mlb writes) ===");
+  const pcAll = await rest(`props_cache?sport=eq.mlb&game_date=eq.${today.replace(/-/g, "")}&select=created_at,line,odds,player_name,prop_type,pick_side,bookmaker&order=updated_at.desc&limit=2000`);
+  if (!pcAll.error) {
+    const createdHours = new Map(); // hour bucket → count
+    const updatedHours = new Map();
+    for (const r of pcAll.data) {
+      const ch = r.created_at?.slice(0, 13) ?? "(null)";
+      const uh = (r.updated_at ?? r.created_at)?.slice(0, 13) ?? "(null)";
+      createdHours.set(ch, (createdHours.get(ch) || 0) + 1);
+      updatedHours.set(uh, (updatedHours.get(uh) || 0) + 1);
+    }
+    console.log(`  total props_cache rows today (cap 2000): ${pcAll.data.length}`);
+    console.log("  created_at by hour:");
+    for (const [h, n] of [...createdHours.entries()].sort()) console.log(`    ${h}: ${n}`);
+    console.log("  updated_at by hour:");
+    for (const [h, n] of [...updatedHours.entries()].sort()) console.log(`    ${h}: ${n}`);
+  }
+
+  // (6) Distinct line/odds VALUES per (player|prop|side) in props_cache today — does the input ACTUALLY change for the same prop?
+  console.log("\n=== (6) Distinct line/odds VALUES per (player|prop|side) in props_cache today (B1 test) ===");
+  // Take the same 5 samples, count distinct (line, odds, bookmaker) tuples
+  out.distinct_values_per_sample = [];
+  for (const s of sample) {
+    const enc = (v) => encodeURIComponent(v);
+    const url = `props_cache?sport=eq.mlb&game_date=eq.${today.replace(/-/g, "")}&player_name=eq.${enc(s.player_name)}&prop_type=eq.${enc(s.prop_type)}&pick_side=eq.${enc(s.pick_side)}&select=line,odds,bookmaker,created_at,updated_at&limit=500`;
+    const r = await rest(url);
+    if (r.error || r.data.length === 0) {
+      // Try dashed date
+      const url2 = `props_cache?sport=eq.mlb&game_date=eq.${today}&player_name=eq.${enc(s.player_name)}&prop_type=eq.${enc(s.prop_type)}&pick_side=eq.${enc(s.pick_side)}&select=line,odds,bookmaker,created_at,updated_at&limit=500`;
+      const r2 = await rest(url2);
+      if (!r2.error) {
+        const tuples = new Set(r2.data.map((x) => `${x.line}|${x.odds}|${x.bookmaker}`));
+        console.log(`  ${s.player_name} ${s.prop_type} ${s.pick_side}: ${r2.data.length} rows, ${tuples.size} distinct (line, odds, bookmaker)`);
+        // Show first 5
+        for (const t of [...tuples].slice(0, 5)) console.log(`    ${t}`);
+        out.distinct_values_per_sample.push({ key: `${s.player_name}|${s.prop_type}|${s.pick_side}`, tuples: [...tuples] });
+        continue;
+      }
+    }
+    const tuples = new Set(r.data.map((x) => `${x.line}|${x.odds}|${x.bookmaker}`));
+    console.log(`  ${s.player_name} ${s.prop_type} ${s.pick_side}: ${r.data.length} rows, ${tuples.size} distinct (line, odds, bookmaker)`);
+    for (const t of [...tuples].slice(0, 5)) console.log(`    ${t}`);
+    out.distinct_values_per_sample.push({ key: `${s.player_name}|${s.prop_type}|${s.pick_side}`, tuples: [...tuples] });
+  }
+
+  writeFileSync(resolve(projectRoot, "docs", "loop", "reports", "d388_frozen_slate.json"), JSON.stringify(out, null, 2));
+  console.log(`\nWrote d388_frozen_slate.json`);
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });

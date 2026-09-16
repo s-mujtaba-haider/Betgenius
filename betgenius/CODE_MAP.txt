@@ -1,0 +1,541 @@
+===============================================================================
+BETGENIUS CODE_MAP — auto-regenerated 2026-04-22
+===============================================================================
+
+Purpose
+-------
+File-by-file index of every .ts / .tsx in the project. One line per file listing
+path + line count + primary purpose, then the top-level declarations (functions,
+exports, types, constants) with source line numbers. Line numbers drift on every
+edit — regenerate this file after any significant code change.
+
+Conventions
+-----------
+- L# = line number at time of generation
+- `Deno.serve(...)` in edge functions = HTTP handler entry point
+- "unclear purpose" is used where the file's intent cannot be inferred from
+  names/context alone; read the file for authoritative answer
+- Scoring logic lives in four places: three edge-function copies of
+  calculateConfidenceScore + src/lib/confidence.ts (the client-side minimal
+  scorer). See /tmp/scoring_audit.md for the factor-by-factor audit.
+
+Totals
+------
+Frontend:  11 files,  5,244 lines
+Edge fns:  11 files, 11,251 lines
+Grand:     22 files, 16,495 lines
+
+
+===============================================================================
+FRONTEND (src/)
+===============================================================================
+
+src/main.tsx (12 lines)
+  React DOM bootstrap. Renders <App /> into #root with StrictMode.
+
+src/App.tsx (88 lines)
+  Top-level page router via useState<Page>. Switches between 5 pages. Owns
+  BetPrefill state that flows Dashboard -> BetTracker when user clicks "Log bet".
+  L8   type Page = "dashboard" | "evaluator" | "tracker" | "performance" | "stats"
+  L10  export interface BetPrefill
+  L18  function App — page switch + nav
+  L73  function NavButton — nav button wrapper
+  L88  export default App
+
+src/lib/supabase.ts (6 lines)
+  Supabase client initialization. Reads VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+  from env. Single exported `supabase` client used by every page.
+  L3   export const SUPABASE_URL
+  L4   export const SUPABASE_ANON_KEY
+  L6   export const supabase (createClient)
+
+src/lib/utils.ts (6 lines)
+  Tailwind class-merge helper (cn()). Standard shadcn/ui utility.
+  L4   export function cn — clsx + tailwind-merge
+
+src/lib/confidence.ts (106 lines)
+  CLIENT-SIDE CONFIDENCE SCORER. Minimal 8-factor scoring model used by
+  Evaluator / Dashboard client code. NOT the same as the edge-function scorers.
+  L1   export interface ConfidenceInput — input schema
+  L17  export interface ConfidenceResult — {score, breakdown}
+  L22  export function calculateConfidenceScore — base 50 + L5, L10, season, floor,
+       recentForm, homeAway, rest, vsOpponent, oddsValue(disabled). Clamp 0-100.
+  L101 export function getScoreLabel — Strong Pick / Good Pick / Lean / Pass
+
+src/components/PickCard.tsx (120 lines)
+  Pick card UI primitive rendered on Dashboard. Shows player, prop, odds,
+  confidence badge, hit rates, AI analysis, "log bet" action.
+  L1   interface PickCardProps
+  L17  export default function PickCard — main render
+  L113 function HitRate — small pill label/value inside PickCard
+
+src/pages/Dashboard.tsx (1,102 lines)
+  MAIN PAGE. Fetches today's picks via get-recommendations, renders Strong /
+  Game Picks / Live Games sections, handles Today/Tomorrow toggle, client-side
+  cache in localStorage (CACHE_KEY=betgenius_recommendations, 5-min TTL).
+  L4   interface Recommendation
+  L21  interface RecommendationsResponse
+  L32  interface LiveGame
+  L42  interface LiveGamesResponse
+  L48  const CACHE_KEY
+  L50  interface CachedData
+  L55  export default function Dashboard — main page component
+  L737 function LiveGameCard — single live-game row
+  L786 function StatCard — header stat tile
+  L797 interface RecommendationCardProps
+  L803 function GameMatchupCard — spread+total card for one game
+  L977 function RecommendationCard — single player-prop pick card
+  L1088 function HitRateChip — small rate pill
+  L1100 function formatOdds — american odds formatter
+
+src/pages/BetTracker.tsx (698 lines)
+  Bet logging + tracking UI. Auto-prefills from Dashboard "Log bet" clicks.
+  Writes to Supabase `bets` table, displays history, computes P/L, resolves
+  against pick_history when game finishes.
+  L5   interface PlayerSuggestion
+  L12  const TEAM_ABBR_MAP
+  L27  function _getTeamAbbr (dead — starts with underscore)
+  L46  interface Bet
+  L59  const PROP_TYPES
+  L61  interface BetTrackerProps
+  L66  export default function BetTracker — main page component
+  L661 function Field — labeled form field wrapper
+  L670 function SummaryCard — P/L summary tile
+  L679 function StatusBadge — win/loss/pending pill
+
+src/pages/Evaluator.tsx (472 lines)
+  Manual single-player evaluator. Autocomplete on ESPN player names, calls
+  analyze-pick edge function, shows detailed scoring breakdown. Can pre-fill
+  BetTracker via onLogBet callback.
+  L6   const PROP_TYPES
+  L15  interface PlayerSuggestion
+  L23  const TEAM_ABBR_MAP
+  L38  function _getTeamAbbr (dead — starts with underscore)
+  L57  interface AnalysisResult
+  L84  interface EvaluatorProps
+  L88  export default function Evaluator — main page component
+  L444 function StatBox — labeled stat tile
+  L453 function formatFactorName — snake_case → Title Case
+
+src/pages/Performance.tsx (2,139 lines)
+  Algorithm analytics dashboard. Pulls all pick_history rows (paginated).
+  Computes win rates by tier, factor analysis (gap on wins vs losses per
+  factor), equity curve split by tier (elite/strong/good), daily P/L.
+  Also hosts Odds API Usage card + System Health card (built this week).
+  L19  interface PickHistoryRow — 40+ columns including 23 score_* factors
+  L64  type SortKey, L65 type SortDir
+  L67  interface ApiUsageRow
+  L78  interface UsageStats
+  L89  interface SystemHealth
+  L105 const STAKE = 100
+  L106 const BREAK_EVEN = 0.524
+  L108 const supabaseHeaders
+  L115 const TEAM_COLORS
+  L125 const TEAM_TO_ABBR
+  L139 const FACTOR_COLUMNS — factor label map for factor-analysis table
+  L170 function parseGameDate — YYYYMMDD string -> Date
+  L178 function formatGameDate — short human display
+  L184 function gameDateISO — to ISO date
+  L190 function payoutUnits — american odds -> profit units
+  L197 function impliedProb — american odds -> implied win%
+  L202 function fmtDollars
+  L208 function fmtOdds
+  L212 function teamAbbr
+  L218 function getInitials
+  L226 function getConfTier — confidence -> tier label+color
+  L234 function getOddsBucket
+  L246 function TeamDot — colored team dot
+  L264 function PlayerAvatar
+  L304 export default function Performance — main page component
+  L1266 function SystemHealthCard — auto_optimize/process-games/resolve-picks status
+  L1361 type HealthTone
+  L1363 function HealthTile — single status tile
+  L1381 function relativeTime
+  L1392 function resolveTone
+  L1399 function fetchOddsTone
+  L1406 function OddsApiUsageCard — today/month/remaining/reset + 7-day burn bars
+  L1490 function UsageStat
+  L1503 const TIER_COLORS — elite amber / strong emerald / good violet
+  L1509 function EquityCard — equity curve with tier-split lines
+  L1684 function TierLegend
+  L1698 function HitRateCard
+  L1741 function ProfitCard
+  L1776 function MatchCard — pending pick card in Tonight's top picks
+  L1857 function TeamCircle
+  L1883 function TierBreakdownCard
+  L1947 function PropBreakdownCard
+  L1981 function OddsBreakdownCard
+  L2002 function SideBreakdownCard
+  L2024 function MiniStat
+  L2033 type SignalRow
+  L2043 function SignalCard — single factor card in "What's driving results"
+  L2083 function BadBeatRow
+  L2114 function HistoryHeader — sortable table header
+
+src/pages/Stats.tsx (495 lines)
+  Team/player stats lookup page. Calls team-stats edge function. NBA teams +
+  player search + H2H games.
+  L3   const SUPABASE_URL (hardcoded)
+  L5   interface TeamStats
+  L16  interface PlayerStats
+  L25  interface H2HGame
+  L27  const ALL_TEAMS
+  L37  export default function Stats — main page component
+
+
+===============================================================================
+EDGE FUNCTIONS (supabase/functions/)
+===============================================================================
+
+supabase/functions/fetch-odds/index.ts (195 lines)
+  Fetches player-prop odds from The Odds API, upserts to `props_cache` table.
+  Gated by circuit breaker (skip if Odds API remaining < 500). Scheduled cron
+  every 15 minutes.
+  L3   const ODDS_API_KEY, L4 SUPABASE_URL, L5 SUPABASE_KEY
+  L7   const BOOKMAKER_PRIORITY = [hardrockbet, draftkings, fanduel, ...]
+  L9   async function logApiUsage — writes to api_usage table
+  L34  const CIRCUIT_BREAKER_THRESHOLD = 500
+  L35  async function checkCircuitBreaker — returns false when remaining < 500
+  L65  Deno.serve — handler: circuit-breaker -> events -> per-event props -> upsert
+
+supabase/functions/get-live-games/index.ts (138 lines)
+  Fetches live-game scores from The Odds API `/scores` endpoint. Logs to
+  api_usage. Used by Dashboard's Live Games section.
+  L16  const ODDS_API_KEY (hardcoded), L17 SUPABASE_URL, L18 SUPABASE_KEY
+  L20  async function logApiUsage
+  L41  interface LiveGame
+  L51  Deno.serve — handler: scores API -> filter started games -> respond
+
+supabase/functions/get-player-stats/index.ts (447 lines)
+  ESPN-backed single-player stats fetch for Evaluator. Returns player profile,
+  game log, stat summary. No circuit breaker (ESPN is free).
+  L18  interface PlayerResult, L25 interface GameLogEntry
+  L32  function getSportPath — sport string -> ESPN URL path
+  L40  async function debugFetch — fetch with status logging
+  L54  function namesMatch — fuzzy name matcher
+  L64  async function fetchAthleteProfile
+  L83  async function searchPlayer
+  L261 async function fetchGameLog
+  L390 function calculateStatSummary
+  L413 Deno.serve — handler
+
+supabase/functions/get-props/index.ts (162 lines)
+  Legacy helper — fetches events + prop odds, returns parsed props for a sport.
+  Superseded by fetch-odds for NBA workflow; kept as a lower-level fallback.
+  L16  const BASE_URL, L17 DEFAULT_MARKETS
+  L19  interface ParsedProp
+  L32  async function fetchEvents
+  L42  async function fetchEventOdds
+  L49  function parseProps
+  L105 Deno.serve — handler
+
+supabase/functions/team-stats/index.ts (421 lines)
+  Team / player / H2H stats lookup backing src/pages/Stats.tsx.
+  Uses BallDontLie API (ALL-STAR tier) for team stats, H2H games, player
+  search, player vs team. BALLDONTLIE_API_KEY required.
+  L3   const BALLDONTLIE_API_KEY
+  L10  const TEAM_ABBREV, L20 TEAM_ESPN_IDS, L29 ALL_TEAMS
+  L34  async function fetchTeamStats — season averages + standings
+  L153 async function fetchH2H
+  L171 async function searchPlayers
+  L192 async function fetchPlayerStats
+  L284 async function fetchPlayerVsTeamBDL
+  L355 Deno.serve — handler: action router (team | h2h | search | player | vs)
+
+supabase/functions/health-check/index.ts (176 lines)
+  Aggregate health check. Tests ESPN scoreboard, ESPN team stats, Odds API,
+  Gemini AI, Supabase DB, run_log, error_log. Returns HEALTHY / DEGRADED /
+  UNHEALTHY with per-check pass/fail and latency. Odds API check logs to
+  api_usage.
+  L8   interface CheckResult
+  L15  async function logApiUsage
+  L38  async function checkESPN
+  L53  async function checkESPNTeamStats
+  L67  async function checkOddsAPI
+  L85  async function checkGemini
+  L105 async function checkSupabase
+  L121 async function checkRecentRuns
+  L144 async function checkUnresolvedErrors
+  (Handler below uses Deno std serve, not Deno.serve)
+
+supabase/functions/analyze-pick/index.ts (1,831 lines)
+  EVALUATOR BACKEND. Scores a single player prop on demand. Shares ~70%
+  of code with get-recommendations (legacy tech debt — duplicate
+  calculateConfidenceScore, duplicate helpers). Uses its own calculateConfidence
+  that writes `breakdown.trend` into score_season column (see Task 6 finding
+  in /tmp/night_session_2_summary.md).
+  L19  const TEAM_ABBREV
+  L34  interface GameLogEntry, L41 PlayerResult
+  L48  function getSportPath
+  L57  async function debugFetch
+  L72  function namesMatch
+  L83  async function fetchAthleteProfile
+  L102 async function searchPlayer
+  L285 async function fetchGameLog
+  L416 const PROP_STAT_MAP
+  L431 function getStatValue
+  L448 function isDNPGame
+  L454 function calcHitRates
+  L487 interface GameContext, L497 BackToBackResult
+  L502 async function checkBackToBack
+  L586 interface MinutesTrend, L593 AbsenceInfo
+  L600 function calculateMinutesTrend
+  L651 function detectRecentAbsence
+  L696 interface PaceDefenseScores
+  L701 function calculatePaceDefenseScores
+  L764 function calculateRestScore
+  L793 interface OpponentStats
+  L804 async function fetchOpponentDefensiveStats
+  L914 function findStatWithLog
+  L926 function buildOpponentStats
+  L994 const BALLDONTLIE_API_KEY
+  L998 async function loadBdlInjuries
+  L1030 async function fetchTeamInjuries
+  L1037 async function fetchTodaysGameContext
+  L1118 function formatGameTime
+  L1133 function calculateConfidenceScore — trend-based score_season (divergent)
+  L1302 function getScoreLabel
+  L1311 const GEMINI_API_KEY (hardcoded)
+  L1313 async function getGeminiAnalysis
+  L1503 Deno.serve — handler
+
+supabase/functions/get-recommendations/index.ts (3,306 lines)
+  DASHBOARD BACKEND. Scores all props for today, generates Gemini AI analysis,
+  logs to pick_history + recommendations_cache. Applies circuit breaker on
+  every Odds API call site. Single-pass end-to-end pipeline; used by the
+  Dashboard Refresh button. Writes `source='dashboard'` to pick_history.
+  Extended factor cascade: z-score, consistency, role change, vig filter, usg,
+  regression, market conf, home/away split, minutes floor. Trivial-line cap
+  (65 max on line<=0.5 with odds>=+200).
+  L17  const ODDS_API_KEY (hardcoded), L18 GEMINI_API_KEY (hardcoded),
+       L19 BALLDONTLIE_API_KEY
+  L20  const TIMEOUT_MS
+  L32  async function loadWeightsFromDB — reads algorithm_weights table
+  L60  const ESPN_FETCH_TIMEOUT_MS
+  L68  function resetRunStats
+  L74  async function logError, L86 async function logRun
+  L106 const PLAYER_BATCH_SIZE
+  L110 const CACHE_TTL
+  L115 const TEAM_NAME_NORMALIZE, L123 TEAM_ABBREV
+  L136 function normalizeTeamName
+  L143-240 interfaces (OddsEvent, ExtractedProp, GameLogEntry, etc)
+  L248 async function quietFetch
+  L263 function formatGameTime
+  L272 async function logApiUsage
+  L300 const CIRCUIT_BREAKER_THRESHOLD = 500
+  L301 async function checkCircuitBreaker
+  L335 async function fetchTodaysProps — main odds fetch with circuit breaker
+  L507 function getSportPath
+  L515 function namesMatch, L524 fetchAthleteProfile, L542 searchPlayer
+  L601 async function fetchGameLog
+  L656 const PROP_STAT_MAP
+  L673 function getStatValue, L689 isDNPGame
+  L695 function calcHitRates
+  L724 function calculateMinutesTrend, L752 detectRecentAbsence
+  L797 function calculateStdDev, L806 calculatePerMinuteRate
+  L824 function projectMinutes, L842 computeProjectedStat, L848 calculateZScore
+  L855 function calculateUsageBoost
+  L870 function detectMinutesFloor
+  L887 function calculateHomeAwaySplit
+  L908 function detectMarketConfirmation
+  L917 function detectRegression
+  L935 function calculateUSGRate
+  L959 function detectRoleChange
+  L978 function calculateConfidenceScore — SCORER (base 50 + all factors * weights)
+  L1105 function getScoreLabel
+  L1114 async function fetchOpponentDefensiveStats — ESPN team stats walker
+  L1284 interface BdlInjury
+  L1296 async function loadBdlInjuries
+  L1362 async function fetchTeamInjuries
+  L1371 function getPlayerInjuryStatus — status-aware penalty
+  L1393 async function getTeamInjuries
+  L1401 function calculatePaceDefenseScores
+  L1472 async function checkBackToBack
+  L1508 interface ScoreboardData
+  L1513 async function fetchScoreboard
+  L1537 function fetchOpponentTeamIdFromScoreboard
+  L1651 async function logPickToHistory
+  L1738 async function fetchPlayerDataCached
+  L1772 async function fetchPlayerDataWithTimeout
+  L1794 async function scoreProp — orchestrator: scores over+under, picks best
+  L1815 async function scoreOneSide — EXTENDED CASCADE (11 extra factors)
+  L2076 async function getGeminiAnalysis
+  L2208 async function getGameGeminiAnalysis — spread/total analyst prompt
+  L2273 async function getContextModifiers — disabled, JSON context modifiers
+  L2371 interface GameOdds, L2380 TeamRecentStats
+  L2397 async function fetchTeamRecentStats
+  L2548 const TEAM_ESPN_IDS
+  L2557 function scoreGameSide — spread scoring (L10, HA, point diff, rest, etc)
+  L2665 function scoreGameTotal — totals scoring (L10 scoring, pace, rest, etc)
+  (Deno.serve handler defined after the scoring functions)
+
+supabase/functions/process-games/index.ts (2,781 lines)
+  CRON WORKER. Progressive one-game-at-a-time processing (picks oldest
+  pending row from cron_progress, scores its props, game-odds spread+total,
+  marks complete). Writes `source='process-games'` to pick_history.
+  Near-duplicate of get-recommendations scoring core with some additions:
+  * Sonnet (Anthropic) analyst as Gemini fallback
+  * Task-1 silent-skip fix: reverts to 'pending' if spread/total cache writes
+    fail (keeps cron_progress recoverable on Odds API hiccup)
+  * Circuit breaker gates game-odds Odds API call; spread/total flags stay
+    false when tripped so Step 10 reverts to pending automatically
+  L17-22 hardcoded API keys + timeouts
+  L35  async function loadWeightsFromDB
+  L70  function resetRunStats
+  L76  async function logError, L88 logRun
+  L115 const TEAM_NAME_NORMALIZE, L122 TEAM_ABBREV, L135 TEAM_ESPN_IDS
+  L144 function normalizeTeamName
+  L151-249 interfaces (OddsEvent, ExtractedProp, GameLogEntry, etc)
+  L257 async function quietFetch
+  L270 async function logApiUsage
+  L296 const CIRCUIT_BREAKER_THRESHOLD = 500
+  L297 async function checkCircuitBreaker
+  L322 function formatGameTime
+  L333 namesMatch, L342 fetchAthleteProfile, L359 searchPlayer
+  L415 async function fetchGameLog
+  L468 const PROP_STAT_MAP
+  L476 function getStatValue, L491 isDNPGame
+  L496 function calcHitRates
+  L514 function calculateMinutesTrend, L535 detectRecentAbsence
+  L556 function calculateStdDev, L563 calculatePerMinuteRate
+  L580 function projectMinutes, L597 computeProjectedStat, L602 calculateZScore
+  L608 function calculateUsageBoost
+  L624 function detectMinutesFloor
+  L638 function calculateHomeAwaySplit
+  L657 function detectMarketConfirmation
+  L661 function detectRegression
+  L674 function calculateUSGRate
+  L691 function detectRoleChange
+  L712 function calculateConfidenceScore — SCORER
+  L800 function getScoreLabel
+  L809 async function fetchOpponentDefensiveStats
+  L893 function calculatePaceDefenseScores
+  L925 interface BdlInjury
+  L929 async function loadBdlInjuries
+  L960 async function fetchTeamInjuries
+  L967 function getPlayerInjuryStatus
+  L987 async function getTeamInjuries
+  L997 async function checkBackToBack
+  L1030 interface ScoreboardData
+  L1032 async function fetchScoreboard
+  L1048 function fetchOpponentTeamIdFromScoreboard
+  L1083 async function fetchPlayerDataCached
+  L1109 async function fetchPlayerDataWithTimeout
+  L1129 async function scoreProp
+  L1142 async function scoreOneSide — EXTENDED CASCADE + staleData + playerInjury
+  L1283 async function getGeminiAnalysis
+  L1383 const ANALYST_PERSONAS
+  L1390 function getPersonaIndex
+  L1397 async function getSonnetAnalysis — Anthropic Claude fallback analyst
+  L1449 async function getSonnetGameAnalysis
+  L1498 interface GameOdds, L1507 TeamRecentStats
+  L1522 async function fetchTeamRecentStats
+  L1639 function scoreGameSide
+  L1695 function scoreGameTotal
+  L1736 async function getGameGeminiAnalysis
+  (Deno.serve handler defined further down; implements progressive
+  one-game-per-invocation pattern with cron_progress state machine)
+
+supabase/functions/resolve-picks/index.ts (1,063 lines)
+  CRON RESOLVER. Runs at 10:00 AM and 12:30 AM ET. Fetches unresolved picks
+  from pick_history, pulls ESPN box scores for their game dates, matches
+  players to box-score entries, updates hit/miss/voided. Also resolves
+  entries in `bets` table. Filters `voided!=true` (Chat 11 bugfix).
+  L17  function normalizeName
+  L54  const SUPABASE_URL, L55 SUPABASE_KEY
+  L63  async function quietFetch
+  L74  const PROP_STAT_MAP
+  L83  function getStatFromBox
+  L102 function parseGameTime
+  L124 function utcToEasternDate
+  L132 function getPickGameDate, L143 getBetGameDate
+  L148 async function fetchUnresolvedPicks
+  L175 async function updatePickResult
+  L201 async function voidPick
+  L219 async function resetBadData — cleanup tool
+  L265 async function fetchScoreboard
+  L321 interface PlayerBoxStats
+  L331 async function fetchBoxScore
+  L440 function playerNamesMatch
+  L468 function getPlayerStat
+  L487 type DateKeyedBoxScores
+  L490 async function fetchBoxScoresForDates
+  L526 function findPlayerByDate
+  L577 async function resolvePendingBets
+  L703 async function debugFetchPlayer
+  L741 Deno.serve — handler
+
+supabase/functions/backtest/index.ts (731 lines)
+  STANDALONE BACKTESTER edge function (deployed but not on a cron). Replays
+  algorithm against historical ESPN data using simulated lines. Distinct from
+  the SQL-based backtest_weights() that powers the auto-optimizer.
+  L18  async function quietFetch
+  L30  interface GameLogEntry, L37 PlayerResult
+  L46  function namesMatch
+  L55  async function fetchAthleteProfile
+  L72  async function searchPlayer
+  L129 async function fetchGameLog
+  L183 const PROP_STAT_MAP
+  L192 function getStatValue
+  L206 function calcHitRates
+  L232 interface MinutesTrend
+  L239 function calculateMinutesTrend
+  L268 function calculateConfidenceScore — OLDER minimal scoring copy
+  L358 interface BacktestPick, L370 ConfidenceTier, L376 BacktestSummary
+  L387 interface BoxScorePlayer
+  L396 async function fetchScoreboard
+  L415 async function fetchBoxScore
+  L471 function roundToHalf
+  L477 const TIMEOUT_MS, L478 PLAYER_BATCH_SIZE
+  L480 Deno.serve — handler
+
+
+===============================================================================
+DUPLICATE LOGIC HOT SPOTS
+===============================================================================
+
+Four separate calculateConfidenceScore implementations (see /tmp/scoring_audit.md):
+  1. supabase/functions/process-games/index.ts:712    — full 22-factor + cascade
+  2. supabase/functions/get-recommendations/index.ts:978 — near-duplicate of #1
+  3. supabase/functions/analyze-pick/index.ts:1133     — trend-not-season variant
+  4. src/lib/confidence.ts:22                          — minimal client-side
+
+Near-duplicate helpers (namesMatch, fetchAthleteProfile, searchPlayer,
+fetchGameLog, calcHitRates, calculateMinutesTrend, detectRecentAbsence,
+calculateStdDev, calculatePerMinuteRate, projectMinutes, computeProjectedStat,
+calculateZScore, calculateUsageBoost, detectMinutesFloor, calculateHomeAwaySplit,
+detectMarketConfirmation, detectRegression, calculateUSGRate, detectRoleChange,
+fetchOpponentDefensiveStats, calculatePaceDefenseScores, checkBackToBack,
+fetchScoreboard, fetchOpponentTeamIdFromScoreboard) exist in both
+process-games/index.ts and get-recommendations/index.ts with minor drift.
+Same helpers (namesMatch, fetchAthleteProfile, searchPlayer, fetchGameLog,
+calcHitRates, calculateMinutesTrend) also live in analyze-pick/index.ts.
+
+Eventual consolidation candidate: extract a shared `_lib/` folder under
+supabase/functions/ and have all three importers pull from it. Not on the
+current task list.
+
+
+===============================================================================
+RECENT ADDITIONS (post v2.7 framework)
+===============================================================================
+
+- Circuit breaker helper in fetch-odds (L35), process-games (L297),
+  get-recommendations (L301). Queries latest api_usage row; returns false when
+  Odds API remaining < 500, logging to error_log with error_type='circuit_breaker'.
+- logApiUsage helper added to fetch-odds (L9), get-live-games (L20),
+  health-check (L15), process-games (L270), get-recommendations (L272).
+  Writes to api_usage table with headers from The Odds API response.
+- Performance.tsx System Health card (L1266), Odds API Usage card (L1406),
+  tier-split EquityCard (L1509) with TIER_COLORS (L1503) and TierLegend
+  (L1684).
+- process-games silent-skip fix: game-odds failure paths keep cron_progress
+  row at status='pending' (reverted in Step 10 when spreadWritten &&
+  totalWritten are false).
+- get-recommendations had a dead `fetchGameOdds()` helper with broken
+  `\${event.id}` template escapes; removed.
+
+
+===============================================================================
+END OF CODE_MAP — regenerate after every deploy that changes code layout
+===============================================================================

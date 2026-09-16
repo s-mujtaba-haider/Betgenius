@@ -1,0 +1,188 @@
+-- D-142 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Will be renamed to .pending during schema-only push to keep this
+-- file off prod until the §1.12 cycle observes clean post-fix data.
+--
+-- Closes verdict label inconsistency. process-games:L2326 verdict
+-- expression changed from `getScoreLabel(confidenceResult.score)` (pre-
+-- bonus, possibly layer-1 capped) to `getScoreLabel(finalScore)` (post-
+-- everything: post-bonus + post-layer-2-cap, post-clamp). Heals trivial-
+-- cap verdict mismatch (Cases 2/4 per D-142 audit) AND broader non-
+-- trivial bonus-crosses-tier mismatch (Case 1 generalized). Brings L2326
+-- into line with the three other getScoreLabel call sites (L3796 / L4408
+-- / L4479) which already use post-everything confidence.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after ≥1 process-games cron tick post-deploy;
+-- full convergence at 24h alongside seven other open §1.12 cycles —
+-- D-133 Fix A + D-136 low_min_risk + D-137 blowout_risk + D-139 line_movement
+-- + D-140 Bug B + D-141 selection-bias visual + D-142):
+--
+-- Query A — Trivial-cap-firing picks should land in {Lean, Pass} verdict only:
+--
+--   SELECT
+--     player_name, prop_type, line, odds, confidence, verdict,
+--     score_trivial_line_cap, created_at
+--   FROM pick_history
+--   WHERE created_at > NOW() - INTERVAL '18 hours'
+--     AND source = 'process-games'
+--     AND is_synthetic = false
+--     AND line <= 0.5
+--     AND ABS(odds) >= 200
+--     AND score_trivial_line_cap = TRUE
+--   ORDER BY created_at DESC LIMIT 20;
+--
+--   Expected post-fix: EVERY row has verdict ∈ {'Lean', 'Pass'} matching
+--   the stored confidence tier. 65 confidence (D-140 layer-2 cap to 65)
+--   → 'Lean'. < 60 confidence (Case 4: net-negative bonuses below 60)
+--   → 'Pass'. 60-64 (rare: layer-1 fires but bonuses bring it just below
+--   65) → 'Lean'.
+--   Pre-fix shape: verdict could read 'Strong Pick' / 'Good Pick' even on
+--   capped 65 picks because it pulled pre-bonus score that escaped both
+--   cap layers' tier-clamp effect.
+--
+-- Query B — Verdict-vs-confidence-tier agreement across ALL picks (the
+-- broader Case 1 generalization — non-trivial bonus-crosses-tier mismatch):
+--
+--   SELECT
+--     verdict,
+--     CASE
+--       WHEN confidence >= 90 THEN 'Elite tier'
+--       WHEN confidence >= 80 THEN 'Strong tier'
+--       WHEN confidence >= 70 THEN 'Good tier'
+--       WHEN confidence >= 60 THEN 'Lean tier'
+--       ELSE 'Pass tier'
+--     END AS confidence_tier,
+--     COUNT(*) AS picks
+--   FROM pick_history
+--   WHERE created_at > NOW() - INTERVAL '18 hours'
+--     AND source = 'process-games'
+--     AND is_synthetic = false
+--   GROUP BY verdict, confidence_tier
+--   ORDER BY confidence_tier, verdict;
+--
+--   Expected post-fix: every (verdict, confidence_tier) pair matches:
+--     - 'Elite Pick' rows ONLY in Elite tier
+--     - 'Strong Pick' rows ONLY in Strong tier
+--     - 'Good Pick' rows ONLY in Good tier
+--     - 'Lean' rows ONLY in Lean tier
+--     - 'Pass' rows ONLY in Pass tier
+--   Any mismatched (verdict, tier) pair is a bug. Pre-fix baseline: small
+--   but non-zero mismatch count expected from Case 1 bonus tier-crossings
+--   on non-trivial picks (estimated 1-5% of organic picks per D-142 audit
+--   framework-derived proxy).
+--
+-- Query C — Mismatch count (smoking-gun summary):
+--
+--   WITH classified AS (
+--     SELECT
+--       verdict,
+--       CASE
+--         WHEN confidence >= 90 THEN 'Elite Pick'
+--         WHEN confidence >= 80 THEN 'Strong Pick'
+--         WHEN confidence >= 70 THEN 'Good Pick'
+--         WHEN confidence >= 60 THEN 'Lean'
+--         ELSE 'Pass'
+--       END AS expected_verdict
+--     FROM pick_history
+--     WHERE created_at > NOW() - INTERVAL '18 hours'
+--       AND source = 'process-games'
+--       AND is_synthetic = false
+--   )
+--   SELECT
+--     COUNT(*) AS total,
+--     COUNT(*) FILTER (WHERE verdict = expected_verdict) AS matched,
+--     COUNT(*) FILTER (WHERE verdict <> expected_verdict) AS d142_violations
+--   FROM classified;
+--
+--   Expected post-fix: d142_violations = 0.
+--
+-- Query D — Pre-fix vs post-fix baseline (run a parallel sample on rows
+-- created BEFORE deploy_timestamp to measure how often the bug fired
+-- historically — informs how much subscriber-trust damage was hidden):
+--
+--   WITH classified AS (
+--     SELECT
+--       verdict,
+--       CASE
+--         WHEN confidence >= 90 THEN 'Elite Pick'
+--         WHEN confidence >= 80 THEN 'Strong Pick'
+--         WHEN confidence >= 70 THEN 'Good Pick'
+--         WHEN confidence >= 60 THEN 'Lean'
+--         ELSE 'Pass'
+--       END AS expected_verdict,
+--       (line <= 0.5 AND ABS(odds) >= 200) AS is_trivial,
+--       score_trivial_line_cap
+--     FROM pick_history
+--     WHERE created_at BETWEEN '2026-05-04' AND '2026-05-13 23:39:00+00'
+--       AND source = 'process-games'
+--       AND is_synthetic = false
+--   )
+--   SELECT
+--     is_trivial,
+--     COUNT(*) AS total,
+--     COUNT(*) FILTER (WHERE verdict <> expected_verdict) AS pre_fix_violations,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE verdict <> expected_verdict)
+--             / NULLIF(COUNT(*), 0), 2) AS pct_violations
+--   FROM classified
+--   GROUP BY is_trivial;
+--
+--   Expected: trivial=TRUE rate higher than trivial=FALSE rate (cap
+--   interaction was more visible than non-trivial bonus crossing).
+--   Both rates non-zero pre-fix.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A any trivial-capped row shows verdict NOT IN ('Lean','Pass'):
+--     fix didn't land or was reverted. Inspect L2326 in deployed bundle
+--     (production) for `getScoreLabel(finalScore)` — if grep shows
+--     `getScoreLabel(confidenceResult.score)` still present, deploy
+--     regressed; re-deploy from commit hash recorded in commit message.
+--
+--   Query B mismatched (verdict, confidence_tier) on non-trivial rows:
+--     Case 1 generalization not healed. Means bonuses are still
+--     crossing tier boundaries AND verdict is still reading pre-bonus.
+--     Inspect L2326: should be `getScoreLabel(finalScore)`, NOT
+--     `getScoreLabel(confidenceResult.score)`.
+--
+--   Query C d142_violations > 0: fix incomplete or regressed. Same
+--     remediation as Query A/B.
+--
+--   Query D post-fix violations < pre-fix violations: fix is working
+--     and historical damage is now quantifiable. CEO product decision:
+--     do we re-resolve historical picks with corrected verdict labels
+--     (display only — confidence column is correct, only verdict TEXT
+--     would be re-labeled), or accept the historical drift?
+-- =============================================================================
+-- INDEPENDENCE FROM OTHER OPEN §1.12 CYCLES
+--
+--   D-133 sideAwareOdds wiring (L2069 hoist): independent. D-142
+--     reads finalScore, which is downstream of sideAwareOdds inputs.
+--     If D-133 verifies dirty, D-142 verification will also be
+--     affected only through the input layer.
+--
+--   D-136 low_min_risk (L2221): independent. low_min_risk updates
+--     finalScore; D-142 reads finalScore AFTER all updates including
+--     low_min_risk. Both must verify clean independently.
+--
+--   D-137 blowout_risk (L2240): independent. Same shape as D-136.
+--
+--   D-139 line_movement (L2269): independent. Same shape as D-136.
+--
+--   D-140 Bug B layer-2 cap (L2313): TIGHTLY COUPLED. D-140 mutates
+--     finalScore (clamps to 65 for trivial). D-142 reads that same
+--     finalScore for the verdict label. If D-140 verifies dirty
+--     (layer-2 cap not firing), D-142 Query A trivial-cap rows will
+--     show wrong verdict because finalScore wasn't clamped. Re-verify
+--     D-140 first if D-142 Query A shows anomalies.
+--
+--   D-141 selection-bias UI (frontend-only): independent. D-141 reads
+--     pick_history.verdict column via PostgREST; if D-142 corrects
+--     verdict values, D-141's tier-grouping by verdict becomes more
+--     honest (no more "Strong Pick verdict on Lean-tier confidence"
+--     edge cases polluting the tier buckets).
+--
+--   All seven cycles + D-141 visual verify converge at the next
+--   process-games cron tick (~14:30 UTC May 14, 2026).
+-- =============================================================================
+
+SELECT 1 AS d142_verdict_label_verification_no_op;

@@ -1,0 +1,9 @@
+[api]
+enabled = true
+port = 54321
+
+[functions.resolve-picks]
+verify_jwt = false
+
+[functions.analyze-pick]
+verify_jwt = false

@@ -1,0 +1,45 @@
+-- D-170 Path C — zero w_b2b temporarily (May 14, 2026).
+--
+-- Context:
+--   D-170 (commit 42eea94) extended the score_b2b predicate in
+--   _shared/scoring.ts to fire on rest_days <= 1 (was rest_days = 0).
+--   Factor now fires ~72% of picks instead of 0% (NBA playoffs have no
+--   literal back-to-backs).
+--
+--   Pre-D-170 w_b2b = 2.75 was tuned against a factor that fired 0% —
+--   the weight was effectively irrelevant. With the post-D-170 ~72%
+--   fire rate, applying w_b2b = 2.75 would cause ~3pp home / ~6pp away
+--   confidence drift on the majority of picks at the next 14:00 UTC
+--   cron tick.
+--
+-- Path C: zero the weight, keep the predicate extension, collect
+-- fire-rate + WR-delta data in pick_history.score_b2b over 2 weeks,
+-- then tune w_b2b via §19.3 manual weight UPDATE.
+--
+-- This migration is DOCUMENTATION-ONLY. The actual change is a PATCH
+-- against algorithm_weights row 1 via service-role-key REST call:
+--
+--   curl -X PATCH "${SUPABASE_URL}/rest/v1/algorithm_weights?id=eq.1" \
+--     -H "apikey: <service_role_key>" \
+--     -H "Content-Type: application/json" \
+--     -H "Prefer: return=representation" \
+--     -d '{"w_b2b": 0.0}'
+--
+-- Audit trail:
+--   Pre-fix w_b2b:  2.75  (set 2026-05-07T11:39:06Z, original session)
+--   Post-fix w_b2b: 0.0   (set 2026-05-14, current session)
+--   Note: algorithm_weights table has no auto-update trigger on
+--         updated_at; that column reflects 2026-05-07 row creation,
+--         not the D-170 Path C PATCH. Audit trail is THIS migration
+--         file + the D-170 Path C commit in git.
+--
+-- Rollback:
+--   curl -X PATCH "${SUPABASE_URL}/rest/v1/algorithm_weights?id=eq.1" \
+--     -d '{"w_b2b": 2.75}'  -- restore prior production value
+--   OR re-tune via §19.3 after 2-week data window:
+--     - Pull pick_history WHERE score_b2b != 0 AND hit IS NOT NULL.
+--     - Compute hit-rate delta between fired-at-magnitude-X vs not-fired.
+--     - Set w_b2b to value that scales the delta into expected confidence
+--       movement (typical: 1.0–1.5 starting weight for new factors).
+
+SELECT 1 AS d170_path_c_w_b2b_zero_no_op;

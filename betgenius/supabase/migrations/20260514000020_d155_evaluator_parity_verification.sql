@@ -1,0 +1,142 @@
+-- D-155 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+--
+-- D-155 (May 14, 2026, CEO §19.3): scoring math extracted to
+-- supabase/functions/_shared/scoring.ts. Single source of truth shared by
+-- process-games (Dashboard cron) and analyze-pick (Evaluator). Closes
+-- D-148 v2 Finding #1 (Evaluator/Dashboard divergence). Closes D-152
+-- atomically (4 confidence.score read sites at analyze-pick L1680/L1718/
+-- L1791/L1831 now implicitly read post-everything finalScore via
+-- scoreOneSide return).
+--
+-- File deltas (pre → post refactor):
+--   _shared/scoring.ts:     NEW, 959 lines
+--   process-games:          4659 → 3609 (-1050 lines, structural code-move)
+--   analyze-pick:           1858 → 1504  (-354 lines, structural code-move
+--                                          + replaced score_trend with canonical
+--                                          score_season formula + WEIGHTS mult)
+--
+-- Behavior expectations:
+--   process-games: BIT-IDENTICAL to pre-refactor. Pure code-move.
+--   analyze-pick:  DIFFERENT from pre-refactor. Now produces Dashboard-parity
+--                  confidence scores instead of unweighted score_trend output.
+--                  This IS the intended behavior change per CEO §19.3.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after at least 1 process-games cron tick
+-- post-deploy + 3 manual analyze-pick invocations):
+--
+-- Query A — process-games behavior preservation (smoke check):
+--
+--   SELECT
+--     COUNT(*)                                         AS picks_today,
+--     COUNT(*) FILTER (WHERE confidence IS NULL)       AS null_conf,
+--     COUNT(*) FILTER (WHERE confidence < 0 OR confidence > 100) AS out_of_range,
+--     ROUND(AVG(confidence), 2)                        AS avg_confidence
+--   FROM pick_history
+--   WHERE source = 'process-games'
+--     AND is_synthetic = false
+--     AND created_at >= NOW() - INTERVAL '24 hours';
+--
+--   Expected post-fix: null_conf = 0, out_of_range = 0, avg_confidence in
+--   the same range as pre-refactor (typically 55-75 for high-confidence
+--   organic picks). Sharp drop or spike = behavioral regression.
+--
+-- Query B — Evaluator/Dashboard parity check (the headline test):
+--
+--   Manual test: pick 3 recent recommendations_cache rows from today's
+--   Dashboard, invoke analyze-pick with the same player + prop + line +
+--   pick_side + odds, compare confidence.
+--
+--   Expected post-fix: confidence values match bit-identically OR within
+--   ±1 (rounding-tolerance — process-games rounds at each WEIGHTS
+--   multiplication, analyze-pick now uses identical rounding via shared
+--   scoring.ts but small Math.round-then-add accumulation can differ).
+--
+--   Caveat: D-137 blowoutRisk + D-139 lineMovement factors return 0 in
+--   analyze-pick context (helpers.getGameLine returns null — analyze-pick
+--   doesn't pre-warm gameLineCache like process-games does per cron tick).
+--   For picks where either factor fires in Dashboard, Evaluator will be
+--   different by up to ±(factor magnitude × weight). Pre-D-155 audit
+--   accepted this as a known partial-parity tradeoff (§19.3 acknowledged
+--   the game-line cache fetch path was out of scope for D-155).
+--
+-- Query C — analyze-pick error_log spike check (post-D-155 deploy):
+--
+--   SELECT
+--     phase, error_type, COUNT(*) AS n,
+--     MIN(created_at) AS first_seen, MAX(created_at) AS latest
+--   FROM error_log
+--   WHERE function_name = 'analyze-pick'
+--     AND created_at >= NOW() - INTERVAL '24 hours'
+--   GROUP BY phase, error_type
+--   ORDER BY n DESC;
+--
+--   Expected: no new error_type values that weren't there pre-D-155.
+--   Spike on a single error_type would indicate input-adapter bug or
+--   type-shape mismatch between analyze-pick's data fetch and the
+--   {playerData, prop, edgeData} shape scoreOneSide expects.
+--
+-- Query D — confidence distribution sanity (no extreme drift):
+--
+--   SELECT
+--     CASE
+--       WHEN confidence >= 90 THEN '90+'
+--       WHEN confidence >= 80 THEN '80-89'
+--       WHEN confidence >= 70 THEN '70-79'
+--       WHEN confidence >= 60 THEN '60-69'
+--       ELSE '<60'
+--     END AS tier,
+--     COUNT(*) AS n
+--   FROM pick_history
+--   WHERE source = 'process-games'
+--     AND is_synthetic = false
+--     AND created_at >= NOW() - INTERVAL '24 hours'
+--   GROUP BY tier
+--   ORDER BY tier DESC;
+--
+--   Expected: tier distribution roughly matches pre-D-155 baseline.
+--   Recent baselines from D-128/D-134: ~5-10% at 90+, ~15-20% at 80-89,
+--   ~25-30% at 70-79, ~35-40% at 60-69. Major shift = regression.
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A out_of_range > 0: scoring math overflow. Inspect deployed
+--     scoring.ts for unbounded multiplication. Math.max(0, Math.min(100,
+--     finalScore)) clamp at end of scoreOneSide should prevent this; if it
+--     fires, the clamp may have been accidentally removed.
+--
+--   Query B confidence diverges > ±1 on multiple test rows: scoring formula
+--     diverged. Most likely cause: WEIGHTS not loaded uniformly (process-
+--     games + analyze-pick must both call loadWeightsFromDB and pass the
+--     same weights into scoreOneSide). Inspect both deployed bundles for
+--     `const weights = await loadWeightsFromDB()` presence.
+--
+--   Query C analyze-pick error_log spike on "scoring_failed" or similar:
+--     adapter bug. Most likely: playerData / prop / edgeData shape doesn't
+--     match what scoreOneSide expects. Inspect the analyze-pick adapter
+--     block (post-D-155 ~L1290 area).
+--
+--   Query D tier distribution shifts > 10pp in any tier: WEIGHTS load
+--     mismatch (process-games may be loading defaults instead of DB row).
+--     Inspect loadWeightsFromDB return value via console logs in
+--     production.
+-- =============================================================================
+-- INDEPENDENCE FROM PRIOR OPEN §1.12 CYCLES
+--
+-- D-155 ONLY moves scoring math to a shared module. It does NOT change:
+--   - WEIGHTS values
+--   - Factor formulas
+--   - Side-flip logic
+--   - D-127 trivial cap predicate (L1 + L2)
+--   - D-140 layer-2 cap predicate
+--   - D-142 verdict-from-finalScore
+--   - D-153 Math.min preservation
+--   - D-136/D-137/D-139 factor logic
+--
+-- Therefore: D-155 §1.12 verification is INDEPENDENT of D-133/D-136/D-137/
+-- D-139/D-140/D-141/D-142/D-144/D-147/D-151/D-153 verification cycles.
+-- All previous cycles' verification queries continue to apply unchanged
+-- against post-D-155 production state.
+-- =============================================================================
+
+SELECT 1 AS d155_evaluator_parity_verification_no_op;

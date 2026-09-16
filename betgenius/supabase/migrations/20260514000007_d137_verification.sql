@@ -1,0 +1,138 @@
+-- D-137 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op. Pushed via --file flag
+-- (NOT --include-all per D-135/D-136 lesson on diagnostic-sweep risk).
+-- =============================================================================
+-- VERIFICATION QUERIES (run after the next fetch-odds + process-games
+-- cron-tick cycle. fetch-odds runs every ~15 min; first cache_game_lines
+-- population expected within 15 min of deploy):
+--
+-- Query A — cache_game_lines fill rate (fetch-odds writer health):
+--
+--   SELECT
+--     COUNT(*) AS rows,
+--     COUNT(*) FILTER (WHERE spread_line IS NOT NULL) AS with_spread,
+--     COUNT(*) FILTER (WHERE total_line  IS NOT NULL) AS with_total,
+--     COUNT(*) FILTER (WHERE favored_team IS NOT NULL) AS with_favored,
+--     MAX(fetched_at) AS latest_fetch
+--   FROM cache_game_lines
+--   WHERE fetched_at > NOW() - INTERVAL '30 minutes';
+--
+--   Expected: rows >= 1 within 30 min of deploy. with_spread / with_favored
+--   should be >= 95% of rows (Odds API rarely misses a spread for upcoming
+--   NBA games). If rows = 0 after 60+ min post-deploy, fetch-odds writer
+--   has a bug — inspect the function logs for "[fetch-odds] game-lines"
+--   error messages.
+--
+-- Query B — score_blowout_risk fire rate on new picks:
+--
+--   SELECT
+--     COUNT(*) AS total_picks,
+--     COUNT(*) FILTER (WHERE score_blowout_risk <> 0) AS fired,
+--     COUNT(*) FILTER (WHERE score_blowout_risk < 0) AS penalty_overs,
+--     COUNT(*) FILTER (WHERE score_blowout_risk > 0) AS bonus_unders,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE score_blowout_risk <> 0)
+--             / NULLIF(COUNT(*), 0), 1) AS pct_fired
+--   FROM pick_history
+--   WHERE source = 'process-games' AND is_synthetic = false
+--     AND created_at > '2026-05-13 18:00:00+00'::timestamptz;
+--
+--   Expected: pct_fired SMALL (1-5%) during NBA Finals — most playoff
+--   games have spread < 10. In regular season the rate would be 15-25%.
+--   Specifically expected: zero fires during the next 3 weeks of Finals;
+--   the §1.12 cycle on this factor effectively defers full empirical
+--   verification to October preseason. For now: confirm fire mechanism
+--   works on ANY 80+/blowout game that surfaces, even if just one or two
+--   in the window.
+--
+-- Query C — Distribution of penalty magnitudes (sanity check on bucket logic):
+--
+--   SELECT score_blowout_risk, COUNT(*) AS n
+--   FROM pick_history
+--   WHERE source = 'process-games' AND is_synthetic = false
+--     AND created_at > '2026-05-13 18:00:00+00'::timestamptz
+--     AND score_blowout_risk <> 0
+--   GROUP BY 1 ORDER BY 1;
+--
+--   Expected values ONLY in {-18, -12, -6, 6, 12, 18} (× WEIGHTS.blowoutRisk=1.0).
+--   Any other value indicates a code-path bug.
+--
+-- Query D — Side-flip discipline (over+under sum to 0 on matched picks):
+--
+--   WITH paired AS (
+--     SELECT player_name, prop_type, line, game_date,
+--       MAX(CASE WHEN pick_side='over'  THEN score_blowout_risk END) AS over_pen,
+--       MAX(CASE WHEN pick_side='under' THEN score_blowout_risk END) AS under_pen
+--     FROM pick_history
+--     WHERE source='process-games' AND is_synthetic=false
+--       AND created_at > '2026-05-13 18:00:00+00'::timestamptz
+--       AND prop_type NOT IN ('spread','game_total')
+--     GROUP BY 1,2,3,4
+--     HAVING MAX(CASE WHEN pick_side='over'  THEN 1 END) IS NOT NULL
+--        AND MAX(CASE WHEN pick_side='under' THEN 1 END) IS NOT NULL
+--   )
+--   SELECT COUNT(*) AS pairs,
+--     COUNT(*) FILTER (WHERE over_pen + under_pen <> 0) AS asymmetric,
+--     COUNT(*) FILTER (WHERE over_pen <> 0 OR under_pen <> 0) AS at_least_one_fired
+--   FROM paired;
+--
+--   Expected: asymmetric = 0.
+--
+-- Query E — Prop-type gate violations (must be 0 for blocks/steals/turnovers/threes):
+--
+--   SELECT prop_type, COUNT(*) AS fires
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-13 18:00:00+00'::timestamptz
+--     AND score_blowout_risk <> 0
+--     AND prop_type IN ('blocks','steals','turnovers','threes')
+--   GROUP BY prop_type;
+--
+--   Expected: ZERO rows returned (gate prevents firing on these prop types).
+--   Any row is a GATE VIOLATION bug.
+--
+-- Query F — Team-direction discipline (5 manual eye-check rows):
+--
+--   SELECT ph.player_name, ph.team, ph.opponent, ph.prop_type, ph.pick_side,
+--          ph.score_blowout_risk, cgl.spread_line, cgl.favored_team
+--   FROM pick_history ph
+--   LEFT JOIN cache_game_lines cgl
+--     ON cgl.game_date = ph.game_date
+--    AND ((cgl.home_team = ph.team AND cgl.away_team = ph.opponent)
+--      OR (cgl.away_team = ph.team AND cgl.home_team = ph.opponent))
+--   WHERE ph.source='process-games' AND ph.is_synthetic=false
+--     AND ph.created_at > '2026-05-13 18:00:00+00'::timestamptz
+--     AND ph.score_blowout_risk <> 0
+--   LIMIT 5;
+--
+--   Expected: every row's ph.team matches cgl.favored_team. If player is
+--   on the favored team AND prop is minute-bound AND |spread| > 10 AND
+--   pickSide=over → score_blowout_risk in {-6,-12,-18}. If pickSide=under
+--   on the same player → {+6,+12,+18}.
+--
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A rows = 0 after 60+ min: fetch-odds D-137 patch failed.
+--     Check function logs for "[fetch-odds] game-lines" errors. Inspect
+--     SUPABASE_URL / SUPABASE_KEY env vars on fetch-odds; verify
+--     ODDS_API_KEY quota not exhausted (api_usage table).
+--
+--   Query B pct_fired = 0 across many picks: factor never firing.
+--     Three possible causes:
+--       1. cache_game_lines empty (Query A failed) — graceful degradation
+--          kicked in, factor defaulted to 0.
+--       2. No game in the window has |spread| > 10 (legitimate in Finals).
+--       3. process-games pre-warm (P4 patch) not actually populating
+--          gameLineCache — inspect logs for the loadGameLineFromCache calls.
+--
+--   Query C value outside {-18,-12,-6,6,12,18}: bucket logic bug.
+--
+--   Query D asymmetric > 0: side-flip code path broken.
+--
+--   Query E any fires: prop-type gate broken.
+--
+--   Query F mismatch between ph.team and cgl.favored_team: team-direction
+--     gate broken — favored-team-only policy violated.
+-- =============================================================================
+
+SELECT 1 AS d137_blowout_risk_verification_no_op;

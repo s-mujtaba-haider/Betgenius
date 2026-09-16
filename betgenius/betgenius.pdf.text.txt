@@ -1,0 +1,482 @@
+--- PAGE 1 ---
+Performance
+Real money via Hard Rock Bet · 85 settled · 4 pending
+Last 7 days
+Last 30 days
+Last 90 days
+Lifetime
+Odds API usage
+Monthly quota resets 1st of each month at 00:00 UTC · last call just now
+TODAY (UTC)
+4,180
+credits
+THIS MONTH
+32,338
+credits used
+REMAINING
+67,662
+credits left
+DAYS UNTIL
+RESET
+4d
+scheduled
+7-DAY BURN
+max 5,998/day
+21
+22
+23
+24
+25
+26
+27
+System health
+Cron + resolver + error pulse. Data from algorithm_weights, cron_progress, pick_history, api_usage, error_log.
+AUTO-OPTIMIZE
+6560.0%
+ran 5d
+backtest win %
+PROCESS-
+GAMES
+3/3
+all done
+today (ET)
+RESOLVE-PICKS
+17h
+ago
+last resolved_at
+FETCH-ODDS
+14m
+ago
+last 200 response
+ERRORS (24H)
+Clean
+Real-money P/L
++$212.06
+Low +$28.85 · Peak +$212.06
+Best day
++$174.51
+Streak
+2W
+$0
+$75
+$150
+$225
+Hit rate
+Break-even 52%
+57.6 %
+Book-implied 51.1% · edge
++6.51% · 85 settled
+Profit / ROI
+
+--- PAGE 2 ---
+Elite 90+ +$9.50 (2)
+Strong 80-89 +$11.59 (8)
+Good 70-79 +$29.24 (22)
+All bets (shaded)
+Real money by confidence tier
+Performance grouped by the matched algorithm pick's confidence. Off-algorithm = bets with no matching pick.
+Tonight's algo picks
+Highest-confidence recommendations not yet bet. From pick_history; not real-money yet.
+6 pending
+By prop type
+Rebounds
+20-7 74.1%
++$111.31
+Points
+10-16 38.5%
+−$72.39
+Assists
+10-10 50.0%
+−$5.24
+Blocks
+6-1 85.7% +$169.00
+Steals
+3-2 60.0%
++$9.38
+By odds bucket
+Standard 24-24 50.0% −$58.27
+Even
+10-7 58.8% +$29.83
+Underdog
+11-5 68.8% +$98.00
+Longshot
+4-0100.0%+$142.50
+By side
+Over 53.4% −$12.30
+Under66.7%+$224.36
+TIER
+BETS
+W-L
+HIT RATE
+STAKE
+PAYOUT
+Elite (90+)
+2
+1-1
+50.0%
+$20.00
++$9.50
++
+Strong (80-89)
+8
+5-3
+62.5%
+$80.00
++$11.59
++
+Good (70-79)
+24
+13-9 +2p
+59.1%
+$240.00
++$29.24
+Lean (60-69)
+55
+30-23 +2p
+56.6%
+$550.00
++$161.73
+Apr 21
+Apr 24
+Apr 25
+$-75
++$212.06
++24.95
+ROI
+$850.00 staked · 85 decided ·
+4 pending
+Skip (<60)
+0
+0-0
+—
+$0.00
++$0.00
+Off-algorithm
+0
+0-0
+—
+$0.00
++$0.00
+AM
+Ajay Mitchell
+OKC vs PHX
+89
+Points Under 15.5 −120
+JR
+Julius Randle
+MIN vs DEN
+83
+Points Under 22.5 −110
+CW
+Cason Wallace
+OKC vs PHX
+Assists Under 2.5 +109
+BG
+BetGenius
+Dashboard
+Evaluator
+Tracker
+Performance
+Stats
+
+--- PAGE 3 ---
+Turnovers
+0-0
+—
++$0.00
+Bad beats
+High-confidence (80+) algo picks that lost in real money.
+DA
+Deni Avdija
+Points over 23.5 · −105 · $10.00 stake · process-games
+91
+−$10.00
+DS
+Dennis Schroder
+Assists over 1.5 · −175 · $10.00 stake · process-games
+88
+−$10.00
+AT
+Amen Thompson
+Points over 17.5 · −105 · $10.00 stake · process-games
+87
+−$10.00
+LK
+Luke Kornet
+Blocks under 1.5 · +165 · $10.00 stake · process-games
+81
+−$10.00
+Bet history
+89 bets in selected range, sorted by placed at
+Search player
+All results
+All tiers
+Export
+PLACED ↓
+PLAYER /
+PROP
+PICK
+ODDS
+STAKE
+CONF
+PICK
+SRC
+RESULT
+Apr 25
+Julius
+Randle
+Assists · Under 4.5
+−115
+$10.00
+74
+process-
+games
++$8.70
+Apr 24
+Amen
+Thompson
+Assists · Over 5.5
+−125
+$10.00
+75
+process-
+games
+−$10.00
+Apr 24
+Payton
+Pritchard
+Rebounds · Over 2.5
+−165
+$10.00
+65
+process-
+games
++$6.06
+Apr 24
+Jayson
+Tatum
+Rebounds · Over 10.5
+−115
+$10.00
+66
+process-
+games
+−$10.00
+Apr 24
+Justin
+Edwards
+Assists · Under 1.5
++165
+$10.00
+66
+process-
+games
++$16.50
+Apr 24
+Jaylen
+Brown
+Points · Over 26.5
+−110
+$10.00
+68
+process-
+games
+−$10.00
+
+--- PAGE 4 ---
+Apr 24
+Jayson
+Tatum
+Assists · Over 6.5
++115
+$10.00
+72
+process-
+games
++$11.50
+Apr 24
+Quentin
+Grimes
+Rebounds · Over 2.5
++115
+$10.00
+74
+process-
+games
++$11.50
+Apr 24
+Alperen
+Sengun
+Points · Under 20.5
+−115
+$10.00
+71
+process-
+games
+−$10.00
+Apr 24
+Alperen
+Sengun
+Rebounds · Over 8.5
+−115
+$10.00
+64
+process-
+games
++$8.70
+Apr 24
+Amen
+Thompson
+Steals · Over 1.5
++115
+$10.00
+61
+process-
+games
++$11.50
+Apr 24
+Amen
+Thompson
+Rebounds · Under 7.5
++105
+$10.00
+60
+process-
+games
+−$10.00
+Apr 24
+Alperen
+Sengun
+Turnovers · Over 2.5
+−145
+$10.00
+64
+process-
+games
+Pending
+Apr 24
+VJ
+Edgecombe
+Rebounds · Over 5.5
+−120
+$10.00
+60
+process-
+games
++$8.33
+Apr 24
+Robert
+Williams III
+Rebounds · Over 6.5
+−135
+$10.00
+81
+process-
+games
++$7.41
+Apr 24
+Stephon
+Castle
+Rebounds · Over 5.5
+−150
+$10.00
+62
+process-
+games
+−$10.00
+Apr 24
+Paul
+George
+Rebounds · Under 5.5
++110
+$10.00
+72
+process-
+games
++$11.00
+Apr 24
+De'Aaron
+Fox
+Turnovers · Under 2.5
+−115
+$10.00
+62
+process-
+games
+Pending
+Apr 24
+Amen
+Thompson
+Points · Over 17.5
+−115
+$10.00
+81
+process-
+games
++$8.70
+Apr 24
+Alperen
+Sengun
+Assists · Over 5.5
+−135
+$10.00
+60
+process-
+games
++$7.41
+Apr 24
+Jayson
+Tatum
+Points · Under 23.5
+−115
+$10.00
+61
+process-
+games
+−$10.00
+
+--- PAGE 5 ---
+Showing 1–25 of 89
+Page 1 of 4
+Next →
+Apr 24
+Jabari
+Smith Jr.
+Points · Over 15.5
+−110
+$10.00
+76
+process-
+games
++$9.09
+Apr 24
+Kevin
+Durant
+Rebounds · Over 4.5
+−150
+$10.00
+74
+process-
+games
+Pending
+Apr 24
+Kevin
+Durant
+Points · Over 23.5
+−120
+$10.00
+73
+process-
+games
+Pending
+Apr 24
+Payton
+Pritchard
+Assists · Over 3.5
+−150
+$10.00
+76
+process-
+games
+−$10.00
+← Previous

@@ -1,0 +1,45 @@
+# --- secrets: never commit ---------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+betgenius/harness/.env
+betgenius/.env.local
+
+# --- vendored / generated ----------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+coverage/
+*.local
+
+# Supabase public root cert — fetched locally for DENO_CERT, not vendored.
+# https://supabase-downloads.s3.amazonaws.com/prod/ssl/prod-ca-2021.crt
+prod-ca-2021.crt
+
+# --- uplift working set ------------------------------------------------------
+# Raw dumps and walk-forward caches are rebuildable from the read-only database
+# and The Odds API in minutes (see harness/uplift/README.md); they are hundreds
+# of megabytes and are deliberately not in the repo.
+betgenius/harness/uplift/data/
+betgenius/harness/uplift/cache/
+betgenius/harness/uplift/reports/picks_*.csv
+betgenius/harness/uplift/__pycache__/
+__pycache__/
+*.pyc
+
+# --- editor ------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Third-party personal data that arrived in the shared pack (Upwork freelancer
+# profiles with names and rates). Kept on disk, deliberately not published.
+betgenius/Search Freelance Talent on Upwork.pdf
+betgenius/Search Freelance Talent on Upwork.pdf.text.txt

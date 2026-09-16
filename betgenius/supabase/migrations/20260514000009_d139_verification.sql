@@ -1,0 +1,153 @@
+-- D-139 §1.12 paired verification trail — run 24h post-deploy.
+-- Documentation-only DO-block. SELECT 1 no-op.
+-- Will be renamed to .pending during the schema-only push to keep this
+-- file off prod until the §1.12 cycle observes clean post-fix data.
+-- =============================================================================
+-- VERIFICATION QUERIES (run after next fetch-odds + process-games cron-tick
+-- cycle. fetch-odds runs every ~15 min; first spread_line_t0 population
+-- happens on the next fetch-odds tick post-deploy — for D-137-era rows that
+-- were backfilled, t0 is already set):
+--
+-- Query A — spread_line_t0 fill rate (writer health):
+--
+--   SELECT
+--     COUNT(*) AS rows,
+--     COUNT(*) FILTER (WHERE spread_line_t0 IS NOT NULL) AS with_t0,
+--     COUNT(*) FILTER (WHERE spread_line IS NOT NULL) AS with_current,
+--     MAX(fetched_at) AS latest_fetch
+--   FROM cache_game_lines;
+--
+--   Expected: with_t0 = with_current (every row that has a current spread
+--   also has a t0). If with_t0 < with_current, either the trigger fired
+--   incorrectly on an INSERT path or fetch-odds writer didn't include
+--   spread_line_t0 in the payload.
+--
+-- Query B — Trigger immutability verification (sample 5 rows):
+--
+--   Run the same query twice with ~15 min between (long enough for
+--   fetch-odds to tick at least once and re-upsert all rows). Check that
+--   spread_line_t0 is UNCHANGED for each event_id across the two snapshots,
+--   even if spread_line itself moved. Quick form:
+--
+--   SELECT event_id, spread_line, spread_line_t0,
+--          ABS(spread_line - spread_line_t0) AS movement,
+--          fetched_at
+--   FROM cache_game_lines
+--   ORDER BY ABS(spread_line - spread_line_t0) DESC NULLS LAST
+--   LIMIT 5;
+--
+--   Expected: rows with movement > 0 prove the trigger is preserving t0
+--   while fetch-odds writes new spread_line values. If ALL rows show
+--   movement = 0, either (a) no line has moved (legitimate in a single-day
+--   window — possible during Finals), or (b) trigger is silently
+--   overwriting t0 too. Cross-check by inspecting fetched_at vs deploy
+--   time: if fetched_at > deploy_time on multiple rows AND movement = 0,
+--   trigger may be misfiring.
+--
+-- Query C — score_line_movement fire rate (factor health):
+--
+--   SELECT
+--     COUNT(*) AS total_picks,
+--     COUNT(*) FILTER (WHERE score_line_movement <> 0) AS fired,
+--     COUNT(*) FILTER (WHERE score_line_movement > 0) AS bonus,
+--     COUNT(*) FILTER (WHERE score_line_movement < 0) AS penalty,
+--     ROUND(100.0 * COUNT(*) FILTER (WHERE score_line_movement <> 0)
+--             / NULLIF(COUNT(*), 0), 1) AS pct_fired
+--   FROM pick_history
+--   WHERE source = 'process-games' AND is_synthetic = false
+--     AND created_at > '2026-05-13 20:00:00+00'::timestamptz;
+--
+--   Expected: pct_fired LOW during Finals window (movement > 0.25 on the
+--   minute-bound favored cohort is uncommon when only 1 game/day with
+--   pre-game spread settled days in advance). Below 5% is reasonable for
+--   the current window. In regular season we'd expect 10-25%.
+--
+-- Query D — Magnitude distribution:
+--
+--   SELECT score_line_movement, COUNT(*) AS n
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-13 20:00:00+00'::timestamptz
+--     AND score_line_movement <> 0
+--   GROUP BY 1 ORDER BY 1;
+--
+--   Expected values ONLY in {-10, -5, -2, 0, 2, 5, 10} (× WEIGHTS.lineMovement=1.0).
+--   Anything else is a bucket-logic bug.
+--
+-- Query E — Side-flip discipline (over+under sum to 0):
+--
+--   WITH paired AS (
+--     SELECT player_name, prop_type, line, game_date,
+--       MAX(CASE WHEN pick_side='over'  THEN score_line_movement END) AS over_b,
+--       MAX(CASE WHEN pick_side='under' THEN score_line_movement END) AS under_b
+--     FROM pick_history
+--     WHERE source='process-games' AND is_synthetic=false
+--       AND created_at > '2026-05-13 20:00:00+00'::timestamptz
+--       AND prop_type NOT IN ('spread','game_total')
+--     GROUP BY 1,2,3,4
+--     HAVING MAX(CASE WHEN pick_side='over' THEN 1 END) IS NOT NULL
+--        AND MAX(CASE WHEN pick_side='under' THEN 1 END) IS NOT NULL
+--   )
+--   SELECT COUNT(*) AS pairs,
+--     COUNT(*) FILTER (WHERE over_b + under_b <> 0) AS asymmetric
+--   FROM paired;
+--
+--   Expected: asymmetric = 0.
+--
+-- Query F — Prop-type gate (must be 0 for excluded types):
+--
+--   SELECT prop_type, COUNT(*) AS fires
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-13 20:00:00+00'::timestamptz
+--     AND score_line_movement <> 0
+--     AND prop_type IN ('blocks','steals','turnovers','threes')
+--   GROUP BY prop_type;
+--
+--   Expected: ZERO rows.
+--
+-- Query G — Correlation with D-137 blowout_risk (independence pre-check):
+--
+--   SELECT
+--     ROUND(CORR(score_line_movement, score_blowout_risk)::NUMERIC, 3) AS r_blowout,
+--     ROUND(CORR(score_line_movement, score_pace)::NUMERIC, 3)        AS r_pace,
+--     ROUND(CORR(score_line_movement, score_opp_defense)::NUMERIC, 3) AS r_oppdef,
+--     COUNT(*) FILTER (WHERE score_line_movement <> 0) AS n_fires
+--   FROM pick_history
+--   WHERE source='process-games' AND is_synthetic=false
+--     AND created_at > '2026-05-13 20:00:00+00'::timestamptz;
+--
+--   Expected: |r_blowout| < 0.6 (both fire on minute-bound favored-team
+--   picks — moderate positive correlation is acceptable; strong corr > 0.7
+--   would flag redundancy and trigger a Tier 4 #10 collapse review).
+-- =============================================================================
+-- FAILURE-MODE MAPPING
+--
+--   Query A with_t0 < with_current: trigger or writer bug. Inspect a row
+--     where with_t0 IS NULL — check whether fetch-odds payload omitted
+--     spread_line_t0 OR whether the trigger function rejected the INSERT.
+--
+--   Query B movement = 0 on every row AND fetched_at > deploy_time × 2+:
+--     trigger may be over-preserving (also blocking INSERTs?). Verify by
+--     manually probing one event_id's row history if pgaudit exists.
+--
+--   Query C pct_fired = 0 across many minute-bound picks: factor never
+--     firing. Three possible causes:
+--       1. No movement > 0.25 in window (legitimate Finals window).
+--       2. spreadT0 = currentSpread on every row (backfill from D-139 deploy
+--          + only one cron tick since = no movement observable yet).
+--       3. process-games NEVER actually reads spread_line_t0 — inspect
+--          loadGameLineFromCache for the SELECT clause.
+--
+--   Query D value outside {-10,-5,-2,0,2,5,10}: bucket logic bug.
+--
+--   Query E asymmetric > 0: side-flip code path broken.
+--
+--   Query F any fires: prop-type gate broken.
+--
+--   Query G |r_blowout| > 0.7: redundancy with D-137. Tier 4 #10 should
+--     surface this on next factor-independence audit. Not a fix blocker,
+--     just a tracked observation.
+-- =============================================================================
+
+SELECT 1 AS d139_line_movement_verification_no_op;
