@@ -1,0 +1,11 @@
+market,graded,attempts,spec,tau,side,minConf,minHist,selectN,selectRoi,fullN,fullRoi,fullVerdict,verdictFrom,verdictN,verdictWinPct,verdictRoi,verdictCiLo,verdictClusCiLo,verdictUnits,verdictVerdict,verdictWhy
+batter_hits,94209,4454,gbm,0.04,under,0,0,505,16.019923916750525,1312,15.04,PASS,2025-05-19,807,63.2,14.42,8.53,7.77,116.4,PASS,graded n=807 >= 500 and ROI 14.42% > 0%
+batter_total_bases,88372,6901,gbm,0.07,both,0,0,840,11.966497070510425,1509,11.38,PASS,2025-06-15,669,63.08,10.63,4.13,2.37,71.1,PASS,graded n=669 >= 500 and ROI 10.63% > 0%
+batter_rbis,71864,6315,gbm,0.0,both,0,0,2026,4.278514174347151,3556,2.68,PASS,2025-06-18,1530,63.01,0.57,-3.38,-3.41,8.8,PASS,graded n=1530 >= 500 and ROI 0.57% > 0%
+batter_runs_scored,31012,6840,compact+box,0.0,under,0,0,3036,3.4411973856130214,5201,1.04,PASS,2024-06-28,2165,60.92,-2.33,-5.44,-6.14,-50.3,FAIL,graded n=2165 >= 500 but ROI -2.33% <= 0%
+batter_strikeouts,27835,7007,compact+box,0.01,under,0,0,1063,10.97555326585562,1606,7.69,PASS,2024-06-19,543,62.8,1.26,-5.26,-4.95,6.9,PASS,graded n=543 >= 500 and ROI 1.26% > 0%
+pitcher_strikeouts,19447,4262,gbm+offset+iso,0.04,over,0,0,346,10.99058422159093,692,6.21,PASS,2025-06-30,346,59.83,1.42,-7.9,-7.02,4.9,FAIL,graded n=346 < 500 and ROI CI lower bound -7.90% <= 0%
+pitcher_outs,6686,4060,gbm+iso,0.02,both,0,0,520,6.942355090603016,798,4.61,PASS,2025-07-07,278,60.07,0.25,-9.09,-9.3,0.7,FAIL,graded n=278 < 500 and ROI CI lower bound -9.09% <= 0%
+totals,6259,960,gbm,0.0,both,65,0,305,4.522491688058977,461,5.25,FAIL,2025-06-08,156,54.49,6.66,-9.62,-9.62,10.4,FAIL,graded n=156 < 500 and ROI CI lower bound -9.62% <= 0%
+h2h,4504,4794,gbm,0.04,both,0,0,618,4.234476475355895,1071,1.07,PASS,2025-06-14,453,55.63,-3.25,-11.26,-11.26,-14.7,FAIL,graded n=453 < 500 and ROI CI lower bound -11.26% <= 0%
+spreads,5685,5880,compact,0.0,plus,0,0,549,8.804937800793562,1351,3.85,PASS,2025-06-10,802,62.84,0.46,-4.85,-4.85,3.7,PASS,graded n=802 >= 500 and ROI 0.46% > 0%

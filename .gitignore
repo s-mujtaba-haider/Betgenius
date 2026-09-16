@@ -23,11 +23,16 @@ prod-ca-2021.crt
 # of megabytes and are deliberately not in the repo.
 betgenius/harness/uplift/data/
 betgenius/harness/uplift/cache/
-betgenius/harness/uplift/cache_v1/
+betgenius/harness/uplift/cache_v*/
 betgenius/harness/uplift/reports/picks_*.csv
 betgenius/harness/uplift/__pycache__/
 __pycache__/
 *.pyc
+
+# --- agent / tooling scratch --------------------------------------------------
+.claude/
+*.log
+nohup.out
 
 # --- editor ------------------------------------------------------------------
 .vscode/*

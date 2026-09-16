@@ -1,67 +1,67 @@
 market,board,n,winPct,roi,ciLo,clusCiLo,units,events,verdict,why
 batter_hits,"base (every candidate, flat)",94209,49.57,-9.68,-10.35,-10.5,-9118.9,3940,FAIL,graded n=94209 >= 500 but ROI -9.68% <= 0%
 batter_hits,price-only (full OOS),86,59.3,7.26,-11.73,-12.74,6.2,78,FAIL,graded n=86 < 500 and ROI CI lower bound -11.73% <= 0%
-batter_hits,board (full OOS),2177,59.35,8.83,5.14,4.85,192.2,1339,PASS,graded n=2177 >= 500 and ROI 8.83% > 0%
-batter_hits,all-lines (full OOS),2271,59.18,8.39,4.73,4.62,190.5,1339,PASS,graded n=2271 >= 500 and ROI 8.39% > 0%
-batter_hits,board SELECT half,741,58.43,5.44,-0.99,-0.98,40.3,476,PASS,graded n=741 >= 500 and ROI 5.44% > 0%
-batter_hits,board VERDICT half,1436,59.82,10.58,5.77,5.78,151.9,863,PASS,graded n=1436 >= 500 and ROI 10.58% > 0%
+batter_hits,board (full OOS),2452,58.81,8.94,5.27,5.44,219.1,1473,PASS,graded n=2452 >= 500 and ROI 8.94% > 0%
+batter_hits,all-lines (full OOS),2549,58.49,8.22,4.67,4.65,209.5,1473,PASS,graded n=2549 >= 500 and ROI 8.22% > 0%
+batter_hits,board SELECT half,853,58.03,6.2,-0.19,0.25,52.9,543,PASS,graded n=853 >= 500 and ROI 6.20% > 0%
+batter_hits,board VERDICT half,1599,59.22,10.4,5.93,5.86,166.3,930,PASS,graded n=1599 >= 500 and ROI 10.40% > 0%
 batter_rbis,"base (every candidate, flat)",71864,28.87,-12.86,-13.91,-14.04,-9239.7,3939,FAIL,graded n=71864 >= 500 but ROI -12.86% <= 0%
 batter_rbis,price-only (full OOS),506,58.7,0.52,-7.05,-7.42,2.6,311,PASS,graded n=506 >= 500 and ROI 0.52% > 0%
-batter_rbis,board (full OOS),1100,63.18,5.02,0.12,-0.12,55.3,590,PASS,graded n=1100 >= 500 and ROI 5.02% > 0%
-batter_rbis,all-lines (full OOS),1155,63.03,4.72,0.0,-0.24,54.5,590,PASS,graded n=1155 >= 500 and ROI 4.72% > 0%
-batter_rbis,board SELECT half,770,63.51,5.85,0.18,-0.68,45.0,384,PASS,graded n=770 >= 500 and ROI 5.85% > 0%
-batter_rbis,board VERDICT half,330,62.42,3.1,-5.46,-5.2,10.2,206,FAIL,graded n=330 < 500 and ROI CI lower bound -5.46% <= 0%
+batter_rbis,board (full OOS),1149,62.66,4.15,-0.84,-0.44,47.7,616,PASS,graded n=1149 >= 500 and ROI 4.15% > 0%
+batter_rbis,all-lines (full OOS),1205,62.49,3.85,-1.03,-0.95,46.4,616,PASS,graded n=1205 >= 500 and ROI 3.85% > 0%
+batter_rbis,board SELECT half,790,63.42,5.77,0.08,-0.32,45.6,399,PASS,graded n=790 >= 500 and ROI 5.77% > 0%
+batter_rbis,board VERDICT half,359,61.0,0.58,-7.73,-7.96,2.1,217,FAIL,graded n=359 < 500 and ROI CI lower bound -7.73% <= 0%
 totals,"base (every candidate, flat)",6259,48.59,-5.71,-8.2,-8.62,-357.6,3865,FAIL,graded n=6259 >= 500 but ROI -5.71% <= 0%
 totals,price-only (full OOS),196,48.98,-9.05,-22.18,-22.18,-17.7,196,FAIL,graded n=196 < 500 and ROI CI lower bound -22.18% <= 0%
-totals,board (full OOS),747,52.48,1.41,-5.76,-5.76,10.5,747,PASS,graded n=747 >= 500 and ROI 1.41% > 0%
-totals,all-lines (full OOS),995,51.56,-0.82,-6.71,-7.62,-8.2,747,FAIL,graded n=995 >= 500 but ROI -0.82% <= 0%
-totals,board SELECT half,417,53.96,4.53,-4.5,-4.5,18.9,417,FAIL,graded n=417 < 500 and ROI CI lower bound -4.50% <= 0%
-totals,board VERDICT half,330,50.61,-2.54,-12.96,-12.96,-8.4,330,FAIL,graded n=330 < 500 and ROI CI lower bound -12.96% <= 0%
+totals,board (full OOS),714,52.38,1.54,-5.33,-5.33,11.0,714,PASS,graded n=714 >= 500 and ROI 1.54% > 0%
+totals,all-lines (full OOS),974,52.77,1.72,-4.37,-5.39,16.7,714,PASS,graded n=974 >= 500 and ROI 1.72% > 0%
+totals,board SELECT half,392,52.81,2.44,-6.76,-6.76,9.6,392,FAIL,graded n=392 < 500 and ROI CI lower bound -6.76% <= 0%
+totals,board VERDICT half,322,51.86,0.44,-10.34,-10.34,1.4,322,FAIL,graded n=322 < 500 and ROI CI lower bound -10.34% <= 0%
 spreads,"base (every candidate, flat)",5685,48.57,-2.64,-5.47,-5.67,-150.2,3941,FAIL,graded n=5685 >= 500 but ROI -2.64% <= 0%
 spreads,price-only (full OOS),2230,62.24,1.19,-2.11,-2.11,26.5,2230,PASS,graded n=2230 >= 500 and ROI 1.19% > 0%
-spreads,board (full OOS),2099,61.41,2.22,-1.3,-1.3,46.6,2099,PASS,graded n=2099 >= 500 and ROI 2.22% > 0%
-spreads,all-lines (full OOS),2652,61.84,1.89,-1.13,-1.11,50.2,2099,PASS,graded n=2652 >= 500 and ROI 1.89% > 0%
-spreads,board SELECT half,917,61.61,3.63,-1.66,-1.66,33.3,917,PASS,graded n=917 >= 500 and ROI 3.63% > 0%
-spreads,board VERDICT half,1182,61.25,1.13,-3.48,-3.48,13.3,1182,PASS,graded n=1182 >= 500 and ROI 1.13% > 0%
+spreads,board (full OOS),2093,62.59,4.16,0.62,0.62,87.1,2093,PASS,graded n=2093 >= 500 and ROI 4.16% > 0%
+spreads,all-lines (full OOS),2589,62.34,2.71,-0.57,-0.3,70.3,2093,PASS,graded n=2589 >= 500 and ROI 2.71% > 0%
+spreads,board SELECT half,939,63.37,6.3,1.14,1.14,59.2,939,PASS,graded n=939 >= 500 and ROI 6.30% > 0%
+spreads,board VERDICT half,1154,61.96,2.41,-2.33,-2.33,27.9,1154,PASS,graded n=1154 >= 500 and ROI 2.41% > 0%
 batter_total_bases,"base (every candidate, flat)",88372,45.0,-11.06,-11.73,-11.87,-9774.5,3940,FAIL,graded n=88372 >= 500 but ROI -11.06% <= 0%
 batter_total_bases,price-only (full OOS),634,59.78,5.11,-1.63,-1.89,32.4,515,PASS,graded n=634 >= 500 and ROI 5.11% > 0%
-batter_total_bases,board (full OOS),3849,61.34,7.45,4.78,4.78,286.8,1760,PASS,graded n=3849 >= 500 and ROI 7.45% > 0%
-batter_total_bases,all-lines (full OOS),4024,61.31,7.27,4.6,4.45,292.5,1760,PASS,graded n=4024 >= 500 and ROI 7.27% > 0%
-batter_total_bases,board SELECT half,1817,62.69,8.06,4.2,3.74,146.4,801,PASS,graded n=1817 >= 500 and ROI 8.06% > 0%
-batter_total_bases,board VERDICT half,2032,60.14,6.91,2.9,3.09,140.4,960,PASS,graded n=2032 >= 500 and ROI 6.91% > 0%
+batter_total_bases,board (full OOS),4329,60.27,5.87,3.21,3.2,254.1,1898,PASS,graded n=4329 >= 500 and ROI 5.87% > 0%
+batter_total_bases,all-lines (full OOS),4504,60.39,5.99,3.59,3.51,269.7,1898,PASS,graded n=4504 >= 500 and ROI 5.99% > 0%
+batter_total_bases,board SELECT half,2020,61.24,5.66,2.0,1.77,114.4,875,PASS,graded n=2020 >= 500 and ROI 5.66% > 0%
+batter_total_bases,board VERDICT half,2309,59.42,6.05,2.39,2.32,139.8,1026,PASS,graded n=2309 >= 500 and ROI 6.05% > 0%
 batter_home_runs,"base (every candidate, flat)",57013,11.61,-16.07,-17.97,-18.1,-9162.9,3219,FAIL,graded n=57013 >= 500 but ROI -16.07% <= 0%
 batter_home_runs,price-only (full OOS),0,0.0,0.0,0.0,,0.0,0,NO_DATA,no graded picks in ev_filtered slice
-batter_home_runs,board (full OOS),21,42.86,-33.54,-63.51,-63.51,-7.0,21,FAIL,graded n=21 < 500 and ROI CI lower bound -63.51% <= 0%
-batter_home_runs,all-lines (full OOS),24,41.67,-35.49,-66.25,-66.25,-8.5,21,FAIL,graded n=24 < 500 and ROI CI lower bound -66.25% <= 0%
-batter_home_runs,board SELECT half,8,50.0,-23.25,-80.92,-80.92,-1.9,8,FAIL,graded n=8 < 500 and ROI CI lower bound -80.92% <= 0%
-batter_home_runs,board VERDICT half,13,38.46,-39.87,-76.52,-76.52,-5.2,13,FAIL,graded n=13 < 500 and ROI CI lower bound -76.52% <= 0%
+batter_home_runs,board (full OOS),23,52.17,-19.18,-47.15,-47.15,-4.4,23,FAIL,graded n=23 < 500 and ROI CI lower bound -47.15% <= 0%
+batter_home_runs,all-lines (full OOS),26,50.0,-22.63,-52.2,-52.2,-5.9,23,FAIL,graded n=26 < 500 and ROI CI lower bound -52.20% <= 0%
+batter_home_runs,board SELECT half,11,63.64,-2.07,-44.62,-44.62,-0.2,11,FAIL,graded n=11 < 500 and ROI CI lower bound -44.62% <= 0%
+batter_home_runs,board VERDICT half,12,41.67,-34.86,-74.56,-74.56,-4.2,12,FAIL,graded n=12 < 500 and ROI CI lower bound -74.56% <= 0%
 pitcher_strikeouts,"base (every candidate, flat)",19447,49.11,-4.94,-6.42,-7.16,-961.6,3415,FAIL,graded n=19447 >= 500 but ROI -4.94% <= 0%
 pitcher_strikeouts,price-only (full OOS),0,0.0,0.0,0.0,,0.0,0,NO_DATA,no graded picks in ev_filtered slice
-pitcher_strikeouts,board (full OOS),553,60.04,6.65,-0.78,-1.19,36.8,527,PASS,graded n=553 >= 500 and ROI 6.65% > 0%
-pitcher_strikeouts,all-lines (full OOS),619,61.07,6.17,-0.47,-1.51,38.2,527,PASS,graded n=619 >= 500 and ROI 6.17% > 0%
-pitcher_strikeouts,board SELECT half,276,60.87,9.47,-1.57,-0.9,26.1,264,FAIL,graded n=276 < 500 and ROI CI lower bound -1.57% <= 0%
-pitcher_strikeouts,board VERDICT half,277,59.21,3.83,-6.34,-6.69,10.6,263,FAIL,graded n=277 < 500 and ROI CI lower bound -6.34% <= 0%
+pitcher_strikeouts,board (full OOS),553,59.31,5.44,-1.69,-1.79,30.1,530,PASS,graded n=553 >= 500 and ROI 5.44% > 0%
+pitcher_strikeouts,all-lines (full OOS),611,60.39,5.27,-1.28,-2.03,32.2,530,PASS,graded n=611 >= 500 and ROI 5.27% > 0%
+pitcher_strikeouts,board SELECT half,282,61.35,9.72,-0.56,-0.59,27.4,268,FAIL,graded n=282 < 500 and ROI CI lower bound -0.56% <= 0%
+pitcher_strikeouts,board VERDICT half,271,57.2,1.0,-8.94,-9.59,2.7,262,FAIL,graded n=271 < 500 and ROI CI lower bound -8.94% <= 0%
 h2h,"base (every candidate, flat)",4504,53.73,-0.16,-2.92,-2.92,-7.3,3941,FAIL,graded n=4504 >= 500 but ROI -0.16% <= 0%
-h2h,price-only (full OOS),1401,57.32,-6.32,-10.52,-10.52,-88.6,1401,FAIL,graded n=1401 >= 500 but ROI -6.32% <= 0%
-h2h,board (full OOS),1303,57.33,-1.43,-6.2,-6.2,-18.6,1303,FAIL,graded n=1303 >= 500 but ROI -1.43% <= 0%
-h2h,all-lines (full OOS),1446,57.75,-0.96,-5.5,-5.5,-13.9,1303,FAIL,graded n=1446 >= 500 but ROI -0.96% <= 0%
-h2h,board SELECT half,775,58.97,1.18,-4.94,-4.94,9.1,775,PASS,graded n=775 >= 500 and ROI 1.18% > 0%
-h2h,board VERDICT half,528,54.92,-5.25,-12.94,-12.94,-27.7,528,FAIL,graded n=528 >= 500 but ROI -5.25% <= 0%
+h2h,price-only (full OOS),1261,57.49,-6.15,-10.8,-10.8,-77.5,1261,FAIL,graded n=1261 >= 500 but ROI -6.15% <= 0%
+h2h,board (full OOS),1018,57.96,-0.36,-5.62,-5.62,-3.7,1018,FAIL,graded n=1018 >= 500 but ROI -0.36% <= 0%
+h2h,all-lines (full OOS),1142,58.49,0.4,-4.48,-4.48,4.5,1018,PASS,graded n=1142 >= 500 and ROI 0.40% > 0%
+h2h,board SELECT half,593,59.19,1.21,-5.62,-5.62,7.2,593,PASS,graded n=593 >= 500 and ROI 1.21% > 0%
+h2h,board VERDICT half,425,56.24,-2.55,-10.95,-10.95,-10.8,425,FAIL,graded n=425 < 500 and ROI CI lower bound -10.95% <= 0%
 batter_runs_scored,"base (every candidate, flat)",31012,37.27,-11.52,-12.81,-13.28,-3573.6,1589,FAIL,graded n=31012 >= 500 but ROI -11.52% <= 0%
 batter_runs_scored,price-only (full OOS),1357,55.12,-0.55,-5.55,-5.84,-7.5,562,FAIL,graded n=1357 >= 500 but ROI -0.55% <= 0%
-batter_runs_scored,board (full OOS),3102,59.22,1.56,-1.57,-1.83,48.5,711,PASS,graded n=3102 >= 500 and ROI 1.56% > 0%
-batter_runs_scored,all-lines (full OOS),3311,58.83,0.82,-1.96,-2.88,27.1,711,PASS,graded n=3311 >= 500 and ROI 0.82% > 0%
-batter_runs_scored,board SELECT half,2187,59.17,1.87,-1.85,-2.35,40.9,435,PASS,graded n=2187 >= 500 and ROI 1.87% > 0%
-batter_runs_scored,board VERDICT half,915,59.34,0.83,-4.54,-6.06,7.6,277,PASS,graded n=915 >= 500 and ROI 0.83% > 0%
+batter_runs_scored,board (full OOS),3069,59.76,2.53,-0.6,-1.12,77.7,688,PASS,graded n=3069 >= 500 and ROI 2.53% > 0%
+batter_runs_scored,all-lines (full OOS),3282,59.45,1.93,-0.99,-1.68,63.3,688,PASS,graded n=3282 >= 500 and ROI 1.93% > 0%
+batter_runs_scored,board SELECT half,2203,60.15,3.47,-0.18,-0.59,76.4,433,PASS,graded n=2203 >= 500 and ROI 3.47% > 0%
+batter_runs_scored,board VERDICT half,866,58.78,0.14,-5.48,-7.44,1.3,255,PASS,graded n=866 >= 500 and ROI 0.14% > 0%
 pitcher_outs,"base (every candidate, flat)",6686,50.81,-3.44,-5.67,-6.27,-230.1,2996,FAIL,graded n=6686 >= 500 but ROI -3.44% <= 0%
 pitcher_outs,price-only (full OOS),318,60.38,1.21,-7.66,-7.92,3.8,289,FAIL,graded n=318 < 500 and ROI CI lower bound -7.66% <= 0%
-pitcher_outs,board (full OOS),803,57.41,2.02,-4.07,-4.0,16.2,719,PASS,graded n=803 >= 500 and ROI 2.02% > 0%
-pitcher_outs,all-lines (full OOS),842,57.84,2.76,-3.31,-3.41,23.3,719,PASS,graded n=842 >= 500 and ROI 2.76% > 0%
-pitcher_outs,board SELECT half,569,58.35,4.5,-2.59,-3.09,25.6,496,PASS,graded n=569 >= 500 and ROI 4.50% > 0%
-pitcher_outs,board VERDICT half,234,55.13,-4.0,-15.35,-15.35,-9.4,223,FAIL,graded n=234 < 500 and ROI CI lower bound -15.35% <= 0%
+pitcher_outs,board (full OOS),847,57.02,1.09,-4.96,-5.01,9.3,751,PASS,graded n=847 >= 500 and ROI 1.09% > 0%
+pitcher_outs,all-lines (full OOS),888,57.09,1.23,-4.35,-4.62,10.9,751,PASS,graded n=888 >= 500 and ROI 1.23% > 0%
+pitcher_outs,board SELECT half,579,58.03,3.68,-3.65,-3.41,21.3,505,PASS,graded n=579 >= 500 and ROI 3.68% > 0%
+pitcher_outs,board VERDICT half,268,54.85,-4.5,-14.55,-15.25,-12.1,246,FAIL,graded n=268 < 500 and ROI CI lower bound -14.55% <= 0%
 batter_strikeouts,"base (every candidate, flat)",27835,49.73,-12.13,-13.21,-13.37,-3375.0,1439,FAIL,graded n=27835 >= 500 but ROI -12.13% <= 0%
 batter_strikeouts,price-only (full OOS),596,57.38,-1.58,-8.39,-8.26,-9.4,277,FAIL,graded n=596 >= 500 but ROI -1.58% <= 0%
-batter_strikeouts,board (full OOS),1433,64.2,8.09,3.77,3.82,116.0,690,PASS,graded n=1433 >= 500 and ROI 8.09% > 0%
-batter_strikeouts,all-lines (full OOS),1479,64.3,8.28,3.96,3.95,122.4,690,PASS,graded n=1479 >= 500 and ROI 8.28% > 0%
-batter_strikeouts,board SELECT half,928,66.38,11.55,6.24,5.63,107.2,400,PASS,graded n=928 >= 500 and ROI 11.55% > 0%
-batter_strikeouts,board VERDICT half,505,60.2,1.74,-5.93,-5.83,8.8,291,PASS,graded n=505 >= 500 and ROI 1.74% > 0%
+batter_strikeouts,board (full OOS),1435,64.6,8.83,4.6,4.54,126.7,678,PASS,graded n=1435 >= 500 and ROI 8.83% > 0%
+batter_strikeouts,all-lines (full OOS),1487,64.63,8.93,4.82,4.65,132.8,678,PASS,graded n=1487 >= 500 and ROI 8.93% > 0%
+batter_strikeouts,board SELECT half,913,66.48,11.84,6.44,6.57,108.1,393,PASS,graded n=913 >= 500 and ROI 11.84% > 0%
+batter_strikeouts,board VERDICT half,522,61.3,3.55,-3.55,-3.65,18.6,286,PASS,graded n=522 >= 500 and ROI 3.55% > 0%

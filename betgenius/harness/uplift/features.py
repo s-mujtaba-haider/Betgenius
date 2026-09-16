@@ -258,6 +258,166 @@ def pitcher_form(box, lag_days=0):
     return out
 
 
+# ---------------------------------------------------------------------------
+# the run-difference distribution, done exactly
+# ---------------------------------------------------------------------------
+def _skellam_gt(lh, la, x):
+    """P(home runs - away runs > x). Exact for a half-integer x."""
+    lh = np.clip(np.asarray(lh, float), 1e-3, None)
+    la = np.clip(np.asarray(la, float), 1e-3, None)
+    return 1.0 - stats.skellam.cdf(np.floor(np.asarray(x, float)), lh, la)
+
+
+def _skellam_home_win(lh, la):
+    """P(home wins). Baseball has no ties, so the zero-margin mass the Skellam
+    puts there is not a real outcome and the probability is renormalised over
+    the decided games rather than left to leak into the favourite."""
+    lh = np.clip(np.asarray(lh, float), 1e-3, None)
+    la = np.clip(np.asarray(la, float), 1e-3, None)
+    p_gt = 1.0 - stats.skellam.cdf(0, lh, la)
+    p_eq = stats.skellam.pmf(0, lh, la)
+    return np.clip(p_gt / np.maximum(1.0 - p_eq, 1e-9), 1e-6, 1 - 1e-6)
+
+
+def _skellam_cover(lh, la, line):
+    """P(the home side covers its own number). line is the HOME handicap, so
+    the home side covers when margin + line > 0."""
+    return _skellam_gt(lh, la, -np.asarray(line, float))
+
+
+def _solve_home_lambda(total, target_p, line=None):
+    """Split a market total into the two team lambdas that reproduce a posted
+    price.
+
+    Given the total the book is posting and one of its other two numbers, there
+    is exactly one pair of Poisson means that agrees with both: the total fixes
+    their sum and the moneyline (or the runline) fixes their difference. The
+    probability is monotone in the home lambda, so a bisection finds it.
+
+    This is what makes the three game markets one market rather than three. A
+    runline price is a function of the moneyline and the total; a moneyline is a
+    function of the runline and the total. Where the book's own three numbers
+    disagree, the disagreement is visible at bet time and needs no model at all.
+    """
+    T = np.clip(np.asarray(total, float), 4.0, 18.0)
+    tgt = np.clip(np.asarray(target_p, float), 0.02, 0.98)
+    lo = np.full(T.shape, 0.4)
+    hi = T - 0.4
+    for _ in range(36):
+        mid = 0.5 * (lo + hi)
+        p = (_skellam_home_win(mid, T - mid) if line is None
+             else _skellam_cover(mid, T - mid, line))
+        below = p < tgt
+        lo = np.where(below, mid, lo)
+        hi = np.where(below, hi, mid)
+    return 0.5 * (lo + hi)
+
+
+def _solve_implied_total(p_ml, p_cover, line):
+    """The total the book's OTHER two numbers imply.
+
+    The moneyline fixes the difference of the two Poisson means and the runline
+    price fixes how much spread there is around it, so between them they pin
+    the sum as well. Bisecting on the total, with the home lambda re-solved from
+    the moneyline at each step, finds the total those two prices are really
+    quoting -- which can be some way from the one posted on the board.
+    """
+    pml = np.clip(np.asarray(p_ml, float), 0.03, 0.97)
+    pcov = np.clip(np.asarray(p_cover, float), 0.03, 0.97)
+    L = np.asarray(line, float)
+    lo = np.full(pml.shape, 5.0)
+    hi = np.full(pml.shape, 14.0)
+    for _ in range(22):
+        mid = 0.5 * (lo + hi)
+        lam_h = _solve_home_lambda(mid, pml, None)
+        p = _skellam_cover(lam_h, mid - lam_h, L)
+        below = p < pcov
+        lo = np.where(below, mid, lo)
+        hi = np.where(below, hi, mid)
+    return 0.5 * (lo + hi)
+
+
+# ---------------------------------------------------------------------------
+# Elo
+# ---------------------------------------------------------------------------
+ELO_K = 4.0
+ELO_HFA = 24.0          # home-field, in Elo points
+ELO_REVERT = 0.30       # pulled back toward the mean at a season boundary
+_ELO = {}
+
+
+def elo(box, lag_days=0):
+    """Each team's Elo rating as it stood BEFORE the game, per (game_pk, team_id).
+
+    The roadmap asks for an Elo-style model on `h2h`, and Elo is the one team
+    rating that is causal by construction: it is a running total that only ever
+    moves forward, so the rating attached to a game is built from games that had
+    already finished. Margin of victory damps the update the standard way, so a
+    12-2 blowout is not worth three times a 3-2 win, and ratings revert toward
+    1500 at the turn of a season.
+
+    lag_days > 0 stops the rating at that many days before the game, which is
+    what the placebo run needs.
+    """
+    key = f"lag{lag_days}"
+    if key in _ELO:
+        return _ELO[key]
+    gh = game_home(box)
+    ts = frames.team_scores(box).set_index(["game_pk", "team_id"])["scored"]
+    gd = box.drop_duplicates("game_pk").set_index("game_pk")["game_date"]
+    g = gh.copy()
+    g["game_date"] = g["game_pk"].map(gd)
+    g = g[g["game_date"].notna()].copy()
+    idx_h = pd.MultiIndex.from_arrays([g["game_pk"], g["home_id"]])
+    idx_a = pd.MultiIndex.from_arrays([g["game_pk"], g["away_id"]])
+    g["hr_"] = ts.reindex(idx_h).to_numpy(float)
+    g["ar_"] = ts.reindex(idx_a).to_numpy(float)
+    g = g[g["hr_"].notna() & g["ar_"].notna()].copy()
+    g["day"] = frames.to_day(g["game_date"])
+    g["season"] = g["game_date"].str[:4]
+    g = g.sort_values(["day", "game_pk"], kind="stable").reset_index(drop=True)
+
+    rating = {}
+    last_season = None
+    rows = []
+    pend = []          # (apply_day, home, away, dh, da) updates held back by the lag
+    for r in g.itertuples(index=False):
+        if last_season is not None and r.season != last_season:
+            for t in rating:
+                rating[t] = 1500.0 + (1.0 - ELO_REVERT) * (rating[t] - 1500.0)
+        last_season = r.season
+        # apply every update whose game is now old enough to be visible
+        if lag_days:
+            keep = []
+            for apply_day, h, a, dh, da in pend:
+                if apply_day <= r.day:
+                    rating[h] = rating.get(h, 1500.0) + dh
+                    rating[a] = rating.get(a, 1500.0) + da
+                else:
+                    keep.append((apply_day, h, a, dh, da))
+            pend = keep
+        rh = rating.get(r.home_id, 1500.0)
+        ra = rating.get(r.away_id, 1500.0)
+        diff = rh + ELO_HFA - ra
+        exp_h = 1.0 / (1.0 + 10.0 ** (-diff / 400.0))
+        rows.append((r.game_pk, r.home_id, rh, diff, exp_h))
+        rows.append((r.game_pk, r.away_id, ra, -diff, 1.0 - exp_h))
+        margin = r.hr_ - r.ar_
+        won = 1.0 if margin > 0 else 0.0
+        mov = np.log(abs(margin) + 1.0) * (2.2 / (0.001 * (diff if won else -diff) + 2.2))
+        delta = ELO_K * mov * (won - exp_h)
+        if lag_days:
+            pend.append((r.day + lag_days, r.home_id, r.away_id, delta, -delta))
+        else:
+            rating[r.home_id] = rh + delta
+            rating[r.away_id] = ra - delta
+    out = pd.DataFrame(rows, columns=["game_pk", "team_id", "elo", "eloDiff", "eloP"])
+    out = out.set_index(["game_pk", "team_id"])
+    out = out[~out.index.duplicated()]
+    _ELO[key] = out
+    return out
+
+
 def _history(market, box):
     """One row per player appearance, with a clear-indicator per distinct line."""
     role, col, kind = frames.MARKETS[market]
@@ -404,8 +564,10 @@ def team_offense(box):
     r = r.assign(
         teamObp25=np.where(pa > 0, r["to_onbase_s25"] / np.maximum(pa, 1.0), np.nan),
         teamRpg25=np.where(n > 0, r["to_scored_s25"] / np.maximum(n, 1.0), np.nan),
-        teamRapg25=np.where(n > 0, r["to_allowed_s25"] / np.maximum(n, 1.0), np.nan))
-    return r.set_index(["game_pk", "team_id"])[["teamObp25", "teamRpg25", "teamRapg25"]]
+        teamRapg25=np.where(n > 0, r["to_allowed_s25"] / np.maximum(n, 1.0), np.nan),
+        teamPaPg25=np.where(n > 0, pa / np.maximum(n, 1.0), np.nan))
+    return r.set_index(["game_pk", "team_id"])[["teamObp25", "teamRpg25", "teamRapg25",
+                                                "teamPaPg25"]]
 
 
 def _game_history(box):
@@ -502,6 +664,69 @@ def _build_game(market, d, box, lag_days):
         d[c] = gp[c].reindex(d["game_pk"]).to_numpy(float)
     d["mktMargin"] = d["mktHomeTeamTotal"] - d["mktAwayTeamTotal"]
 
+    # Elo, and the Pythagorean record the roadmap asks for on h2h
+    el = elo(box, lag_days)
+    for tag, tid in (("h", "home_id"), ("a", "away_id")):
+        idx = pd.MultiIndex.from_arrays([d["game_pk"], d[tid]])
+        d[f"{tag}Elo"] = el["elo"].reindex(idx).to_numpy(float)
+    d["eloDiff"] = d["hElo"].fillna(1500.0) - d["aElo"].fillna(1500.0) + ELO_HFA
+    d["eloP"] = 1.0 / (1.0 + 10.0 ** (-d["eloDiff"] / 400.0))
+    for tag in ("h", "a"):
+        rs = np.clip(d[f"{tag}sco25"].to_numpy(float), 0.5, None)
+        ra = np.clip(d[f"{tag}all25"].to_numpy(float), 0.5, None)
+        d[f"{tag}Pythag"] = rs ** 1.83 / (rs ** 1.83 + ra ** 1.83)
+    d["pythagGap"] = d["hPythag"] - d["aPythag"]
+
+    # the run-difference distribution, exactly rather than as a normal
+    lam_h = np.clip(d["expHomeSP"].to_numpy(float), 1.0, 12.0)
+    lam_a = np.clip(d["expAwaySP"].to_numpy(float), 1.0, 12.0)
+    lam_h = np.where(np.isfinite(lam_h), lam_h, LEAGUE_RPG)
+    lam_a = np.where(np.isfinite(lam_a), lam_a, LEAGUE_RPG)
+    d["lamHome"], d["lamAway"] = lam_h, lam_a
+    if market == "totals":
+        d["parPSkel"] = _poisson_over(lam_h + lam_a, d["line"])
+    elif market == "h2h":
+        d["parPSkel"] = _skellam_home_win(lam_h, lam_a)
+    else:
+        d["parPSkel"] = _skellam_cover(lam_h, lam_a, d["line"].to_numpy(float))
+
+    # the book's own three numbers, made to agree with each other
+    T = d["mktTotalLine"].to_numpy(float)
+    T = np.where(np.isfinite(T), T, 2 * LEAGUE_RPG)
+    pml = d["mktHomeWinP"].to_numpy(float)
+    pcov = d["mktHomeCoverP"].to_numpy(float)
+    sl = d["mktSpreadLine"].to_numpy(float)
+    sl = np.where(np.isfinite(sl), sl, -1.5)
+    ok_ml = np.isfinite(pml)
+    ok_rl = np.isfinite(pcov)
+    pml_f = np.where(ok_ml, pml, 0.5)
+    pcov_f = np.where(ok_rl, pcov, 0.5)
+    ml_lam = _solve_home_lambda(T, pml_f, None)             # from moneyline + total
+    rl_lam = _solve_home_lambda(T, pcov_f, sl)              # from runline  + total
+    d["mktLamHome"] = np.where(ok_ml, ml_lam, np.nan)
+    d["mktLamAway"] = np.where(ok_ml, T - ml_lam, np.nan)
+    d["mktLamGap"] = np.where(ok_ml & ok_rl, ml_lam - rl_lam, np.nan)
+    # NOTE: inverting the runline price for the total as well (_solve_implied_total)
+    # was tried and dropped: the bisection rails against its own bounds on most
+    # games, because P(cover) is too flat in the total to invert. The two
+    # single-solve lambdas below are well behaved and are what is used.
+
+    # what the OTHER two numbers say this market's own price should be, and how
+    # far the posted price is from it
+    if market == "spreads":
+        impl = _skellam_cover(ml_lam, T - ml_lam, d["line"].to_numpy(float))
+        d["crossP"] = np.where(ok_ml, impl, np.nan)
+    elif market == "h2h":
+        impl = _skellam_home_win(rl_lam, T - rl_lam)
+        d["crossP"] = np.where(ok_rl, impl, np.nan)
+    else:
+        # for the total there is no third number to cross against, so this is
+        # the Poisson probability at the book's OWN posted total: the residual
+        # then says how far its over price sits from a plain Poisson at the
+        # number it is itself quoting.
+        d["crossP"] = _poisson_over(T, d["line"].to_numpy(float))
+    d["crossResid"] = d["pFairOver"].to_numpy(float) - d["crossP"].to_numpy(float)
+
     d["nHist"] = d[["hn", "an"]].min(axis=1)
     cols = ["pLogit", "parP", "empP", "parPSP", "expTotal", "expMargin",
             "expTotalSP", "expMarginSP",
@@ -512,6 +737,9 @@ def _build_game(market, d, box, lag_days):
             "hbpRunPerOut", "abpRunPerOut", "hbpKPerBf", "abpKPerBf",
             "hbpOutsPerGame", "abpOutsPerGame", "bpRunGap",
             "parkRunRel", "parkHrRel",
+            "eloDiff", "eloP", "hPythag", "aPythag", "pythagGap",
+            "parPSkel", "lamHome", "lamAway",
+            "mktLamHome", "mktLamAway", "mktLamGap", "crossP", "crossResid",
             "spRunGap", "dispOver", "dispUnder", "nBooks"]
     return d, cols
 
@@ -682,6 +910,54 @@ def _build_prop(market, d, box, lag_days):
     d["slot25"] = ls["slot25"].reindex(idx).to_numpy(float)
     d["startShare25"] = ls["startShare25"].reindex(idx).to_numpy(float)
     d["restDays"] = rest_days(box).reindex(idx).to_numpy(float)
+
+    # Opportunity, modelled rather than read off the player's own recent games.
+    # Every batter market in the roadmap decomposes the same way -- expected
+    # plate appearances times a rate -- and a batter's own appearances per game
+    # is a poor estimate of the first half of that: it is dragged down by games
+    # he left early and by the weeks he was not starting. The lineup gives it
+    # directly. A team bats about nine times through its order, each slot up the
+    # card is worth roughly a tenth of a plate appearance, and a player who
+    # starts four days in five gets four fifths of it.
+    d["teamPaPg25"] = to["teamPaPg25"].reindex(own).to_numpy(float)
+    tpa = np.nan_to_num(d["teamPaPg25"].to_numpy(float), nan=38.0)
+    slot = np.clip(np.nan_to_num(d["slot25"].to_numpy(float), nan=5.0), 1.0, 9.0)
+    share = np.clip(np.nan_to_num(d["startShare25"].to_numpy(float), nan=0.8), 0.0, 1.0)
+    slot_pa = np.clip(tpa / 9.0 + (5.0 - slot) * 0.11, 2.0, 5.5) * np.clip(share, 0.3, 1.0)
+    d["slotPa"] = slot_pa
+    own_opp = np.nan_to_num(d["oppPerGame"].to_numpy(float), nan=np.nan)
+    if frames.MARKETS[market][0] == "batter":
+        # markets settled per at-bat need the AB share of a plate appearance,
+        # which is the player's own and is stable
+        if OPP[market] == "at_bats":
+            ratio = np.where(np.isfinite(own_opp) & (tpa > 0),
+                             own_opp / np.maximum(slot_pa, 1e-6), 0.88)
+            ratio = np.clip(np.where(np.isfinite(ratio), ratio, 0.88), 0.6, 1.1)
+            slot_opp = slot_pa * ratio
+        else:
+            slot_opp = slot_pa
+        d["expOpp"] = np.where(np.isfinite(own_opp), 0.5 * own_opp + 0.5 * slot_opp,
+                               slot_opp)
+    else:
+        d["expOpp"] = np.where(np.isfinite(own_opp), own_opp, 4.0)
+    d["oppGap"] = d["expOpp"] - np.where(np.isfinite(own_opp), own_opp, d["expOpp"])
+    lam_opp = d["rate"].to_numpy(float) * d["expOpp"].to_numpy(float) \
+        * d["oppAllowRel"].to_numpy(float) * park
+    d["lamOpp"] = lam_opp
+    d["parPOpp"] = (_normal_over(lam_opp, 4.5, linev) if market == "pitcher_outs"
+                    else _poisson_over(lam_opp, linev))
+    # A rare event over a countable number of tries is binomial, not Poisson:
+    # a batter cannot hit two home runs in one at-bat, and the Poisson tail
+    # quietly says he can. It matters most exactly where the roadmap says it
+    # does -- home runs at 0.5.
+    if frames.MARKETS[market][0] == "batter":
+        tries = np.clip(d["expOpp"].to_numpy(float), 0.5, 7.0)
+        per_try = np.clip(d["rate"].to_numpy(float) * d["oppAllowRel"].to_numpy(float)
+                          * park, 1e-6, 0.95)
+        k = np.floor(linev)
+        d["parPBin"] = 1.0 - stats.binom.cdf(k, np.round(tries), per_try)
+    else:
+        d["parPBin"] = d["parPOpp"]
     # how far the posted number sits from the projection, in its own sd
     lam = d["lam"].to_numpy(float)
     sd = np.sqrt(np.maximum(lam, 1e-6)) if market != "pitcher_outs" else np.full(len(d), 4.5)
@@ -696,6 +972,7 @@ def _build_prop(market, d, box, lag_days):
     d["isHome"] = (d["teamId"] == d["home_team"].map(tmap)).astype(float)
 
     cols = ["pLogit", "empP", "parP", "parPAdj", "parPPark", "parPNb", "parPW",
+            "parPOpp", "parPBin", "expOpp", "slotPa", "oppGap", "teamPaPg25",
             "clr25", "clr100",
             "clrEdge25", "clrEdge100", "rate", "oppPerGame", "oppAllowRel",
             "overround", "line", "nHist", "isHome", "lineZ",

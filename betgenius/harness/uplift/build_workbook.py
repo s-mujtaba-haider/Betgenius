@@ -111,6 +111,10 @@ def main():
     sweep = read("global_sweep.csv")
     robust = read("robustness.csv")
     attrib = read("attribution.csv")
+    attrib2 = read("attribution_pass2.csv")
+    matrix = read("final_matrix.csv")
+    calib = read("calibration.csv")
+    rel = read("calibration_reliability.csv")
     improve = read("improve_lag0_best.csv")
     log = read("improve_log_lag0_best.csv")
     diag = read("diag_signal.csv")
@@ -131,6 +135,8 @@ def main():
             "pitcher_outs",
             "Denominator",
             "Feature attribution",
+            "Gate (full OOS) vs Gate (verdict window)",
+            "Which gate decides production",
         ],
         "Detail": [
             "graded n >= 500 and ROI > 0; below 500 the 95% CI lower bound must clear zero. "
@@ -174,10 +180,29 @@ def main():
             "run_final.py re-chooses its global filter every run, so a before/after on the "
             "headline would confound a feature gain with a filter gain. attribute.py scores "
             "both feature sets through an identical filter and side policy; the Feature "
-            "attribution sheet is that comparison.",
+            "attribution sheets are those comparisons.",
+            "Same gate, two windows. FULL OOS is every scored pick after the walk-forward "
+            "warm-up. The VERDICT WINDOW is the later half of that same period, cut on the "
+            "clock per market, and it is the half that was never read while the filter or "
+            "the side policy were being chosen - so it is the only window where an "
+            "over-fitted choice has nowhere to hide. It is also roughly half the picks, so "
+            "a market can miss it on sample size rather than on sign: below 500 graded "
+            "picks the gate switches to the CI branch, which a thin edge cannot clear.",
+            "The verdict window is the one that decides. A market clearing only the full "
+            "OOS gate is PASS_WITH_RESTRICTIONS and is not the same claim as a PASS.",
         ]})
 
     with pd.ExcelWriter(out, engine="openpyxl") as w:
+        if matrix is not None:
+            sheet(w, matrix, "Final matrix",
+                  note="The authoritative final table. TWO gates, both the same rule "
+                       "(n >= 500 and ROI > 0, else the 95% CI lower bound must clear "
+                       "zero), applied to two windows: the FULL out-of-sample period, "
+                       "and the VERDICT WINDOW, its later half, which nothing was "
+                       "allowed to be chosen on. Final status: PASS = both gates; "
+                       "PASS_WITH_RESTRICTIONS = one of the two; VETO = neither, on a "
+                       "market whose flat-bet ROI is worse than -12%; "
+                       "FAIL_AFTER_ITERATION = neither, otherwise.")
         sheet(w, summary, "Summary",
               note="MLB Phase 1 — every market, walk-forward, published gate unchanged. "
                    "The verdict column is read from a window that was never used to choose "
@@ -190,12 +215,30 @@ def main():
                        "own number recalibrated against itself; whatever the board earns "
                        "above that line is what the box-score and matchup features added.")
         if attrib is not None:
-            sheet(w, attrib, "Feature attribution",
+            sheet(w, attrib, "Feature attribution (pass 2-3)",
                   note="The same filter and the same side policy over both feature sets, so "
                        "the only difference between the two columns is the features: the "
                        "park environment, the bullpen rebuilt from relief box-score lines, "
                        "and the starter's pitch budget. 6 markets clear the gate without "
                        "them, 9 with them.")
+        if calib is not None:
+            sheet(w, calib, "Calibration",
+                  note="Probability quality, not direction: log loss and Brier score on "
+                       "the walk-forward probabilities, with the slope and intercept of "
+                       "the logistic recalibration (1.0 / 0.0 is perfect; slope below 1 "
+                       "means over-confident). `price` is the market's own de-vigged "
+                       "number recalibrated against itself and is the bar the model has "
+                       "to clear.")
+        if rel is not None:
+            sheet(w, rel, "Reliability",
+                  note="Realised win rate against predicted probability, by decile of "
+                       "the shipped ensemble. A calibrated model has `gap` near zero in "
+                       "every bucket.")
+        if attrib2 is not None:
+            sheet(w, attrib2, "Feature attribution (pass 1-2)",
+                  note="The first feature pass, scored the same way: park environment, "
+                       "bullpen and starter workload, both feature sets through one "
+                       "identical filter.")
         if robust is not None:
             sheet(w, robust, "Robustness",
                   note="Same pipeline, one thing changed at a time: the placebo lag on the "
@@ -207,14 +250,18 @@ def main():
                        "all markets. One global choice rather than eleven separate ones, so "
                        "no market's verdict can be an artefact of its own tuning.")
         if improve is not None:
-            sheet(w, improve, "Per-market tuning",
-                  note="The roadmap's Level 7 path: spec, EV floor, side, confidence floor "
+            sheet(w, improve, "Per-market tuning (pass 2)",
+                  note="Run against the PASS-2 feature set, not the shipped one — the "
+                       "per-market search takes about forty minutes and was not re-run "
+                       "after the final feature pass. "
+                       "The roadmap's Level 7 path: spec, EV floor, side, confidence floor "
                        "and sample floor searched per market on the SELECT half, verdict "
                        "read from the untouched half. Kept because it shows the per-market "
                        "search generalises WORSE than the single global choice.")
         if log is not None:
-            sheet(w, log.head(40000), "Improvement log",
-                  note="Every attempt, including the ones that failed. A table of only the "
+            sheet(w, log.head(40000), "Improvement log (pass 2)",
+                  note="Every attempt, including the ones that failed — against the "
+                       "pass-2 feature set, as above. A table of only the "
                        "things that worked is indistinguishable from a table of things that "
                        "got lucky.")
         if diag is not None:

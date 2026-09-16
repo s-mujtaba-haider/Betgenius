@@ -23,7 +23,11 @@ import frames
 import policy
 import run_markets
 
-CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
+# UPLIFT_CACHE_DIR lets a second feature set be built side by side without
+# clobbering the live cache, which is what attribute.py compares against.
+CACHE = os.environ.get(
+    "UPLIFT_CACHE_DIR",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
 
 
 def cache_path(market, lag, price, warmup=policy.WARMUP, blocks=policy.N_BLOCKS):

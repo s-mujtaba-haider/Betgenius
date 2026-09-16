@@ -43,6 +43,9 @@ import run_final
 HERE = os.path.dirname(os.path.abspath(__file__))
 OLD = os.path.join(HERE, "cache_v1")
 NEW = os.path.join(HERE, "cache")
+# cache_v1 = the feature set before the park / bullpen / pitch-budget pass
+# cache_v2 = before the Skellam / Elo / opportunity pass
+# cache    = current. --old and --new take any of them.
 
 
 def load(cache_dir, market):
@@ -65,7 +68,9 @@ def score(c, spec, tau, conf, collapse, side):
 
 def main():
     flags = dict(a.lstrip("-").split("=", 1) for a in sys.argv[1:] if a.startswith("--"))
-    f = pd.read_csv(os.path.join(HERE, "reports", "final.csv"))
+    old_dir = os.path.join(HERE, flags.get("old", "cache_v1"))
+    new_dir = os.path.join(HERE, flags.get("new", "cache"))
+    f = pd.read_csv(os.path.join(HERE, "reports", flags.get("final", "final.csv")))
     spec = tuple(flags.get("spec", f["spec"].iloc[0]).split("+"))
     tau = float(flags.get("tau", f["tau"].iloc[0]))
     conf = int(flags.get("conf", f["minConf"].iloc[0]))
@@ -74,7 +79,7 @@ def main():
 
     rows = []
     for m in run_final.ORDER:
-        old, new = load(OLD, m), load(NEW, m)
+        old, new = load(old_dir, m), load(new_dir, m)
         if old is None or new is None:
             continue
         side = sides.get(m, "both")
@@ -89,7 +94,8 @@ def main():
                          newUnits=round(b[0]["units"], 1), newVerdict=b[1],
                          roiDelta=round(b[0]["roiPct"] - a[0]["roiPct"], 2)))
     r = pd.DataFrame(rows)
-    r.to_csv(os.path.join(HERE, "reports", "attribution.csv"), index=False)
+    out = flags.get("out", "attribution.csv")
+    r.to_csv(os.path.join(HERE, "reports", out), index=False)
     print(f"same filter on both caches: spec={'+'.join(spec)}  EV floor={tau}  "
           f"conf floor={conf}  collapse={collapse}")
     print("old = features before the park / bullpen / pitch-budget pass, "

@@ -46,10 +46,12 @@ N_BLOCKS = 40
 # cannot support twenty-five features, and handing it them is how a market that
 # was merely losing becomes badly losing.
 COMPACT = {
-    "game": ["pLogit", "parP", "expMargin", "expTotal", "spRunGap", "dispOver", "dispUnder",
+    "game": ["pLogit", "parPSkel", "crossResid", "eloDiff", "expMargin", "expTotalSP",
+             "spRunGap", "bpRunGap", "parkRunRel", "dispOver", "dispUnder",
              "mktTotalLine", "mktHomeWinP", "mktMargin"],
-    "prop": ["pLogit", "empP", "parPAdj", "clrEdge25", "lineZ", "dispOver", "dispUnder",
-             "teamObp25", "oppAllowRel", "mktTotalLine", "mktHomeTeamTotal"],
+    "prop": ["pLogit", "empP", "parPAdj", "parPOpp", "clrEdge25", "lineZ",
+             "dispOver", "dispUnder", "teamObp25", "oppAllowRel", "expOpp",
+             "mktTotalLine", "mktHomeTeamTotal"],
 }
 
 
