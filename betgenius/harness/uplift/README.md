@@ -45,8 +45,43 @@ run_final.py       THE result: global filter, per-market side, gate
 run_improve.py     the roadmap's per-market improvement loop + experiment log
 robustness.py      placebo lag, price convention, refit schedule
 diag_signal.py     does any signal survive the price being in the model?
+attribute.py       the same filter over both feature sets, to separate a
+                   feature gain from a filter gain
+check_asof.py      recomputes sampled feature rows the slow way and asserts the
+                   as-of cut, including that the value WOULD change if the
+                   game's own day were let in
 build_workbook.py  the client workbook, built only from the report CSVs
 ```
+
+## What the features are
+
+Everything is built from two tables — box-score lines and the odds snapshot —
+and every roll-up is as-of an **earlier calendar date** than the game it feeds.
+
+| Family | What it is | Markets it exists for |
+|---|---|---|
+| empirical handicap | how often this player has already cleared **this** number, last 25 and last 100 appearances, shrunk toward the market's own price | every prop |
+| opportunity model | rate per opportunity × expected opportunities, shrunk to a league prior, then adjusted for the opposing side's as-of allowance | every prop |
+| lineup and rest | as-of batting-order slot, starter share, days since last appearance | batter props |
+| team offence | the team's as-of on-base rate, runs scored and runs allowed per game | all |
+| **park environment** | runs and home runs per game already hit **in this ballpark**, over the last 100 games there, shrunk hard to the league rate | all |
+| **bullpen** | the relief corps' as-of runs per out, K and BB per batter faced and innings per game — rebuilt from relief box-score lines, not from the bullpen table the harness role cannot read | all |
+| **starter workload** | the starter's pitch budget, pitches per out, walk rate, five-start form against his twenty-five-start baseline, and the start-to-start spread of his own outs | pitcher props, game markets |
+| market numbers | the game's own total, moneyline and runline at the same snapshot, and the team totals implied by them | all |
+
+The four bold rows are the second pass, and `attribute.py` is what says what they
+were worth: scored through an identical filter, the feature set before them
+clears the gate in 6 markets and the feature set after them in 9, with the three
+markets that flip being the three those features were built for.
+
+The per-market statistical model on top of them:
+
+| Family | Model |
+|---|---|
+| hits, total bases, home runs, RBIs, runs, both strikeout markets | Poisson on rate-per-opportunity × expected opportunity, park-adjusted, plus a negative-binomial version of the same count |
+| `pitcher_outs` | pitch budget ÷ pitches per out → expected outs, with the pitcher's **own** start-to-start spread as the standard deviation |
+| `pitcher_strikeouts` | expected outs → batters faced (÷ 1 − opponent OBP) → strikeouts, negative binomial at the posted line |
+| `totals`, `h2h`, `spreads` | the starter for as long as he lasts plus the bullpen for the rest, in a park with a run environment of its own, alongside the older form-only run model |
 
 ## Reproducing from scratch
 
@@ -66,6 +101,7 @@ python harness/uplift/api_to_csv.py
 # 3. the run
 python harness/uplift/verify_gate.py      # the gate port reproduces the shipped reports
 python harness/uplift/build_cache.py
+python harness/uplift/check_asof.py       # the as-of cut, recomputed the slow way
 python harness/uplift/run_final.py
 python harness/uplift/robustness.py
 python harness/uplift/build_workbook.py
@@ -85,6 +121,7 @@ ODDS_API_KEY=...                                        # historical endpoint
 
 ## What each market's verdict rests on
 
-`reports/final.csv` is the summary; `reports/boards.csv` has the four boards per
-market; `reports/improve_log_lag0_best.csv` has every attempt that was made,
-including the ones that failed.
+`reports/final.csv` is the summary; `reports/boards.csv` has the six boards per
+market; `reports/attribution.csv` is the before/after on the feature set;
+`reports/improve_log_lag0_best.csv` has every attempt that was made, including
+the ones that failed.

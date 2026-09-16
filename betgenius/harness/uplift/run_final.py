@@ -51,6 +51,7 @@ REPORTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
 MEMBERS = ("price", "compact", "box", "gbm", "offset", "iso")
 TAUS = (0.0, 0.01, 0.02, 0.04)
 CONFS = (0, 55, 60)
+COLLAPSE = ("maxEv", "mostBooks")
 SIDES = (None, "over", "under", "plus", "minus")
 MIN_SELECT_N = 250
 ORDER = ["batter_hits", "batter_rbis", "totals", "spreads", "batter_total_bases",
@@ -74,10 +75,11 @@ def halves(c):
     return scored["commenceTime"].quantile(0.5)
 
 
-def board_of(c, spec, tau, side, cut, half, min_conf=60):
+def board_of(c, spec, tau, side, cut, half, min_conf=60, collapse="maxEv"):
     sel = policy.board(c["frame"], prob(c, spec), tau=tau,
                        one_per=policy.unit_key(c["market"]), side=side,
-                       parity=policy.parity_for(c["market"]), min_conf=min_conf)
+                       parity=policy.parity_for(c["market"]), min_conf=min_conf,
+                       collapse=collapse)
     if half == "select":
         return sel[sel["commenceTime"] < cut]
     if half == "verdict":
@@ -97,26 +99,30 @@ def choose_global(caches, cuts):
     for spec in specs():
         for tau in TAUS:
             for conf in CONFS:
-                passes, units, ns = 0, 0.0, 0
-                for c in caches:
-                    sel = board_of(c, spec, tau, None, cuts[c["market"]], "select", conf)
-                    met = G.grade(sel)
-                    if met["graded"] < MIN_SELECT_N:
-                        continue
-                    units += met["units"]
-                    ns += met["graded"]
-                    if G.verdict(met)[0] == "PASS":
-                        passes += 1
-                rows.append(dict(spec="+".join(spec), tau=tau, minConf=conf,
-                                 selectPasses=passes, selectUnits=round(units, 1),
-                                 selectN=ns, nMembers=len(spec)))
+                for col in COLLAPSE:
+                    passes, units, ns = 0, 0.0, 0
+                    for c in caches:
+                        sel = board_of(c, spec, tau, None, cuts[c["market"]],
+                                       "select", conf, col)
+                        met = G.grade(sel)
+                        if met["graded"] < MIN_SELECT_N:
+                            continue
+                        units += met["units"]
+                        ns += met["graded"]
+                        if G.verdict(met)[0] == "PASS":
+                            passes += 1
+                    rows.append(dict(spec="+".join(spec), tau=tau, minConf=conf,
+                                     collapse=col, selectPasses=passes,
+                                     selectUnits=round(units, 1), selectN=ns,
+                                     nMembers=len(spec)))
     r = pd.DataFrame(rows).sort_values(
         ["selectPasses", "selectUnits", "nMembers"], ascending=[False, False, True])
     top = r.iloc[0]
-    return tuple(top["spec"].split("+")), float(top["tau"]), int(top["minConf"]), r
+    return (tuple(top["spec"].split("+")), float(top["tau"]), int(top["minConf"]),
+            str(top["collapse"]), r)
 
 
-def choose_side(c, spec, tau, cut, min_conf=60):
+def choose_side(c, spec, tau, cut, min_conf=60, collapse="maxEv"):
     """This market's side policy, on its SELECT half only.
 
     The one lever the shipped system already pulls per market:
@@ -126,7 +132,7 @@ def choose_side(c, spec, tau, cut, min_conf=60):
     """
     best, key = None, None
     for side in SIDES:
-        met = G.grade(board_of(c, spec, tau, side, cut, "select", min_conf))
+        met = G.grade(board_of(c, spec, tau, side, cut, "select", min_conf, collapse))
         if met["graded"] < MIN_SELECT_N:
             continue
         k = (met["units"], side is None)
@@ -146,7 +152,7 @@ def _unused_choose_board(c, spec, cut):
     best, key = (None, 0.0), None
     for side in SIDES:
         for tau in BOARD_TAUS:
-            met = G.grade(board_of(c, spec, tau, side, cut, "select", min_conf))
+            met = G.grade(board_of(c, spec, tau, side, cut, "select", min_conf, collapse))
             if met["graded"] < MIN_SELECT_N:
                 continue
             k = (met["units"], side is None, tau is None)
@@ -184,10 +190,10 @@ def main():
         print(f"not in cache: {', '.join(missing)}")
     cuts = {c["market"]: halves(c) for c in caches}
 
-    spec, tau, min_conf, sweep = choose_global(caches, cuts)
+    spec, tau, min_conf, collapse, sweep = choose_global(caches, cuts)
     sweep.to_csv(os.path.join(REPORTS, f"global_sweep{tag}.csv"), index=False)
     print(f"global filter chosen on the SELECT halves: spec={'+'.join(spec)}  "
-          f"EV floor={tau}  confidence floor={min_conf}")
+          f"EV floor={tau}  confidence floor={min_conf}  ladder collapse={collapse}")
     print(f"(the EV floor applies to the prop markets; the three game markets are gated"
           f" on the ev_pass slice, as production gates them)")
     print(sweep.head(10).to_string(index=False))
@@ -195,22 +201,22 @@ def main():
     rows, detail = [], {}
     for c in caches:
         m, cut = c["market"], cuts[c["market"]]
-        side = choose_side(c, spec, tau, cut, min_conf)
+        side = choose_side(c, spec, tau, cut, min_conf, collapse)
         p = prob(c, spec)
         base = c["frame"].copy()
         base["entryOdds"], base["hit"], base["voided"] = base["overOdds"], base["overHit"], False
         boards = [
             summarise(base, "base (every candidate, flat)"),
-            summarise(board_of(c, ("price",), tau, side, cut, None, min_conf),
+            summarise(board_of(c, ("price",), tau, side, cut, None, min_conf, collapse),
                       "price-only (full OOS)"),
-            summarise(board_of(c, spec, tau, side, cut, None, min_conf),
+            summarise(board_of(c, spec, tau, side, cut, None, min_conf, collapse),
                       "board (full OOS)"),
             summarise(policy.board(c["frame"], p, tau=tau, one_per=None, side=side,
                                    parity=policy.parity_for(m), min_conf=min_conf),
                       "all-lines (full OOS)"),
             summarise(board_of(c, spec, tau, side, cut, "select", min_conf),
                       "board SELECT half"),
-            summarise(board_of(c, spec, tau, side, cut, "verdict", min_conf),
+            summarise(board_of(c, spec, tau, side, cut, "verdict", min_conf, collapse),
                       "board VERDICT half"),
         ]
         detail[m] = boards
@@ -219,7 +225,7 @@ def main():
         rows.append(dict(
             market=m, candidates=c["candidates"], graded=c["graded"], events=c["events"],
             fromDate=c["fromDate"], toDate=c["toDate"],
-            spec="+".join(spec), tau=tau, minConf=min_conf,
+            spec="+".join(spec), tau=tau, minConf=min_conf, collapse=collapse,
             parity=policy.parity_for(m), side=side or "both",
             baseN=b["base (every candidate, flat)"]["n"],
             baseRoi=b["base (every candidate, flat)"]["roi"],
@@ -255,7 +261,7 @@ def main():
           " never used to choose the filter or the side.")
     print(f"gate unchanged: n>=500 and ROI>0, else 95% CI lower bound>0    "
           f"spec={'+'.join(spec)}  EV floor={tau}  conf floor={min_conf}"
-          f"  price={price}  placebo lag={lag}d")
+          f"  collapse={collapse}  price={price}  placebo lag={lag}d")
     print("=" * 132)
     show = ["market", "graded", "baseRoi", "priceOnlyRoi", "parity", "side", "fullN", "fullRoi",
             "verdictFrom", "n", "winPct", "roi", "ciLo", "clusCiLo", "units", "verdict"]

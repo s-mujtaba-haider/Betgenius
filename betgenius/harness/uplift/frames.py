@@ -157,7 +157,16 @@ def asof_rollup(hist, key, value_cols, windows=(25,), lag_days=0, prefix=""):
 
 
 def to_day(s):
-    return (pd.to_datetime(s, format="%Y-%m-%d").astype("int64") // 86_400_000_000_000).astype(int)
+    """Local calendar date -> integer day number.
+
+    Unit-safe on purpose. pandas parses a date string to datetime64[us], not
+    [ns], so dividing the int64 view by nanoseconds-per-day silently collapses
+    every date in the sample into two or three buckets and the as-of roll-ups
+    come back empty. Casting to datetime64[D] asks for days and gets days,
+    whatever the parser chose underneath.
+    """
+    d = pd.to_datetime(s, format="%Y-%m-%d")
+    return d.to_numpy().astype("datetime64[D]").astype("int64")
 
 
 # ---------------------------------------------------------------------------

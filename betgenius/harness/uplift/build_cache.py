@@ -45,7 +45,7 @@ def build(market, box, lag=0, price="best", warmup=policy.WARMUP, blocks=policy.
                         "playerId", "player_name", "line", "overOdds", "underOdds",
                         "pFairOver", "overHit", "actual", "sideOver", "sideUnder",
                         "imp_over_med", "imp_under_med", "nHist", "isHome",
-                        "empP", "parP") if c in g]
+                        "empP", "parP", "nBooks") if c in g]
     return dict(market=market, frame=g[keep].copy(), probs=probs, cols=cols,
                 candidates=int(len(d)), graded=int(len(g)),
                 events=int(g["game_pk"].nunique()),

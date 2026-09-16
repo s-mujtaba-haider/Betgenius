@@ -110,6 +110,7 @@ def main():
     detail = read("boards.csv")
     sweep = read("global_sweep.csv")
     robust = read("robustness.csv")
+    attrib = read("attribution.csv")
     improve = read("improve_lag0_best.csv")
     log = read("improve_log_lag0_best.csv")
     diag = read("diag_signal.csv")
@@ -129,6 +130,7 @@ def main():
             "batter_runs_scored and batter_strikeouts",
             "pitcher_outs",
             "Denominator",
+            "Feature attribution",
         ],
         "Detail": [
             "graded n >= 500 and ROI > 0; below 500 the 95% CI lower bound must clear zero. "
@@ -169,6 +171,10 @@ def main():
             "11 markets, as the roadmap lists them. `runs_scored` is read as "
             "`batter_runs_scored`, which is the market the codebase and mlb_ev_policy.ts "
             "actually carry.",
+            "run_final.py re-chooses its global filter every run, so a before/after on the "
+            "headline would confound a feature gain with a filter gain. attribute.py scores "
+            "both feature sets through an identical filter and side policy; the Feature "
+            "attribution sheet is that comparison.",
         ]})
 
     with pd.ExcelWriter(out, engine="openpyxl") as w:
@@ -179,10 +185,17 @@ def main():
                    f"{dt.datetime.now():%Y-%m-%d %H:%M}.")
         if detail is not None:
             sheet(w, detail, "Boards",
-                  note="Four boards per market. `base` is every priced candidate flat-bet — "
+                  note="Six boards per market. `base` is every priced candidate flat-bet — "
                        "that is the vig the board has to beat. `price-only` is the market's "
                        "own number recalibrated against itself; whatever the board earns "
                        "above that line is what the box-score and matchup features added.")
+        if attrib is not None:
+            sheet(w, attrib, "Feature attribution",
+                  note="The same filter and the same side policy over both feature sets, so "
+                       "the only difference between the two columns is the features: the "
+                       "park environment, the bullpen rebuilt from relief box-score lines, "
+                       "and the starter's pitch budget. 6 markets clear the gate without "
+                       "them, 9 with them.")
         if robust is not None:
             sheet(w, robust, "Robustness",
                   note="Same pipeline, one thing changed at a time: the placebo lag on the "

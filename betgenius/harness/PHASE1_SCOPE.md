@@ -59,6 +59,17 @@ GRANT SELECT ON TABLE cache_mlb_historical_bullpen TO harness_readonly;
 After both game-table grants: one sequential `deno` game-market warehouse run
 (`--market=h2h` then `spreads` then `totals`). Do not start a second `run_backtest`.
 
+**Partial workaround for the bullpen grant (2026-09-16).** `cache_mlb_historical_bullpen`
+is still DENIED, but the information in it is not only there: every relief
+appearance is also a row of the box score, which `harness_readonly` can read. The
+pen's as-of runs per out, K and BB per batter faced and innings per game are
+rebuilt from those rows in `harness/uplift/features.bullpen`, and the same file
+rebuilds the starter's pitch budget and pitches per out from `pitches_thrown`.
+That is what took `pitcher_outs` and `totals` across the gate in
+`MLB_PHASE1_RESULTS.md`. It does **not** replace the grant for the live path:
+what a moneyline needs is which arms are *available tonight*, and that is not
+recoverable from what the pen has already thrown.
+
 ---
 
 ## 1. Player prop markets — already gated (M3–M6)

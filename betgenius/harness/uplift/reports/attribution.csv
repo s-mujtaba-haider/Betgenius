@@ -1,0 +1,12 @@
+market,side,oldN,oldRoi,oldUnits,oldVerdict,newN,newRoi,newUnits,newVerdict,roiDelta
+batter_hits,both,2839,8.18,232.3,PASS,2911,9.66,281.2,PASS,1.48
+batter_rbis,both,1107,5.87,65.0,PASS,1136,4.39,49.9,PASS,-1.48
+totals,under,698,-0.82,-5.7,FAIL,708,3.07,21.7,PASS,3.89
+spreads,plus,1861,1.01,18.8,PASS,1822,1.03,18.8,PASS,0.02
+batter_total_bases,under,4841,3.77,182.3,PASS,4973,6.2,308.2,PASS,2.43
+batter_home_runs,both,25,-18.25,-4.6,FAIL,24,-9.48,-2.3,FAIL,8.77
+pitcher_strikeouts,both,1353,-0.52,-7.0,FAIL,1654,2.4,39.7,PASS,2.92
+h2h,over,1105,-0.3,-3.3,FAIL,1114,-0.92,-10.2,FAIL,-0.61
+batter_runs_scored,under,2815,0.94,26.4,PASS,3185,2.7,85.9,PASS,1.76
+pitcher_outs,both,1197,-1.03,-12.3,FAIL,1223,3.46,42.3,PASS,4.49
+batter_strikeouts,under,1481,7.63,113.0,PASS,1410,7.45,105.0,PASS,-0.18

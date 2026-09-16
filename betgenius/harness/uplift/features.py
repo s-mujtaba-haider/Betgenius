@@ -57,6 +57,207 @@ def _normal_over(mu, sd, line):
     return 1.0 - stats.norm.cdf(np.asarray(line, float), loc=mu, scale=sd)
 
 
+def _nb_over(mu, line, disp=1.25):
+    """P(count > line) for an OVERDISPERSED count.
+
+    A pitcher's strikeout total is not Poisson: his own workload varies start to
+    start, so the variance of the count runs well above its mean and a Poisson
+    tail is too thin at both ends. The negative binomial with variance
+    `disp * mu` is the standard fix, and it is what the roadmap asks for on the
+    strikeout markets.
+    """
+    mu = np.clip(np.asarray(mu, float), 1e-6, None)
+    k = np.floor(np.asarray(line, float))
+    if disp <= 1.0001:
+        return 1.0 - stats.poisson.cdf(k, mu)
+    r = mu / (disp - 1.0)
+    pr = r / (r + mu)
+    return 1.0 - stats.nbinom.cdf(k, r, pr)
+
+
+_GAME_HOME = {}
+
+
+def game_home(box):
+    """game_pk -> (home_id, away_id).
+
+    Which team is at home is a schedule fact, published weeks ahead, so using it
+    breaks no point-in-time rule. The box-score table carries team ids but not
+    which of them is the home side, so home identity is recovered from the team
+    NAMES in the odds dumps and mapped back to ids exactly as
+    `frames.team_name_map` does everywhere else. Only the small game-market and
+    pitcher files are read: between them they name every game that is priced at
+    all.
+    """
+    if "frame" in _GAME_HOME:
+        return _GAME_HOME["frame"]
+    parts = []
+    for m in ("h2h", "spreads", "totals", "pitcher_outs", "pitcher_strikeouts"):
+        try:
+            c = frames.read_market(m)
+        except FileNotFoundError:
+            continue
+        parts.append(c.drop_duplicates("game_pk")[["game_pk", "home_team", "away_team"]])
+    if not parts:
+        _GAME_HOME["frame"] = pd.DataFrame(columns=["game_pk", "home_id", "away_id"])
+        return _GAME_HOME["frame"]
+    ev = pd.concat(parts, ignore_index=True).drop_duplicates("game_pk")
+    tmap = frames.team_name_map(box, ev)
+    out = pd.DataFrame({"game_pk": ev["game_pk"].to_numpy(),
+                        "home_id": ev["home_team"].map(tmap).to_numpy(),
+                        "away_id": ev["away_team"].map(tmap).to_numpy()})
+    out = out[out["home_id"].notna() & out["away_id"].notna()].reset_index(drop=True)
+    _GAME_HOME["frame"] = out
+    return out
+
+
+_PARK = {}
+
+
+def park_env(box, lag_days=0):
+    """The ballpark's own as-of run and home-run environment.
+
+    The roadmap names the park in seven of the eleven markets, and it is the one
+    item on that list needing no new data source: a park factor is just how much
+    has already been scored there, and every game that produced it finished
+    before the one being bet. Shrunk hard toward the league rate, because a park
+    with thirty games behind it has not said much yet.
+    """
+    key = f"lag{lag_days}"
+    if key in _PARK:
+        return _PARK[key]
+    gh = game_home(box)
+    ts = frames.team_scores(box)
+    runs = ts.groupby("game_pk")["scored"].sum().rename("runs")
+    hrs = box.groupby("game_pk")["home_runs"].sum().rename("hr")
+    gd = box.drop_duplicates("game_pk").set_index("game_pk")["game_date"]
+    g = gh.copy()
+    g["runs"] = g["game_pk"].map(runs).to_numpy(float)
+    g["hr"] = g["game_pk"].map(hrs).to_numpy(float)
+    g["game_date"] = g["game_pk"].map(gd)
+    g = g[g["game_date"].notna() & g["runs"].notna()].copy()
+    if not len(g):
+        _PARK[key] = pd.DataFrame(columns=["parkRunRel", "parkHrRel"])
+        return _PARK[key]
+    g["day"] = frames.to_day(g["game_date"])
+    r = frames.asof_rollup(g, "home_id", ["runs", "hr"], windows=(100,),
+                           lag_days=lag_days, prefix="pk_")
+    lg_runs = float(np.nanmean(g["runs"].to_numpy(float))) or 2 * LEAGUE_RPG
+    lg_hr = float(np.nanmean(g["hr"].to_numpy(float))) or 2.0
+    k = 30.0
+    out = pd.DataFrame(index=pd.Index(r["game_pk"].to_numpy(), name="game_pk"))
+    for stem, lg, name in (("runs", lg_runs, "parkRunRel"), ("hr", lg_hr, "parkHrRel")):
+        s = r[f"pk_{stem}_s100"].to_numpy(float)
+        n = np.minimum(r[f"pk_{stem}_n100"].to_numpy(float), 100.0)
+        out[name] = ((s + lg * k) / (n + k)) / max(lg, 1e-9)
+    out = out[~out.index.duplicated()]
+    _PARK[key] = out
+    return out
+
+
+_BULLPEN = {}
+
+
+def bullpen(box, lag_days=0):
+    """Per (game_pk, team_id): the relief corps' as-of rates.
+
+    `cache_mlb_historical_bullpen` is the table `harness_readonly` is denied,
+    and it was recorded as the blocker on `pitcher_outs`. It is not the only
+    place the information lives: every relief appearance is a row of the box
+    score, so the pen's runs per out, strikeouts and walks per batter faced and
+    innings per game rebuild from the table we can read. Whoever starts, roughly
+    two innings in five belong to these arms, and on the game markets they were
+    the half of the pitching staff nobody was modelling.
+    """
+    key = f"lag{lag_days}"
+    if key in _BULLPEN:
+        return _BULLPEN[key]
+    p = box[box["innings_pitched"].notna() & (box["is_starter"] != True)]     # noqa: E712
+    per = p.groupby(["game_pk", "game_date", "team_id"], as_index=False).agg(
+        bpOuts=("outs_derived", "sum"), bpRuns=("pitcher_runs", "sum"),
+        bpK=("strikeouts", "sum"), bpBf=("batters_faced", "sum"),
+        bpBb=("walks", "sum"))
+    per["day"] = frames.to_day(per["game_date"])
+    r = frames.asof_rollup(per, "team_id", ["bpOuts", "bpRuns", "bpK", "bpBf", "bpBb"],
+                           windows=(25,), lag_days=lag_days)
+    outs = r["bpOuts_s25"].to_numpy(float)
+    bf = r["bpBf_s25"].to_numpy(float)
+    n = r["bpOuts_n25"].to_numpy(float)
+    out = pd.DataFrame({
+        "game_pk": r["game_pk"].to_numpy(), "team_id": r["team_id"].to_numpy(),
+        "bpRunPerOut": np.where(outs > 0, r["bpRuns_s25"] / np.maximum(outs, 1.0), np.nan),
+        "bpKPerBf": np.where(bf > 0, r["bpK_s25"] / np.maximum(bf, 1.0), np.nan),
+        "bpBbPerBf": np.where(bf > 0, r["bpBb_s25"] / np.maximum(bf, 1.0), np.nan),
+        "bpOutsPerGame": np.where(n > 0, outs / np.maximum(n, 1.0), np.nan),
+    }).set_index(["game_pk", "team_id"])
+    out = out[~out.index.duplicated()]
+    _BULLPEN[key] = out
+    return out
+
+
+_PFORM = {}
+
+
+def pitcher_form(box, lag_days=0):
+    """Per (player_id, game_pk): the starter's own as-of workload and efficiency.
+
+    `pitcher_outs` is a workload market before it is a skill market, and the
+    workload column -- `pitches_thrown` -- sat in the box-score dump the whole
+    time, unread. What decides how long a starter lasts is his pitch budget and
+    how many pitches he spends per out, so both are built here, with the walk
+    rate that drives the second of them, a five-start form window against the
+    twenty-five-start baseline, and the start-to-start spread of his own outs,
+    which replaces the flat 4.5-out standard deviation the normal approximation
+    used to assume for every pitcher alike.
+    """
+    key = f"lag{lag_days}"
+    if key in _PFORM:
+        return _PFORM[key]
+    p = box[box["innings_pitched"].notna() & (box["is_starter"] == True)].copy()   # noqa: E712
+    p["day"] = frames.to_day(p["game_date"])
+    p["outs2"] = p["outs_derived"] ** 2
+    vals = ["pitches_thrown", "outs_derived", "outs2", "batters_faced",
+            "strikeouts", "walks", "pitcher_runs"]
+    r = frames.asof_rollup(p, "player_id", vals, windows=(5, 25, 100),
+                           lag_days=lag_days, prefix="pf_")
+
+    def mean(stem, w):
+        s = r[f"pf_{stem}_s{w}"].to_numpy(float)
+        n = r[f"pf_{stem}_n{w}"].to_numpy(float)
+        return np.where(n > 0, s / np.maximum(n, 1.0), np.nan), n
+
+    pit5, _ = mean("pitches_thrown", 5)
+    pit25, n25 = mean("pitches_thrown", 25)
+    o5, _ = mean("outs_derived", 5)
+    o25, _ = mean("outs_derived", 25)
+    o2_25, _ = mean("outs2", 25)
+    bf25, _ = mean("batters_faced", 25)
+    k5s = r["pf_strikeouts_s5"].to_numpy(float)
+    k25s = r["pf_strikeouts_s25"].to_numpy(float)
+    bf5s = r["pf_batters_faced_s5"].to_numpy(float)
+    bf25s = r["pf_batters_faced_s25"].to_numpy(float)
+    bb25s = r["pf_walks_s25"].to_numpy(float)
+    var = np.maximum(o2_25 - o25 ** 2, 1.0)
+    out = pd.DataFrame({
+        "player_id": r["player_id"].to_numpy(), "game_pk": r["game_pk"].to_numpy(),
+        "spPitch5": pit5, "spPitch25": pit25,
+        "spOuts5": o5, "spOuts25": o25,
+        "spOutsSd25": np.where(np.isfinite(var), np.sqrt(var), np.nan),
+        "spPitchPerOut": np.where(o25 > 0, pit25 / np.maximum(o25, 1.0), np.nan),
+        "spBfPerStart": bf25,
+        "spKPerBf5": np.where(bf5s > 0, k5s / np.maximum(bf5s, 1.0), np.nan),
+        "spKPerBf25": np.where(bf25s > 0, k25s / np.maximum(bf25s, 1.0), np.nan),
+        "spBbPerBf25": np.where(bf25s > 0, bb25s / np.maximum(bf25s, 1.0), np.nan),
+        "spStarts25": n25,
+        "spSeasonOuts": r["pf_outs_derived_s100"].to_numpy(float),
+    }).set_index(["player_id", "game_pk"])
+    out["spKForm"] = out["spKPerBf5"] - out["spKPerBf25"]
+    out["spOutsForm"] = out["spOuts5"] - out["spOuts25"]
+    out = out[~out.index.duplicated()]
+    _PFORM[key] = out
+    return out
+
+
 def _history(market, box):
     """One row per player appearance, with a clear-indicator per distinct line."""
     role, col, kind = frames.MARKETS[market]
@@ -255,11 +456,46 @@ def _build_game(market, d, box, lag_days):
         d["empP"] = d["parP"]
 
     st = starters(box).set_index(["game_pk", "team_id"])
+    bp = bullpen(box, lag_days)
     for tag, tid in (("h", "home_id"), ("a", "away_id")):
         idx = pd.MultiIndex.from_arrays([d["game_pk"], d[tid]])
         for c in ("spRunPerOut", "spKPerBf", "spOutsPerGame"):
             d[f"{tag}{c}"] = st[c].reindex(idx).to_numpy(float)
+        for c in ("bpRunPerOut", "bpKPerBf", "bpOutsPerGame"):
+            d[f"{tag}{c}"] = bp[c].reindex(idx).to_numpy(float)
     d["spRunGap"] = d["aspRunPerOut"] - d["hspRunPerOut"]   # + favours the home side
+    d["bpRunGap"] = d["abpRunPerOut"] - d["hbpRunPerOut"]
+
+    pe = park_env(box, lag_days)
+    for c in ("parkRunRel", "parkHrRel"):
+        d[c] = (pe[c].reindex(d["game_pk"]).to_numpy(float) if len(pe)
+                else np.full(len(d), np.nan))
+    park = np.where(np.isfinite(d["parkRunRel"].to_numpy(float)),
+                    d["parkRunRel"].to_numpy(float), 1.0)
+
+    # The staff model the roadmap asks for, and the one thing the form-only
+    # expectation above cannot see: a game is pitched by a starter for as long
+    # as he lasts and by a bullpen for the rest of it, in a park with a run
+    # environment of its own. Added alongside the form model rather than in
+    # place of it -- the calibrator is left to decide which it believes.
+    lg_rate = LEAGUE_RPG / 27.0
+    for tag in ("h", "a"):
+        outs = np.clip(np.nan_to_num(d[f"{tag}spOutsPerGame"].to_numpy(float), nan=16.0),
+                       6.0, 24.0)
+        spr = np.nan_to_num(d[f"{tag}spRunPerOut"].to_numpy(float), nan=lg_rate)
+        bpr = np.nan_to_num(d[f"{tag}bpRunPerOut"].to_numpy(float), nan=lg_rate)
+        d[f"{tag}Allow"] = spr * outs + bpr * np.maximum(27.0 - outs, 0.0)
+    d["expHomeSP"] = d["hsco25"] * d["aAllow"] / LEAGUE_RPG * park
+    d["expAwaySP"] = d["asco25"] * d["hAllow"] / LEAGUE_RPG * park
+    d["expTotalSP"] = d["expHomeSP"] + d["expAwaySP"]
+    d["expMarginSP"] = d["expHomeSP"] - d["expAwaySP"] + 0.20
+    if market == "totals":
+        d["parPSP"] = _poisson_over(d["expTotalSP"], d["line"])
+    elif market == "h2h":
+        d["parPSP"] = 1.0 / (1.0 + np.exp(-d["expMarginSP"] / 1.55))
+    else:
+        d["parPSP"] = _normal_over(d["expMarginSP"], RUNDIFF_SD,
+                                   -d["line"].to_numpy(float))
 
     gp = game_prices()
     for c in gp.columns:
@@ -267,11 +503,15 @@ def _build_game(market, d, box, lag_days):
     d["mktMargin"] = d["mktHomeTeamTotal"] - d["mktAwayTeamTotal"]
 
     d["nHist"] = d[["hn", "an"]].min(axis=1)
-    cols = ["pLogit", "parP", "empP", "expTotal", "expMargin",
+    cols = ["pLogit", "parP", "empP", "parPSP", "expTotal", "expMargin",
+            "expTotalSP", "expMarginSP",
             "mktTotalLine", "mktTotalOverP", "mktHomeWinP", "mktHomeCoverP",
             "mktSpreadLine", "mktHomeTeamTotal", "mktAwayTeamTotal", "mktMargin",
             "hsco25", "hall25", "asco25", "aall25", "overround", "line", "nHist",
             "hspRunPerOut", "aspRunPerOut", "hspOutsPerGame", "aspOutsPerGame",
+            "hbpRunPerOut", "abpRunPerOut", "hbpKPerBf", "abpKPerBf",
+            "hbpOutsPerGame", "abpOutsPerGame", "bpRunGap",
+            "parkRunRel", "parkHrRel",
             "spRunGap", "dispOver", "dispUnder", "nBooks"]
     return d, cols
 
@@ -370,6 +610,74 @@ def _build_prop(market, d, box, lag_days):
     d["teamRpg25"] = to["teamRpg25"].reindex(own).to_numpy(float)
     d["oppRapg25"] = to["teamRapg25"].reindex(sidx).to_numpy(float)
 
+    d["oppObp25"] = to["teamObp25"].reindex(sidx).to_numpy(float)
+
+    # the park, the opposing bullpen, and -- for a pitcher -- his own pen's
+    # recent workload, which is what decides how long a manager leaves him in
+    pe = park_env(box, lag_days)
+    for c in ("parkRunRel", "parkHrRel"):
+        d[c] = (pe[c].reindex(d["game_pk"]).to_numpy(float) if len(pe)
+                else np.full(len(d), np.nan))
+    bp = bullpen(box, lag_days)
+    d["oppBpKPerBf"] = bp["bpKPerBf"].reindex(sidx).to_numpy(float)
+    d["oppBpRunPerOut"] = bp["bpRunPerOut"].reindex(sidx).to_numpy(float)
+    d["teamBpOutsPerGame"] = bp["bpOutsPerGame"].reindex(own).to_numpy(float)
+
+    role = frames.MARKETS[market][0]
+    park = np.where(np.isfinite(d["parkHrRel"].to_numpy(float)) & (market == "batter_home_runs"),
+                    d["parkHrRel"].to_numpy(float),
+                    np.where(np.isfinite(d["parkRunRel"].to_numpy(float)),
+                             d["parkRunRel"].to_numpy(float), 1.0))
+    park = np.clip(park, 0.85, 1.20)
+    # A hitters' park lifts a batter's count and shortens a pitcher's outing, so
+    # the term enters the two roles with opposite signs. It is handed to the
+    # calibrator as one column either way and the sign is fitted, not asserted.
+    d["parkUsed"] = park
+    d["lamPark"] = d["lamAdj"] * park
+    d["parPPark"] = (_normal_over(d["lamPark"], 4.5, linev) if market == "pitcher_outs"
+                     else _poisson_over(d["lamPark"], linev))
+    # the same count, allowed to be overdispersed
+    d["parPNb"] = (d["parPPark"] if market == "pitcher_outs"
+                   else _nb_over(d["lamPark"], linev, 1.15))
+
+    if role == "pitcher":
+        pf = pitcher_form(box, lag_days)
+        for c in ("spPitch5", "spPitch25", "spOuts5", "spOuts25", "spOutsSd25",
+                  "spPitchPerOut", "spBfPerStart", "spKPerBf5", "spKPerBf25",
+                  "spBbPerBf25", "spStarts25", "spSeasonOuts", "spKForm", "spOutsForm"):
+            d[c] = pf[c].reindex(idx).to_numpy(float)
+        # A start ends when the pitch budget runs out, and it runs out faster
+        # against a lineup that gets on base. Roadmap's decomposition, in order:
+        #   pitch budget / pitches per out -> outs
+        #   outs / (1 - opponent OBP)      -> batters faced
+        #   batters faced x K rate         -> strikeouts
+        lg_obp = float(np.nanmedian(d["oppObp25"].to_numpy(float)))
+        lg_obp = lg_obp if np.isfinite(lg_obp) and lg_obp > 0 else 0.315
+        obp = np.nan_to_num(d["oppObp25"].to_numpy(float), nan=lg_obp)
+        d["oppObpRel"] = np.clip(obp / lg_obp, 0.85, 1.18)
+        p25 = np.nan_to_num(d["spPitch25"].to_numpy(float), nan=85.0)
+        p5 = np.where(np.isfinite(d["spPitch5"].to_numpy(float)),
+                      d["spPitch5"].to_numpy(float), p25)
+        budget = np.clip(0.65 * p25 + 0.35 * p5, 45.0, 110.0)
+        ppo = np.clip(np.nan_to_num(d["spPitchPerOut"].to_numpy(float), nan=5.4),
+                      3.5, 8.0) * d["oppObpRel"].to_numpy(float)
+        d["expOutsBudget"] = np.clip(budget / ppo, 3.0, 24.0)
+        o25 = np.where(np.isfinite(d["spOuts25"].to_numpy(float)),
+                       d["spOuts25"].to_numpy(float), d["expOutsBudget"].to_numpy(float))
+        d["expOuts"] = 0.5 * d["expOutsBudget"] + 0.5 * o25
+        d["expBf"] = d["expOuts"] / np.clip(1.0 - np.clip(obp, 0.20, 0.42), 0.55, 0.85)
+        if market == "pitcher_outs":
+            sd = np.clip(np.nan_to_num(d["spOutsSd25"].to_numpy(float), nan=4.5), 2.5, 9.0)
+            d["parPW"] = _normal_over(d["expOuts"], sd, linev)
+        else:
+            krate = np.where(np.isfinite(d["spKPerBf25"].to_numpy(float)),
+                             d["spKPerBf25"].to_numpy(float), rate)
+            lam_k = krate * d["expBf"].to_numpy(float) * d["oppAllowRel"].to_numpy(float)
+            d["lamW"] = lam_k
+            d["parPW"] = _nb_over(lam_k, linev, 1.25)
+    else:
+        d["parPW"] = d["parPPark"]
+
     ls = lineup_slot(box)
     d["slot25"] = ls["slot25"].reindex(idx).to_numpy(float)
     d["startShare25"] = ls["startShare25"].reindex(idx).to_numpy(float)
@@ -387,13 +695,21 @@ def _build_prop(market, d, box, lag_days):
     tmap = frames.team_name_map(box, d.drop_duplicates("game_pk")[["game_pk", "home_team", "away_team"]])
     d["isHome"] = (d["teamId"] == d["home_team"].map(tmap)).astype(float)
 
-    cols = ["pLogit", "empP", "parP", "parPAdj", "clr25", "clr100",
+    cols = ["pLogit", "empP", "parP", "parPAdj", "parPPark", "parPNb", "parPW",
+            "clr25", "clr100",
             "clrEdge25", "clrEdge100", "rate", "oppPerGame", "oppAllowRel",
             "overround", "line", "nHist", "isHome", "lineZ",
             "oppRunPerOut", "oppKPerBf", "oppOutsPerGame",
-            "teamObp25", "teamRpg25", "oppRapg25",
+            "teamObp25", "teamRpg25", "oppRapg25", "oppObp25",
+            "parkRunRel", "parkHrRel", "oppBpKPerBf", "oppBpRunPerOut",
+            "teamBpOutsPerGame",
             "mktTotalLine", "mktHomeWinP", "mktHomeTeamTotal", "mktAwayTeamTotal",
             "slot25", "startShare25", "restDays", "dispOver", "dispUnder", "nBooks"]
+    if frames.MARKETS[market][0] == "pitcher":
+        cols += ["spPitch5", "spPitch25", "spOuts5", "spOuts25", "spOutsSd25",
+                 "spPitchPerOut", "spBfPerStart", "spKPerBf5", "spKPerBf25",
+                 "spBbPerBf25", "spStarts25", "spSeasonOuts", "spKForm", "spOutsForm",
+                 "oppObpRel", "expOuts", "expOutsBudget", "expBf"]
     return d, cols
 
 

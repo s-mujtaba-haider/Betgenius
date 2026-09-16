@@ -30,7 +30,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import features
 import frames
 
-SIGNALS = ["empP", "parP", "parPAdj", "clrEdge25", "clrEdge100", "oppAllowRel", "expMargin"]
+SIGNALS = ["empP", "parP", "parPAdj", "clrEdge25", "clrEdge100", "oppAllowRel", "expMargin",
+           # the features added in the second pass: the park, the bullpen, the
+           # starter workload model, and the counts they feed
+           "parPPark", "parPNb", "parPW", "parkRunRel", "parkHrRel",
+           "oppBpKPerBf", "oppBpRunPerOut", "teamBpOutsPerGame",
+           "expOuts", "expBf", "spKForm", "spPitchPerOut", "oppObp25",
+           "parPSP", "expTotalSP", "bpRunGap", "hbpRunPerOut", "abpRunPerOut"]
 
 
 def z(v):

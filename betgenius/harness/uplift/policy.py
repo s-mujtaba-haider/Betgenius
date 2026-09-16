@@ -227,7 +227,7 @@ def parity_for(market):
 
 
 def board(d, p, tau=0.0, one_per=None, side=None, parity="ev_filtered",
-          min_conf=60):
+          min_conf=60, collapse="maxEv"):
     """Turn calibrated probabilities into the picks the board would show.
 
     tau is an EV floor in units; 0.0 is "bet whenever the number is better than
@@ -279,7 +279,14 @@ def board(d, p, tau=0.0, one_per=None, side=None, parity="ev_filtered",
     # the shipped heavy-juice under veto, unchanged
     sel = sel[~G.is_unbettable_juice(sel["confidence"], sel["entryOdds"], sel["pickSide"])]
     if one_per and len(sel):
-        sel = (sel.sort_values("evPerUnit", ascending=False)
+        # Which line to keep when a player-game qualifies at several of them.
+        #   maxEv      the biggest edge on offer -- and the one most likely to
+        #              be the model's largest error, because selecting on an
+        #              estimate selects its noise along with its signal
+        #   mostBooks  the number the most books are quoting: the main line,
+        #              the liquid one, and the one a desk would actually bet
+        by = "evPerUnit" if collapse == "maxEv" or "nBooks" not in sel else "nBooks"
+        sel = (sel.sort_values([by, "evPerUnit"], ascending=False)
                   .drop_duplicates(one_per)
                   .sort_values("commenceTime"))
     return sel.reset_index(drop=True)
