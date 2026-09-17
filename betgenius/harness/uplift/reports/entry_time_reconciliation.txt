@@ -1,0 +1,134 @@
+ENTRY-TIME / TIMESTAMP RECONCILIATION
+Round 5, Part 10.  Written 2026-09-17, before any round-5 result existed.
+
+=====================================================================
+1. WHY THIS FILE EXISTS
+=====================================================================
+
+Round 4 measured, and did not assume, that the entry-price convention is worth
+more to this project's headline than a 30% increase in data volume:
+
+    entry convention        verdict PASS      both-gates PASS
+    T-1h  (first pull)          2/11                2
+    T-6h  (matches warehouse)   5/11                5
+
+That is three markets turning on one parameter. Any dataset arriving from
+outside this project therefore has to have its timing understood BEFORE it is
+allowed near a board, not after.
+
+=====================================================================
+2. THE CONVENTION THIS PROJECT USES, AND HOW IT WAS ESTABLISHED
+=====================================================================
+
+Ground truth: `probe_entry_lead.ts` measures the warehouse's own entry snapshot
+as min(snapshot_timestamp) strictly before commence_time -- which is exactly the
+row `dump_odds.ts` selects.  Measured lead:
+
+    2024-03 -> 2025-10      6.01 h before first pitch
+    2026-04 -> 2026-05      1.01 h before first pitch
+
+So the WAREHOUSE ITSELF contains a convention break at the 2026 boundary. This
+was not introduced by any ingest; it is a property of the production snapshot
+scheduler changing.
+
+`ingest_odds_api.ts`, the first Odds API expansion, pulled at T-1h.  Applied to
+2024-2025 events that is not a like-for-like price: a one-hour line has absorbed
+five more hours of market information than a six-hour line, so any edge measured
+against it is systematically smaller, and the measurement is not comparable to
+the 2024-2025 rows already in the warehouse.
+
+Round 4's repair: re-pull ALL 2,111 events at lead=6h
+(`ingest_expand.py --run --lead=6 --suffix=6h`), assemble into
+`data_expanded_6h/`, and verify the served lead.  Served lead verified at a
+6.01 h median against the requested 6 h.  That dataset is what round 4 and
+round 5 both run on.  `UPLIFT_DATA_DIR` selects it; `data/` is never written to,
+so the round-2 `_c60` result still reproduces bit-identically from the original
+dataset.
+
+Residual, disclosed: 2026 warehouse rows remain at their native ~1.01 h while
+2026 API rows are at 6 h.  This is the warehouse's own break, not an artefact of
+ingestion, and repairing it would mean overwriting authoritative warehouse
+values -- which Part 9 forbids without documented reconciliation.  It is carried
+as a known limitation, not silently normalised.
+
+Semantics, stated explicitly:
+  - commence_time    = event start time, UTC, from the provider.
+  - snapshot_timestamp = when the price was OBSERVED. This is a real observation
+                       time, not a proxy and not a settlement time.
+  - entry price      = the price at the earliest snapshot strictly before
+                       commence_time, at the configured lead.
+  - game_date        = read as ::text on purpose. Read as a timestamp it arrives
+                       shifted by the client timezone, which moves a late start
+                       across midnight and lets an as-of join match a game to
+                       its own box score. That defect produced a fake edge in
+                       this project once already.
+  - feature as-of cut = strictly an EARLIER LOCAL CALENDAR DATE than the game.
+                       Verified by `check_asof.py`: 0 mismatches recomputing
+                       sampled rows the slow way, AND -- the control that makes
+                       the test meaningful -- 188/200, 179/200 and 195/200
+                       sampled rows WOULD change if the game's own day were
+                       admitted.
+
+=====================================================================
+3. THE BRANCH DATA: WHAT CAN AND CANNOT BE SAID
+=====================================================================
+
+STATUS: CANNOT BE RECONCILED. The branch working trees do not exist on this
+machine (see BRANCH_RESEARCH_INVENTORY.md §0 for the full search record), so
+`data_raw/*_odds_cache.jsonl` and `db/mlb_markets.duckdb` cannot be opened,
+and no timestamp in them can be inspected.
+
+What the two testing guides say about timing:  NOTHING.
+
+Both guides were read in full.  Neither states an entry-time convention, a
+snapshot lead, a snapshot-selection rule, or whether the cached odds are opening,
+entry, or closing prices.  `TESTING_GUIDE_3_PASS_MARKETS.md` §3 describes the
+data only as "a real historical-odds backfill from The Odds API ... matched to
+real box-score outcomes".  `TESTING_GUIDE_8_POOLED_ML.md` describes splits but
+never prices.
+
+Three possibilities are therefore open, and nothing in the available material
+distinguishes them:
+
+  (a) the branch used T-1h, like this project's FIRST pull.  Its ROIs would then
+      be systematically understated relative to this project's T-6h numbers, and
+      its FAIL verdicts would be partly an artefact of the convention;
+  (b) the branch used T-6h.  Its numbers would be comparable;
+  (c) the branch used a closing or near-closing price.  Its numbers would then
+      contain LOOK-AHEAD relative to a T-6h entry, and any PASS it reports would
+      be inadmissible here.
+
+Case (c) is not paranoid.  The Odds API historical endpoint serves a snapshot at
+whatever timestamp is requested, including timestamps after the entry window; a
+caller who requests the last available snapshot before commence gets a much
+sharper line than a caller who requests T-6h, and nothing in the file format
+distinguishes them after the fact.
+
+DECISION, per Part 10 ("Do NOT import data until its timing is understood"):
+
+    NO ROW FROM EITHER BRANCH IS IMPORTED IN ROUND 5.
+
+This costs the project nothing measurable.  The three markets the branch
+backfilled are already present here at equal or greater volume, from the same
+provider, at a verified convention -- `pitcher_outs` 14,067 raw rows here vs a
+claimed 5,451; `batter_runs_scored` 76,297 two-sided here vs a claimed 79,131
+(within 4%).  The one place the branch claims materially more data,
+`batter_strikeouts` (60,862 vs 38,805), is a market whose SETTLEMENTS are
+missing here for 2025-06 -> 2026-05, not whose odds are.  Importing branch odds
+would add unsettleable candidates, not gradeable ones.
+
+=====================================================================
+4. LOOK-AHEAD CHECKS RUN IN ROUND 5
+=====================================================================
+
+  - Odds API availability re-probed 2026-09-17: 2020, 2021, 2022 all return
+    HTTP 422 "Historical odds are not available".  2023 IS served from 2023-05
+    with all 11 markets present.  Credits available: 356,468.  Probe cost 670.
+  - boxscores.csv re-verified: 321,890 rows, 2024-04-01 -> 2026-09-16, zero 2023
+    rows.  So 2023 odds cannot be graded and were NOT purchased.
+  - Any new round-5 model member is fitted inside `policy.walkforward`, whose
+    fold boundaries are TIMESTAMPS, not row indices, so a game never straddles a
+    boundary.  A new member inherits that contract; it cannot opt out of it.
+  - The placebo-lag robustness variants (1d, 3d, 7d) are re-run on the final
+    round-5 configuration.  A same-game leak dies at the first day of lag; a form
+    signal does not.  Reported in reports/robustness_r5.csv whichever way it goes.

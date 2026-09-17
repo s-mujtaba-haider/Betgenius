@@ -1,0 +1,241 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- MODEL DOCUMENTATION (Round 5)
+================================================================================
+Generated 2026-09-17.
+
+--------------------------------------------------------------------------------
+0. WHAT THIS SYSTEM IS, AND WHAT IT IS NOT
+--------------------------------------------------------------------------------
+
+This is a VALIDATION pipeline, not a replacement scorer. It answers one question
+per market: on clean, point-in-time data, priced the way the product actually
+prices, does a board built on that market beat the vig?
+
+It does not touch the production scorer (scoring_mlb_v2.ts), algorithm_weights,
+or the gate. It is read-only against the database and writes nothing back.
+
+--------------------------------------------------------------------------------
+1. THE GATE -- UNCHANGED, AND PROVED UNCHANGED
+--------------------------------------------------------------------------------
+
+      graded n >= 500  ->  PASS if and only if ROI > 0
+      graded n <  500  ->  PASS if and only if the 95% CI lower bound clears 0
+
+This is the SHIPPED rule, ported to Python in mlbgate.py and verified by
+verify_gate.py, which replays the shipped JSON reports and must print 0
+mismatches. It printed 0 in round 5.
+
+Note the asymmetry deliberately: the n>=500 arm requires only a POSITIVE POINT
+ESTIMATE, not a confidence interval that clears zero. That is the client's rule,
+not a defect, and it is why some passes in this project are narrow. Every table
+in this pack reports the CI alongside the verdict so a narrow pass is visible.
+
+--------------------------------------------------------------------------------
+2. THE TWO WINDOWS -- THE CORE OF THE DELIVERABLE
+--------------------------------------------------------------------------------
+
+The same gate is read twice:
+
+  FULL OOS         the whole out-of-sample period after warm-up. Its EARLIER
+                   HALF is what chose the filter and the side policy, so a pass
+                   here is partly in-sample with respect to those choices.
+
+  VERDICT WINDOW   the later half of that period, cut on the clock, per market.
+                   NOTHING was chosen on it. It is opened once, at the end.
+
+A market that passes the first and fails the second has not been shown to
+generalise. NEVER quote a headline count without saying which window it is on.
+
+  FINAL STATUS (build_workbook.status_of, unchanged):
+      both gates PASS                          -> PASS
+      exactly one PASS                         -> PASS_WITH_RESTRICTIONS
+      neither, and flat-bet ROI below -12%     -> VETO
+      neither, otherwise                       -> FAIL_AFTER_ITERATION
+
+--------------------------------------------------------------------------------
+3. CONFIDENCE FLOOR -- PINNED AT 60, NEVER SEARCHED
+--------------------------------------------------------------------------------
+
+Production's isEvPassPick (harness/lib/metrics.ts:149) rejects everything below
+confidence 60. The round-1 board was built at 55 and parity_audit.py measured
+the cost: 8,511 of 23,457 board rows -- 36.3% -- were picks production would
+never show, and on `totals` it was 90% of the board. The D-164 heavy-juice veto
+also has no branch that fires below 60, so a lower floor adds exactly the picks
+the veto cannot reach.
+
+  ALWAYS run with --conf=60.
+  ALWAYS run parity_audit.py before quoting a board. It must print 0 rejected.
+
+--------------------------------------------------------------------------------
+4. FEATURES
+--------------------------------------------------------------------------------
+
+Everything is built from two tables -- box-score lines and the odds snapshot --
+and every roll-up is as-of an EARLIER CALENDAR DATE than the game it feeds.
+
+  empirical handicap  how often this player has already cleared THIS number,
+                      last 25 and last 100 appearances, shrunk toward the
+                      market's own price                          [every prop]
+  opportunity model   rate per opportunity x expected opportunities, shrunk to a
+                      league prior, adjusted for the opposing side's as-of
+                      allowance                                   [every prop]
+  lineup and rest     as-of batting-order slot, starter share, days since last
+                      appearance                                  [batter props]
+  team offence        as-of on-base rate, runs scored and allowed per game [all]
+  park environment    runs and HR per game already hit IN THIS BALLPARK over the
+                      last 100 games there, shrunk hard to the league rate [all]
+  bullpen             relief corps as-of runs per out, K and BB per batter
+                      faced, innings per game -- rebuilt from relief box-score
+                      lines                                             [all]
+  starter workload    pitch budget, pitches per out, walk rate, 5-start form vs
+                      25-start baseline, start-to-start spread of his own outs
+                                                    [pitcher props, game markets]
+  Elo                 running team rating, K=4.0, home-field 24 pts, log
+                      margin-of-victory damping, 0.30 season revert. Causal by
+                      construction                                [game markets]
+  market numbers      the game's own total, moneyline and runline at the SAME
+                      snapshot, and the team totals implied by them      [all]
+
+  NOT USED, deliberately: handedness (tested and rejected, E19), weather
+  (reanalysis, not forecast), historical lineups (written after first pitch --
+  a leak), Statcast (starts 2026-05-20, too short).
+
+--------------------------------------------------------------------------------
+5. THE PER-MARKET STATISTICAL MODEL UNDER THE FEATURES
+--------------------------------------------------------------------------------
+
+  hits, total bases, home runs, RBIs, runs, both strikeout markets
+        Poisson on rate-per-opportunity x expected opportunity, park-adjusted,
+        plus a negative-binomial version of the same count.
+  pitcher_outs
+        pitch budget / pitches per out -> expected outs, with the pitcher's OWN
+        start-to-start spread as the standard deviation.
+  pitcher_strikeouts
+        expected outs -> batters faced (/ 1 - opponent OBP) -> strikeouts,
+        negative binomial at the posted line.
+  totals, h2h, spreads
+        the starter for as long as he lasts plus the bullpen for the rest, in a
+        park with a run environment of its own, alongside the older form-only
+        run model. Skellam for the exact run-difference distribution.
+
+--------------------------------------------------------------------------------
+6. ENSEMBLE MEMBERS
+--------------------------------------------------------------------------------
+
+Each member is a probability for the OVER (or the home side on h2h/spreads),
+produced by a calibrator re-fit forward through time that never sees a game that
+had not already finished. Fold boundaries are TIMESTAMPS.
+
+  SHIPPED SIX -- these and only these are searched for the GLOBAL spec:
+      price     logistic on the de-vigged price alone
+      compact   logistic on a reduced feature vector (for thin markets)
+      box       logistic on the full feature vector
+      gbm       HistGradientBoostingClassifier, depth 3, 8 leaves, L2 5.0
+      offset    logistic with the price as a fixed offset
+      iso       logistic + isotonic recalibration, fitted on a held-out inner
+                time slice of the training fold
+
+  ADDED ROUND 4 -- available to the per-market override only:
+      rf, et                RandomForest / ExtraTrees, depth 8, leaf 200
+      gbmB, gbmC, gbmD      three re-tuned HistGradientBoosting configurations
+
+  ADDED ROUND 5 -- available to the per-market override only:
+      xgb    XGBoost 3.4.1, depth 3, 200 trees, lr 0.05, min_child_weight 200,
+             reg_lambda 5.0, subsample 0.8, colsample 0.8, hist, seed 20260917.
+             NO hyperparameter search.
+      lgbm   LightGBM 4.7.0, 8 leaves, depth 3, 200 trees, lr 0.05,
+             min_child_samples 200, reg_lambda 5.0, deterministic, seed 20260917.
+             NO hyperparameter search.
+      nb     the negative-binomial count model's P(X > line), offered DIRECTLY as
+             a member instead of as one column among forty-six. Prop markets only.
+      poi    the Poisson count model's P(X > line), likewise. Prop markets only.
+
+  NOT INSTALLED / NOT TESTED:
+      catboost  -- not named by either research branch; adding it would be scope
+                   round 5 did not earn.
+      flaml     -- an AutoML time budget searches families and hyperparameters
+                   against one objective on one split. That is exactly the
+                   multiple-comparisons exposure the guards exist to catch, and
+                   it cannot honour the nested SELECT-A/SELECT-B contract without
+                   being rewritten into something that is no longer FLAML.
+
+--------------------------------------------------------------------------------
+7. HOW ANYTHING GETS SELECTED -- THE PART THAT MATTERS MOST
+--------------------------------------------------------------------------------
+
+  STEP 1  GLOBAL FILTER, chosen ONCE across all eleven markets jointly, on the
+          SELECT halves only. 41 specs (1-, 2- and 3-member averages of the
+          shipped six) x EV floor in {0, 0.01, 0.02, 0.04} x confidence (pinned
+          60) x ladder collapse in {maxEv, mostBooks}. Eleven separate choices
+          would be eleven chances to fit noise; this is a single choice whose
+          cost, if wrong, is paid everywhere at once.
+
+  STEP 2  PER-MARKET MEMBER OVERRIDE. A market may replace the global ensemble
+          with ONE member, only if ALL THREE hold:
+            (a) that member wins on SELECT-A by log loss at ALL THREE inner cuts
+                q in {0.5, 0.6, 0.7}, and it is the SAME member every time;
+            (b) it beats the global spec on held-out SELECT-B log loss by more
+                than 0.0011 -- the measured noise band -- at all three cuts;
+            (c) the resulting SELECT board still holds at least 500 rows.
+
+          Log loss, not ROI: ROI over a few hundred rows the model selected using
+          its own largest errors is not a scoring rule.
+
+          Guard (c) is not decorative. A member better calibrated to the price
+          DISAGREES with it less, and a prop board is exactly the rows where the
+          model disagrees -- without (c), an override starved pitcher_strikeouts
+          from 2,407 board rows to 1.
+
+  STEP 3  PER-MARKET SIDE POLICY, chosen on SELECT only. This is the one lever
+          the shipped system already pulls per market (MLB_EV_SIDE_POLICY).
+
+  STEP 4  THE VERDICT WINDOW IS OPENED. Once. Nothing above reads it.
+
+--------------------------------------------------------------------------------
+8. WHAT HAS BEEN ESTABLISHED ABOUT THIS MODEL'S LIMITS
+--------------------------------------------------------------------------------
+
+These are measured findings, carried forward because they constrain what any
+future round can expect.
+
+  (a) THE MODEL HAS LESS SKILL THAN THE PRICE ON 9 OF 11 MARKETS, by 10-30x the
+      noise band on the four that fail the gate. One global spec is chosen by
+      pooling eleven markets; the pool is dominated by batter_hits and
+      batter_total_bases, and that answer is then imposed on a 1,680-row h2h
+      market.
+
+  (b) THE SELECTION OBJECTIVE REWARDS DISAGREEMENT, NOT CALIBRATION. The global
+      search counts markets clearing the SELECT gate, and that gate needs
+      n >= 500. A better-calibrated probability disagrees with the price LESS,
+      so it produces a SMALLER board. Proven, not theorised: offering the
+      price-anchored hybrid as an extra member produced two bit-identical arms.
+
+  (c) PREDICTED EDGE IS NEARLY USELESS AS A RANKING SIGNAL. Measured on SELECT:
+      the 0-1% predicted bucket pays -3.20%; the 3-5% bucket predicts 3.96% and
+      pays -2.00%; the 10%+ bucket predicts 19.61% and pays 1.95%. Predicted edge
+      is overstated by 3 to 18 percentage points at every level. This is the
+      winner's curse, and it is a SELECTION problem that a better probability
+      model does not fix.
+
+  (d) PUBLIC INFORMATION IS ALREADY PRICED. Handedness -- the most obviously
+      missing feature -- added nothing, because the book knows the starter and
+      the batter's hand too. Same wall as "totals has no signal" and "line
+      shopping is not the edge".
+
+  (e) 2026 IS MATERIALLY HARDER THAN 2024-2025. Board ROI 1.98% / 3.15% / 0.62%
+      for 2024 / 2025 / 2026, with the deterioration concentrated in the three
+      GAME markets (h2h, spreads, totals). The props were more stable.
+
+--------------------------------------------------------------------------------
+9. REPRODUCIBILITY CONTRACT
+--------------------------------------------------------------------------------
+
+  * Every model member carries a fixed seed and is single-threaded where the
+    library allows it.
+  * LightGBM is run with deterministic=True and force_row_wise=True.
+  * Data order is fixed by commence time with a stable sort.
+  * Caches are content-addressed by (market, lag, price convention, warm-up,
+    block count), so a comparison is guaranteed to be on identical scores.
+  * Source hashes are recorded in reports/reproducibility_r5.txt.
+  * Round 2's `_c60` result and round 4's `_r4v` result both still reproduce
+    from the current source. Verified in round 5.

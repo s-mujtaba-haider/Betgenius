@@ -1,0 +1,195 @@
+BETGENIUS REPRODUCIBILITY AUDIT
+================================================================================
+Produced 2026-09-17 by re-running the shipped the final configuration pipeline on this machine
+and comparing the output byte for byte against the files shipped in results/.
+
+Nothing in this file is asserted. Every line below is the output of a command
+that was actually run; where a check could not be run, it says so.
+
+
+1. ENVIRONMENT AS MEASURED
+--------------------------------------------------------------------------------
+OS                    Windows-11-10.0.26200-SP0
+Python                3.14.6
+numpy                 2.4.6
+pandas                3.0.3
+scikit-learn          1.9.0
+scipy                 1.18.0
+statsmodels           0.14.6
+Deno                  2.9.6 (TypeScript 6.0.3, V8 15.0.245.2)
+Node                  v24.20.0
+
+xgboost 3.4.1 and lightgbm 4.7.0 are importable on this machine. NEITHER is
+imported by any file in the validation pipeline, and neither appears in
+requirements.txt. They were installed for later research and are irrelevant to
+every number in results/. catboost and flaml are NOT installed.
+
+
+2. SOURCE STATE
+--------------------------------------------------------------------------------
+Repository            private development repository (identity withheld)
+Commit                2629293f09fb28343378a111340b80766da731f5
+Working tree          The development tree carried uncommitted exploratory
+                      files at audit time, including a draft edit to policy.py.
+                      THE HANDOFF SHIPS THE COMMITTED FILE, not the draft:
+
+                          committed policy.py  sha256 58e4726db770abfc...
+                          draft in the tree    sha256 05da9d7228185170...
+
+The draft is additive only -- it appends unused ensemble members to
+walkforward() -- and it is provably inert here: the result path does not execute
+walkforward at all. It reads member probabilities from the pre-built cache and
+calls only policy.board, policy.unit_key and policy.parity_for, none of which
+the draft touches. That is why the reproduction below matched exactly even
+while the tree carried it.
+
+
+3. WHAT WAS RE-RUN, AND WHAT CAME BACK
+--------------------------------------------------------------------------------
+Command (from betgenius/, with UPLIFT_DATA_DIR=harness/uplift/data_expanded_6h
+and UPLIFT_CACHE_DIR=harness/uplift/cache_fam):
+
+    python harness/uplift/run_final_model.py --conf=60 --tag=_recheck
+
+Result: BIT-IDENTICAL to the shipped run.
+
+    reports/final_v1.csv    sha256 73e5cdb0803151bb74fb1b9ff75c5f1af1a31b26778415462d17a40d41f52673
+    reports/final_recheck.csv  sha256 73e5cdb0803151bb74fb1b9ff75c5f1af1a31b26778415462d17a40d41f52673
+                             ^^ same hash, all 37 columns, all 11 markets
+
+    reports/overrides_recheck.csv    == reports/overrides_v1.csv      IDENTICAL
+    reports/global_sweep_recheck.csv == reports/global_sweep_v1.csv   IDENTICAL
+
+Re-run console output reproduced the same headline:
+    global spec = gbm   EV floor = 0.02   conf floor = 60   collapse = maxEv
+    overrides adopted: spreads -> price, batter_total_bases -> rf
+    PASS on the verdict window : 6 / 11
+    PASS on the full OOS period: 7 / 11
+    PASS on BOTH gates         : 6 / 11
+    units verdict 202.7  |  units full OOS 559.3
+
+Command:
+
+    python harness/uplift/parity_audit.py --tag=_v1
+
+Result: BIT-IDENTICAL to the shipped reports/parity_audit_v1.csv.
+    board rows 28,141   rejected by the shipped predicates 0   (0.000%)
+    PARITY HOLDS
+
+Command:
+
+    python harness/uplift/verify_gate.py
+
+Result: 2 shipped harness reports replayed through the Python gate port,
+0 mismatches. Bootstrap CI reproduced to full printed precision
+(e.g. h2h ev_pass n=263, ROI 10.353020%, CI low -1.164874%, published and
+recomputed identical).
+
+
+4. WHAT IS DETERMINISTIC AND WHAT IS NOT
+--------------------------------------------------------------------------------
+DETERMINISTIC, VERIFIED BY RE-RUN
+  * The whole result stage from the member cache onward: board construction,
+    grading, bootstrap CIs, the override rule, the global sweep, the final
+    table. Verified bit-identical above.
+  * The bootstrap: seeded at 20260701 (mlbgate.bootstrap_mean_ci) and drawn
+    from numpy PCG64, or from a line-for-line port of the shipped mulberry32
+    stream when exact=True.
+
+DETERMINISTIC BY CONSTRUCTION, NOT RE-VERIFIED IN THIS AUDIT
+  * The member cache itself. Every estimator carries a fixed random_state
+    (HistGradientBoosting 20260916; RandomForest / ExtraTrees 20260917) and the
+    walk-forward fold boundaries are timestamps derived from the data, not
+    random draws. Rebuilding the cache takes roughly 90 minutes on this machine
+    and was NOT repeated here; the validation report states that the earlier _v1
+    cache did rebuild member-for-member identically after the frames.py and
+    policy.py edits, and that claim is carried forward rather than re-measured.
+    A client who wants it verified should run section 6's rebuild and diff
+    reports/final_v1.csv again.
+
+NOT BIT-REPRODUCIBLE ACROSS MACHINES
+  * Floating-point results from scikit-learn are not guaranteed identical
+    across different BLAS builds, CPU architectures or library versions. The
+    pinned versions in configs/requirements.txt are the ones the shipped numbers
+    were produced with. Expect ROI to agree to well within a basis point on a
+    matching environment; do not expect identical sha256 on a different one.
+
+NOT REPRODUCIBLE AT ALL FROM THIS PACKAGE
+  * Anything that re-pulls from The Odds API. The provider serves historical
+    odds from 2023-05 only and charges credits; the packaged snapshot removes
+    the need, which is why it is included (section 5).
+
+
+5. DATA SNAPSHOT -- SHA256 (first 16 hex) AND SIZE
+--------------------------------------------------------------------------------
+Directory: project/betgenius/harness/uplift/data_expanded_6h/
+Total: 344,635,080 bytes across 25 files.
+
+63f8669fd8aeb0e4       819,231  aux_events.csv
+e780a2770ec69ad4       668,745  aux_opposing_pitcher.csv
+8152a5aea69842a7        67,089  aux_player_metadata.csv
+40712766dbe51445       909,273  aux_weather.csv
+4f884667834093c4    25,847,029  boxscores.csv
+56ff07abbe6dcd76    54,820,040  odds_batter_hits.csv
+0d35a45ea34cac85     9,298,377  odds_batter_hits_api.csv
+73c8580444c3e181    42,704,019  odds_batter_home_runs.csv
+1a81ba00b7b49e5a    11,290,764  odds_batter_home_runs_api.csv
+11743f453d958652    33,117,248  odds_batter_rbis.csv
+c135618ab9609ea6     6,287,396  odds_batter_rbis_api.csv
+cf27ea2a367acabd    31,094,848  odds_batter_runs_scored_api.csv
+24935260845c247a     9,520,086  odds_batter_strikeouts_api.csv
+1a990e51b97ec99d    88,824,501  odds_batter_total_bases.csv
+353026da9598f65d    13,032,766  odds_batter_total_bases_api.csv
+49530d1c1ff1a872     1,017,970  odds_h2h.csv
+e0d05014990db382       320,453  odds_h2h_api.csv
+6db471638b0d1312     1,212,792  odds_pitcher_outs.csv
+6f6af8e519a0b8a0     1,747,787  odds_pitcher_outs_api.csv
+4f7c0e6b00c0e78c     7,256,235  odds_pitcher_strikeouts.csv
+08d541d7b5ba2c2e     1,224,090  odds_pitcher_strikeouts_api.csv
+4dd9561c19d13a79     1,287,275  odds_spreads.csv
+4590feab01261111       390,483  odds_spreads_api.csv
+97cf3751f6c4881b     1,431,164  odds_totals.csv
+77bf5ddd6b34f165       445,419  odds_totals_api.csv
+
+Files with no `_api` suffix came from the Supabase warehouse export
+(dump_odds.ts). Files ending `_api` came from The Odds API expansion pull at
+T-6h (ingest_expand.py --lead=6 --suffix=6h, then build_expanded_data.py).
+
+
+6. HOW A CLIENT REPRODUCES THE TABLE FROM THIS PACKAGE
+--------------------------------------------------------------------------------
+No network and no API credits are required. From project/betgenius/:
+
+    pip install -r requirements.txt
+
+    # PowerShell
+    $env:UPLIFT_DATA_DIR  = "$PWD\harness\uplift\data_expanded_6h"
+    $env:UPLIFT_CACHE_DIR = "$PWD\harness\uplift\cache_fam"
+    $env:UPLIFT_MEMBERS   = "rf,et,gbmB,gbmC,gbmD"
+
+    # bash
+    export UPLIFT_DATA_DIR="$PWD/harness/uplift/data_expanded_6h"
+    export UPLIFT_CACHE_DIR="$PWD/harness/uplift/cache_fam"
+    export UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD"
+
+    python harness/uplift/build_cache.py          # ~90 min, writes ~940 MB
+    python harness/uplift/run_final_model.py --conf=60 --tag=_v1
+    python harness/uplift/final_matrix.py --tag=_v1   # needs robustness_v1.csv beside it
+    python harness/uplift/parity_audit.py --tag=_v1
+
+Then diff harness/uplift/reports/final_v1.csv against results/final_v1.csv. Every column
+should match; see section 4 for what "match" means across machines.
+
+The member cache (cache_fam/, 939 MB) is NOT shipped. It is a pure function of
+the shipped data plus the shipped source, and build_cache.py regenerates it.
+
+
+7. WHAT THIS AUDIT DID NOT ESTABLISH
+--------------------------------------------------------------------------------
+  * The member cache was not rebuilt from scratch and re-diffed (section 4).
+  * The six robustness variants were not re-run; results/robustness_v1.csv
+    is the shipped file, and the per-variant final_*.csv inputs it was computed
+    from are shipped in reports/ so the roll-up can be recomputed by hand.
+  * verify_gate.py had only two shipped report JSONs to replay. That is a
+    complete check of the two it had, and a small sample.
+  * No independent reproduction on a second machine was attempted.

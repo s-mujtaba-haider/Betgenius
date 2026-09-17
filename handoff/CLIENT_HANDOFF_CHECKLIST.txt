@@ -1,0 +1,259 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- FINAL DELIVERY -- CLIENT HANDOFF CHECKLIST
+================================================================================
+Every box below was verified against the assembled package on 2026-09-17, not
+assumed. Where something is deliberately absent, it says so and why.
+
+
+--------------------------------------------------------------------------------
+DOCUMENTATION
+--------------------------------------------------------------------------------
+[x] README                          README.txt -- project, version, result,
+                                    what is and is not deployed, limitations,
+                                    a five-minute start
+[x] Complete documentation          BETGENIUS_COMPLETE_DOCUMENTATION.txt --
+                                    the whole system end to end
+[x] Complete audit                  AUDIT_COMPLETE.txt -- 46 sections, every
+                                    claim backed by code, a report file or a
+                                    command run during the audit
+[x] Final results                   FINAL_RESULTS.txt -- the 11-market matrix,
+                                    with historical and live kept in separate
+                                    parts that cannot be conflated
+[x] Data documentation              DATA_DOCUMENTATION.txt
+[x] Model documentation             MODEL_DOCUMENTATION.txt
+[x] Production setup                PRODUCTION_SETUP.txt -- every command
+                                    verified against the actual project code
+[x] Environment setup               ENVIRONMENT_SETUP.txt
+[x] Manifest                        HANDOFF_MANIFEST.txt
+[x] Version information             VERSION_INFO.txt
+[x] Research record                 docs/ -- 22 documents, unaltered
+
+
+--------------------------------------------------------------------------------
+RESULTS AND EVIDENCE
+--------------------------------------------------------------------------------
+[x] Authoritative result table      results/final_matrix.csv
+[x] Full per-market run output      results/final_v1.csv, final_v1.json
+[x] Every board built               results/boards_v1.csv
+[x] The override decision table     results/overrides_v1.csv
+[x] The global filter sweep         results/global_sweep_v1.csv
+[x] Robustness (six variants)       results/robustness_v1.csv
+                                    (+ robustness_v1.csv, a byte-identical copy
+                                    that final_matrix.py expects by that name --
+                                    documented in AUDIT_COMPLETE.txt s27.6)
+[x] Production parity               results/parity_audit_v1.csv
+[x] Season split                    results/season_split_v1.csv
+[ ] Excel workbook                  DELIBERATELY EXCLUDED. The workbook found in
+                                    the source tree was generated before the
+                                    final run and carries superseded numbers.
+                                    Regenerate it from the shipped results with
+                                    harness/uplift/build_workbook.py if wanted.
+[x] Live / production board         results/live_production_results.csv
+                                    results/live_summary.txt
+[x] Experiment ledger               reports/experiment_log.csv (9 experiments
+                                    with pre-registered criteria)
+[x] Leakage evidence                reports/check_asof.log
+[x] Calibration diagnostics         reports/calibration.csv,
+                                    calibration_reliability.csv, diag_signal.csv
+[x] Data inventories                reports/inventory_base|exp|exp6.csv + logs
+[x] Entry-time evidence             [x] Run logs                        reports/run_final_v1.log, run_robustness_v1.log,
+                                    run_e22/e23/e24/e32/e33.log, ingest logs
+[x] Robustness variant outputs      reports/final_{base,lag1,lag3,lag7,median,
+                                    w15b12}_v1.csv and their boards
+[x] Reproducibility record          reports/reproducibility.txt -- with the
+                                    sha256 of every data file and every result
+
+
+--------------------------------------------------------------------------------
+SOURCE CODE
+--------------------------------------------------------------------------------
+[x] Validation pipeline             project/betgenius/harness/uplift/*.py
+                                    (the committed policy.py, not the
+                                    working-tree later draft)
+[x] The gate                        project/betgenius/harness/lib/metrics.ts
+[x] Phase 1 TypeScript harness      project/betgenius/harness/
+[x] Production scorer               project/betgenius/supabase/functions/
+                                    _shared/scoring_mlb_v2.ts
+[x] Edge functions                  project/betgenius/supabase/functions/ (79)
+[x] Database schema and migrations  project/betgenius/supabase/
+[x] Frontend                        project/betgenius/src/
+[x] Tests                           project/betgenius/tests/,
+                                    supabase/tests/, harness/test/
+[x] The audit's own tooling         project/betgenius/harness/uplift/
+                                    live_board.py
+[ ] Exploratory follow-on code           DELIBERATELY EXCLUDED. It is unfinished
+                                    exploratory work and is not part of this
+                                    result.
+
+
+--------------------------------------------------------------------------------
+CONFIGURATION
+--------------------------------------------------------------------------------
+[x] Python requirements             configs/requirements.txt (also in project/)
+[x] Node package manifest           configs/package.json + package-lock.json
+[x] Deno lockfile                   configs/deno.lock
+[x] Harness env template            configs/harness.env.example
+[x] TypeScript / Vite / ESLint      in project/betgenius/
+[x] Supabase config                 project/betgenius/supabase/config.toml
+[x] .env.example                    yes -- every variable annotated, with a
+                                    the final configuration section stating that NOTHING must be
+                                    supplied to reproduce the result
+[x] .gitignore                      yes
+[ ] Populated .env                  DELIBERATELY ABSENT. See SECURITY below.
+
+
+--------------------------------------------------------------------------------
+MODELS AND DATA
+--------------------------------------------------------------------------------
+[x] Required data for reproduction  project/betgenius/harness/uplift/
+                                    data_expanded_6h -- 25 files, 329 MB, every
+                                    one hashed. The full final result
+                                    reproduces from it with NO network access
+                                    and NO API credits.
+[ ] Model files                     NONE EXIST TO SHIP. Zero estimators are
+                                    persisted anywhere in this project -- the
+                                    walk-forward fits 440 models and discards
+                                    each one after writing its probabilities.
+                                    This is a correct property of the design and
+                                    a hard blocker for deployment
+                                    (AUDIT_COMPLETE.txt s15.3, s30.4).
+[ ] Member cache                    EXCLUDED BY SIZE (939 MB). It is a pure
+                                    function of the shipped data plus the
+                                    shipped source. Regenerate with
+                                    build_cache.py, ~90 minutes, free.
+                                    Documented in DATA_DOCUMENTATION.txt s9.3.
+[ ] Pre-expansion / superseded data EXCLUDED (~2.4 GB). None of it produced a
+                                    final number. Regeneration documented.
+
+
+--------------------------------------------------------------------------------
+VERIFICATION PERFORMED
+--------------------------------------------------------------------------------
+[x] Smoke test                      PASS. `python harness/uplift/verify_gate.py`
+                                    -- 2 shipped harness reports replayed
+                                    through the Python gate port, 0 mismatches,
+                                    confidence intervals reproduced to full
+                                    printed precision.
+[x] Full reproduction               PASS, BIT-IDENTICAL.
+                                    run_final_model.py re-run during the audit;
+                                    final_recheck.csv and the shipped
+                                    final_v1.csv share sha256
+                                    73e5cdb0803151bb...f52673. overrides and
+                                    global_sweep also identical.
+[x] Production board test           PASS. live_board.py generated the current
+                                    board under the locked config: 1,465 picks
+                                    over 30 days, 0 unservable.
+[x] Production parity re-run        PASS. 0 of 28,141 rejected, output
+                                    byte-identical to the shipped file.
+[x] Live evaluation report          results/live_summary.txt and
+                                    live_production_results.csv, reporting by
+                                    settlement status and refusing to compute a
+                                    live PASS that cannot be computed.
+[x] Data coverage verified          Box scores counted directly from
+                                    boxscores.csv: 5,914 games / 321,890 rows /
+                                    4,419 players. Matches prior figures exactly.
+[x] Inventory discrepancy found     A prior document quoted the T-1h inventory
+                                    (535,961 graded rows) as if it were the
+                                    shipped T-6h dataset (529,695). Corrected in
+                                    AUDIT_COMPLETE.txt s7.3, DATA_DOCUMENTATION
+                                    s3.4 and FINAL_RESULTS.txt s7.
+[x] Security scan                   PASS. Two independent scans (pattern-based
+                                    and literal-value). ZERO real credentials
+                                    anywhere in the package.
+[x] Personal-identifier scan        PASS. Developer name, account name,
+                                    repository URL, local filesystem paths and
+                                    contact details removed from every document,
+                                    report and log in the package.
+
+
+--------------------------------------------------------------------------------
+SECURITY
+--------------------------------------------------------------------------------
+[x] No API keys in the package      verified by literal-value scan against the
+                                    four real credentials in the development
+                                    environment: 0 occurrences
+[x] No passwords, tokens or private keys
+[x] No JWTs, Stripe keys, AWS keys or Slack tokens
+[x] No personal data of any subscriber   the only personal names in the data are
+                                    MLB players, from public box scores
+[x] .env.example documents every variable the client must supply
+[ ] Populated .env                  DELIBERATELY ABSENT. None of the development
+                                    environment's four credentials is
+                                    appropriate to deliver: two were previously
+                                    exposed in a public repository and are
+                                    pending rotation, and the third is the
+                                    developer's own read-only database role. No
+                                    credential was invented to fill the gap.
+[!] ACTION REQUIRED BY THE CLIENT   Rotate the Gemini and The Odds API keys.
+                                    They were found hardcoded in a file that was
+                                    committed to a PUBLIC repository and are
+                                    still live -- the Odds API key still
+                                    authenticated on 2026-09-17.
+                                        Gemini        https://aistudio.google.com/app/apikey
+                                        The Odds API  https://the-odds-api.com/account/
+                                    This is the highest-priority open item in
+                                    the project.
+[i] Retained deliberately           The Supabase project reference and the
+                                    Vercel hostname appear in CLAUDE.md and
+                                    DEPLOY.md. They are project identifiers, not
+                                    secrets, and the deploy commands need them.
+
+
+--------------------------------------------------------------------------------
+PACKAGE HYGIENE
+--------------------------------------------------------------------------------
+[x] No .git directory               verified -- this is a file tree, not a repo
+[x] No node_modules                 verified
+[x] No virtual environments         verified (.venv / venv absent)
+[x] No __pycache__ or .pyc          verified -- stripped after copying
+[x] No IDE metadata                 verified (.vscode, .idea absent)
+[x] No OS junk                      verified (.DS_Store, Thumbs.db absent)
+[x] No temporary files              verified
+[x] No unrelated files              two unrelated non-project PDFs and a text
+                                    dump present in the source tree were
+                                    excluded
+[x] No broken documentation refs    every file referenced by a document exists
+                                    at the stated path
+
+
+--------------------------------------------------------------------------------
+CLIENT-INDEPENDENCE TEST
+--------------------------------------------------------------------------------
+Holding only this directory, a new technical reader can:
+[x] understand the architecture         BETGENIUS_COMPLETE_DOCUMENTATION.txt A-B
+[x] understand the models               MODEL_DOCUMENTATION.txt
+[x] understand the data                 DATA_DOCUMENTATION.txt
+[x] understand the historical results   FINAL_RESULTS.txt Part 1
+[x] understand the live results         FINAL_RESULTS.txt Part 2
+[x] understand what is NOT deployed     README.txt, FINAL_RESULTS.txt Part 3
+[x] install the project                 ENVIRONMENT_SETUP.txt
+[x] configure it                        .env.example + PRODUCTION_SETUP.txt s3
+[x] run a smoke test                    scripts/smoke_test.{sh,ps1}
+[x] generate a production board         scripts/generate_live_board.{sh,ps1}
+[x] reproduce the evaluation            scripts/reproduce.{sh,ps1}
+[x] understand PASS/FAIL                AUDIT_COMPLETE.txt s23
+[x] understand the limitations          README.txt, AUDIT_COMPLETE.txt s42-44
+
+
+--------------------------------------------------------------------------------
+ZIP READINESS
+--------------------------------------------------------------------------------
+[x] Package is self-contained
+[x] Reproduces without network access or API credits
+[x] No secrets
+[x] No personal identifiers
+[x] No junk
+[x] Manifest matches the tree
+[x] READY TO ZIP
+
+
+--------------------------------------------------------------------------------
+WHAT THE CLIENT SHOULD DO FIRST
+--------------------------------------------------------------------------------
+1. Rotate the two exposed API keys (see SECURITY above).
+2. Read README.txt, then FINAL_RESULTS.txt Part 1.
+3. Run scripts/smoke_test.sh (or .ps1). Under a minute, no setup beyond pip.
+4. Read AUDIT_COMPLETE.txt sections 1, 29, 30 and 43 -- the summary, the
+   results, the live board and the limitations.
+5. If a reproduction is wanted, run scripts/reproduce.sh. About two
+   hours, entirely offline.

@@ -1,0 +1,371 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- FINAL RESULTS
+================================================================================
+Version            FINAL
+Commit             2629293f09fb28343378a111340b80766da731f5
+Evaluation period  2024-04-01 -> 2026-09-16
+Confidence floor   60 (pinned)
+Produced           2026-09-17
+
+Authoritative source: results/final_matrix.csv
+Every number in this document was read from that file or from the files named
+beside it. Where a prior project document disagrees, see section 7.
+
+
+================================================================================
+PART 1 -- HISTORICAL RESULTS (BACKTEST / OUT-OF-SAMPLE)
+================================================================================
+
+1. HEADLINE
+--------------------------------------------------------------------------------
+    TARGET                        11 / 11 PASS on both gates      NOT MET
+    MINIMUM                        9 / 11 PASS on both gates      NOT MET
+    ACHIEVED                       6 / 11 PASS on both gates
+
+    Gate (full out-of-sample)      7 / 11 PASS
+    Gate (verdict window)          6 / 11 PASS
+    PASS on BOTH gates             6 / 11        <-- the only number to quote
+
+    FINAL STATUS COUNTS
+        PASS                       6
+        PASS_WITH_RESTRICTIONS     1     <-- NOT a pass. Do not reclassify it.
+        VETO                       2
+        FAIL_AFTER_ITERATION       2
+
+A PASS_WITH_RESTRICTIONS market clears ONE of the two gates. `totals` clears the
+full-OOS gate and FAILS the verdict gate. It is not a seventh pass and must not
+be presented as one.
+
+
+2. THE COMPLETE 11-MARKET MATRIX
+--------------------------------------------------------------------------------
+Model: which single ensemble member decides that market's board.
+Side: the side policy, chosen per market on the SELECT half only.
+G: gate outcome.  ROB: how many of six robustness variants the market passes.
+
+MARKET              MODEL  SIDE   GRADED   GAMES   FULL OOS                     G
+                                                   n      ROI%    CIlo    units
+--------------------------------------------------------------------------------
+batter_hits         gbm    under  120,269  5,393   2,083  13.16    9.60   274.2  PASS
+batter_total_bases  rf     under  116,642  5,394   5,356   1.65   -0.47    88.4  PASS
+pitcher_strikeouts  gbm    both    24,291  4,858   2,407   2.27   -1.07    54.6  PASS
+batter_runs_scored  gbm    both    53,348  2,954   7,337   0.41   -1.48    29.7  PASS
+pitcher_outs        gbm    both     9,821  4,383   1,957   1.09   -2.73    21.4  PASS
+batter_strikeouts   gbm    under   27,835  1,439   1,676   6.98    3.14   117.0  PASS
+totals              gbm    under    8,299  5,287     569   0.99   -7.18     5.6  PASS
+batter_rbis         gbm    under   96,439  5,409   2,740  -0.10   -2.91    -2.8  FAIL
+spreads             price  both     7,457  5,392   2,463  -0.80   -3.96   -19.6  FAIL
+h2h                 gbm    both     5,956  5,391   1,524  -0.34   -4.65    -5.1  FAIL
+batter_home_runs    gbm    both    59,338  3,459      29 -13.97  -41.31    -4.1  FAIL
+--------------------------------------------------------------------------------
+                                                  28,141                  559.3
+
+MARKET              VERDICT WINDOW                                              G    ROB  FINAL STATUS
+                    from        n      win%    ROI%    CIlo   clusCIlo  units
+--------------------------------------------------------------------------------------------------------
+batter_hits         2025-08-08  1,269  64.62   14.46    9.51     9.24   183.4  PASS  6/6  PASS
+batter_total_bases  2025-08-31  2,424  61.39    1.07   -2.06    -2.02    25.9  PASS  6/6  PASS
+pitcher_strikeouts  2025-08-25  1,159  61.26    3.37   -1.34    -1.28    39.1  PASS  6/6  PASS
+batter_runs_scored  2025-04-19  2,931  61.92    0.41   -2.46    -2.96    12.0  PASS  5/6  PASS
+pitcher_outs        2026-04-01    871  58.32    0.43   -5.12    -5.22     3.7  PASS  6/6  PASS
+batter_strikeouts   2024-06-19    751  63.52    4.57   -1.15    -0.25    34.3  PASS  6/6  PASS
+totals              2025-08-27    221  49.77   -3.17  -16.12   -16.12    -7.0  FAIL  3/6  PASS_WITH_RESTRICTIONS
+batter_rbis         2025-09-06  1,020  62.35   -0.66   -5.47    -5.62    -6.7  FAIL  5/6  VETO
+spreads             2025-08-25  1,387  61.43   -2.91   -6.82    -6.82   -40.3  FAIL  1/6  FAIL_AFTER_ITERATION
+h2h                 2025-08-29    639  55.71   -6.16  -12.95   -12.95   -39.3  FAIL  0/6  FAIL_AFTER_ITERATION
+batter_home_runs    2025-05-24     15  53.33  -16.27  -58.06   -58.06    -2.4  FAIL  0/6  VETO
+--------------------------------------------------------------------------------------------------------
+                               12,687                                   202.7
+
+CIlo is the gate's own pick-level bootstrap lower bound -- it is what decides
+PASS/FAIL. clusCIlo resamples whole GAMES rather than picks, because picks on
+the same game settle together. It is reported beside the gate's number and never
+in place of it. On the six PASS markets the two agree closely.
+
+
+3. THE GATE
+--------------------------------------------------------------------------------
+    PASS if  graded n >= 500  AND  ROI > 0
+    PASS if  graded n <  500  AND  95% ROI CI lower bound > 0
+    FAIL otherwise
+
+Implemented in harness/lib/metrics.ts (evaluateEvGate, EV_GATE_MIN_GRADED=500)
+and ported line for line to harness/uplift/mlbgate.py. Verified by replaying
+shipped harness reports through the port: 2 reports, 0 mismatches, CI reproduced
+to full printed precision.
+
+Final market status:
+    both gates PASS                    -> PASS
+    exactly one gate PASSes            -> PASS_WITH_RESTRICTIONS
+    neither, and flat-bet ROI < -12%   -> VETO
+    neither, otherwise                 -> FAIL_AFTER_ITERATION
+
+
+4. THE TWO WINDOWS
+--------------------------------------------------------------------------------
+FULL OOS      Every row outside the 25% walk-forward warm-up. Out of sample for
+              the MODEL, but its earlier half was used to choose the filter, the
+              side policy and the override. Optimistic by construction.
+
+VERDICT       The LATER HALF of each market's out-of-sample period, split at the
+              median commence time. NEVER READ while anything was chosen. Every
+              selection decision is made on the SELECT half, itself split into
+              SELECT-A (choose) and SELECT-B (score) at three inner cuts.
+
+The BOTH-GATES count is the headline precisely because the verdict gate alone is
+the clean number and the full-OOS gate alone is the optimistic one.
+
+
+5. ROBUSTNESS
+--------------------------------------------------------------------------------
+Six variants, each changing exactly ONE thing and re-running the whole locked
+pipeline (results/robustness_v1.csv):
+
+    variant                          full-OOS PASS  verdict PASS  units OOS/verdict
+    locked (headline)                      7             6          559.3 / 202.7
+    placebo lag 1 day                      7             6          499.6 / 216.1
+    placebo lag 3 days                     8             5          586.6 / 219.1
+    placebo lag 7 days                     8             5          587.7 / 271.6
+    median book, no line shopping          6             4          291.2 /  73.4
+    warm-up 15%, 12 refit blocks           8             4          471.2 / 132.3
+
+TWO THINGS THIS TABLE TELLS YOU
+  * THE PLACEBO-LAG PROFILE IS FLAT TO SLIGHTLY RISING. A same-game leak dies at
+    the first day of lag. This does not. It is the strongest single piece of
+    leakage evidence in the project.
+  * LINE SHOPPING IS LOAD-BEARING. Betting the median book instead of the best
+    number at that line costs roughly two thirds of the verdict units
+    (202.7 -> 73.4). THE HEADLINE ASSUMES BEST-PRICE EXECUTION.
+
+Five of the six PASS markets survive ALL SIX variants; the sixth survives five.
+The two FAIL_AFTER_ITERATION markets survive one and zero.
+
+
+6. PRODUCTION PARITY
+--------------------------------------------------------------------------------
+    Board rows                                         28,141
+    Rejected by the shipped eligibility predicates           0
+    Rejection rate                                      0.000%
+    Model/policy mismatch, missing model, unsupported
+      market, invalid feature, confidence or price           0
+
+Re-verified during the 2026-09-17 audit and byte-identical to the shipped file
+(results/parity_audit_v1.csv).
+
+WHAT THIS MEANS: if these 28,141 picks were handed to the production surface,
+none would be filtered out as unservable.
+WHAT IT DOES NOT MEAN: that the validated model is deployed. It is not. See
+AUDIT_COMPLETE.txt sections 1 and 30.4.
+
+
+7. DATA COVERAGE
+--------------------------------------------------------------------------------
+    Box scores        5,914 games / 321,890 player-game rows / 4,419 players
+                      2024-04-01 -> 2026-09-16
+                      2024  1,587 games /  82,284 rows
+                      2025  2,011 games / 105,614 rows
+                      2026  2,316 games / 133,992 rows
+
+    Priced candidates   530,193
+    Pushes                  498
+    Graded candidates   529,695
+    Games with odds       5,428
+    Games used by model   5,421
+    Games unused            493
+
+    Model universe by season   2024  217,693
+                               2025  177,066
+                               2026  134,936
+
+CORRECTION TO A PRIOR DOCUMENT: docs/VALIDATION_REPORT.md section 1.4 quotes
+535,961 graded rows, 5,397 games used and 517 unused. Those are the T-1h
+expansion's figures (reports/inventory_exp.csv), not the T-6h dataset the
+shipped table was produced from. The correct figures are above and in
+reports/inventory_exp6.csv. No result is affected -- every result was computed
+from the T-6h cache. AUDIT_COMPLETE.txt section 7.3.
+
+Figures of 413,253 priced / 412,886 graded that appear in older briefs are the
+PRE-EXPANSION dataset (reports/inventory_base.csv) and are correct for the earlier baseline.
+
+
+8. SEASON-BY-SEASON -- READ THIS BEFORE QUOTING THE HEADLINE
+--------------------------------------------------------------------------------
+Board ROI on the final architecture (results/season_split_v1.csv):
+
+    season  markets  board n   units   ROI %
+    2024      10       7,428   146.8    1.98
+    2025      10      11,237   353.8    3.15
+    2026       9       9,476    58.6    0.62
+
+2026 IS ROUGHLY A FIFTH AS PROFITABLE AS 2025, measured on 9,476 picks. The
+decay is concentrated almost entirely in the GAME markets (h2h -35.9 units,
+spreads -45.3, totals -11.0). The batter and pitcher props hold up
+(batter_hits +107.1, pitcher_strikeouts +37.3, batter_total_bases +15.0,
+pitcher_outs +12.3).
+
+
+9. WHY EACH FAILING MARKET FAILED
+--------------------------------------------------------------------------------
+    batter_home_runs   Product rule, not the model. The D-164 heavy-juice veto
+                       plus confidence >= 60 leaves 29 board rows out of 59,338
+                       graded candidates. Loosening a shipped rule to pass was
+                       refused.
+    h2h                Efficient market. No override qualifies; -6.16% on 639
+                       verdict picks and -35.9 units in 2026.
+    spreads            Efficient market. `price` beats the model by 0.0143 --
+                       the largest gain measured anywhere -- and WAS adopted,
+                       lifting verdict ROI from -7.45% to -2.91%. Still negative.
+    totals             Underpowered by construction. 221 verdict picks, below
+                       the gate's 500, so it needs the CI to clear zero -- about
+                       13% flat ROI. No honest MLB board returns that.
+    batter_rbis        Genuinely marginal. -0.66% on 1,020 verdict picks.
+                       `compact` beats `gbm` but by 0.0005-0.0012, inside the
+                       0.0011 noise band at two of three cuts.
+
+Experiment E24 established independently, on held-out SELECT-B rather than on
+the verdict window, that totals, spreads, h2h and batter_home_runs clear the
+gate on 0 OF 3 INNER CUTS UNDER EVERY SELECTION RULE TESTED. The verdict table
+is not bad luck.
+
+
+================================================================================
+PART 2 -- LIVE / PRODUCTION RESULTS
+================================================================================
+
+THIS IS A SEPARATE SECTION ON PURPOSE. Nothing below may be added to, averaged
+with, or quoted alongside Part 1 as independent evidence.
+
+10. THE CURRENT PRODUCTION BOARD
+--------------------------------------------------------------------------------
+    Board generated (UTC)      2026-09-17T12:58Z
+    Configuration              the locked configuration, read from
+                               results/final_v1.csv, unmodified
+    Data snapshot              harness/uplift/data_expanded_6h
+    Latest event date in data  2026-09-16
+    Markets configured         11
+
+    WINDOW                   latest slate     last 7 days    last 30 days
+                             (2026-09-16)     (09-10..09-16) (08-18..09-16)
+    games                              3              64             309
+    priced candidate rows            248           5,020          24,279
+    graded candidate rows            248           5,017          24,248
+    model predictions                150           4,834          24,065
+    confidence >= 60                  96           2,999          15,126
+    selected (board rows)              7             230           1,465
+    rejected by the filter           241           4,787          22,783
+    unservable in production           0               0               0
+    rows with unsettled outcome        0               0               0
+    settled picks                      7             230           1,465
+    units                          +2.59           +3.61          +18.24
+    pooled ROI                    +37.00%          +1.57%          +1.25%
+
+Per-market detail: results/live_production_results.csv
+Narrative summary: results/live_summary.txt
+
+
+11. LIVE PASS / FAIL -- THE ANSWER
+--------------------------------------------------------------------------------
+    LIVE MARKETS WITH SETTLED RESULTS       9 / 11   (30-day window)
+    LIVE MARKETS PENDING / NOT YET SETTLED  0 / 11
+    LIVE MARKETS WITH NO BOARD ROWS         2 / 11
+    POST-DEPLOYMENT SETTLED MARKETS         0 / 11
+    LIVE MARKETS LEGITIMATELY PASSING       NOT COMPUTABLE
+
+NO REALIZED LIVE-MARKET PASS/FAIL RESULT CAN BE COMPUTED. Three independent
+reasons:
+
+  1. THE PIPELINE PRODUCES NO UNSETTLED BOARD. frames.load_candidates keeps only
+     rows whose outcome exists and features.graded keeps only graded rows, so
+     there is nothing pending to settle later. Pending count: 0, every window.
+  2. THESE ROWS ARE NOT POST-DEPLOYMENT. Every date above falls inside the
+     out-of-sample period and is already counted in Part 1. Quoting them
+     again would be double-counting the same picks.
+  3. THE SAMPLE IS BELOW THE GATE'S FLOOR. The largest per-market 30-day n is
+     462, under EV_GATE_MIN_GRADED = 500, so every window falls on the CI arm
+     where a few hundred picks cannot produce a usable interval.
+
+The `gate` column in results/live_production_results.csv is computed
+mechanically per window and is flagged in that file as NOT a market verdict. The
+market verdicts are in results/final_matrix.csv and nowhere else.
+
+
+12. WHAT THE LIVE BOARD DOES LEGITIMATELY SHOW
+--------------------------------------------------------------------------------
+    * COVERAGE: 9 of 11 markets produce picks on current data.
+    * VOLUME: 1,465 picks over 30 days across 309 games, from 24,279 priced rows.
+    * SERVING STATUS: 0 unservable rows. Production parity holds on live data
+      exactly as it does on historical data.
+    * MARKET AVAILABILITY: two markets are no longer offered by the books --
+      batter_home_runs (last priced 2026-06-19) and batter_strikeouts (last
+      priced 2026-07-17). batter_strikeouts is one of the six PASS markets, and
+      its PASS is validated on 2024 data only.
+    * SELECTION BEHAVIOUR: game markets select 25-45% of priced rows against
+      2-9% on prop markets, because the ev_pass surface has no EV filter.
+      batter_rbis clears the confidence floor on 99% of rows and still selects
+      2.1% -- the EV floor does all the work there.
+    * ZERO PREDICTIONS FOR TODAY (2026-09-17). The data ends 2026-09-16.
+
+
+13. HISTORICAL VS LIVE -- THE SEPARATION TABLE
+--------------------------------------------------------------------------------
+    METRIC                   HISTORICAL (BACKTEST)   CURRENT BOARD (30d)   POST-DEPLOYMENT
+    Markets                            11                  9 with rows            0
+    Priced candidates             530,193                24,279                   0
+    Board rows                     28,141                 1,465                   0
+    Verdict-window rows            12,687                   n/a                   0
+    PASS (both gates)                6/11                   N/A                  N/A
+    PASS_WITH_RESTRICTIONS           1/11                   N/A                  N/A
+    VETO                             2/11                   N/A                  N/A
+    FAIL_AFTER_ITERATION             2/11                   N/A                  N/A
+    Units                    +559.3 OOS / +202.7 verdict   +18.24                 0
+    Settled?                          yes                   yes                  n/a
+    Independent of Part 1?             --                    NO                   --
+
+    The middle column is a SUBSET of the left column, not an addition to it.
+
+
+================================================================================
+PART 3 -- WHAT IS AND IS NOT DEPLOYED
+================================================================================
+
+THE VALIDATED MODELS ARE NOT IN PRODUCTION.
+
+The live SharpAI product generates picks from
+supabase/functions/_shared/scoring_mlb_v2.ts plus the algorithm_weights table,
+written into recommendations_cache by scheduled edge functions. That is a
+hand-weighted factor scorer.
+
+The validated models (harness/uplift/*.py) are a separate codebase. They import
+nothing from scoring_mlb_v2.ts and nothing imports them. This work is an offline
+UPLIFT STUDY on the same priced universe, judged by the same gate.
+
+Five things would be needed to serve a board live, and none exists today:
+  1. an inference path that does not require a settled outcome;
+  2. a persisted model -- zero estimators are saved today;
+  3. a live odds feed at a lead matching the backtest's;
+  4. feature parity at serve time;
+  5. a decision about which markets ship.
+
+AUDIT_COMPLETE.txt section 30.4.
+
+
+================================================================================
+PART 4 -- THE MODELS BEHIND THESE NUMBERS
+================================================================================
+
+    9 markets   gbm    HistGradientBoostingClassifier (scikit-learn)
+    1 market    rf     RandomForestClassifier          (batter_total_bases)
+    1 market    price  LogisticRegression on the de-vigged price alone (spreads)
+
+    Estimators fitted to produce this table                440
+    Estimators fitted to build the full member cache      4,840
+    Estimators persisted to disk                              0
+
+    XGBoost, LightGBM, CatBoost and FLAML were NOT used and are NOT dependencies.
+
+Full detail: MODEL_DOCUMENTATION.txt and AUDIT_COMPLETE.txt section 15.
+
+
+================================================================================
+END
+================================================================================

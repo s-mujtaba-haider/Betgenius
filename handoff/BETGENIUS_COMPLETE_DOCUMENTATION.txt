@@ -1,0 +1,431 @@
+================================================================================
+BETGENIUS / SharpAI -- MLB PHASE 1
+COMPLETE SYSTEM DOCUMENTATION 
+================================================================================
+This is the "how it all works" document. It assumes no prior knowledge of the
+project. For the forensic evidence behind every claim, read AUDIT_COMPLETE.txt.
+For the numbers, read FINAL_RESULTS.txt.
+
+
+================================================================================
+PART A -- THE SHAPE OF THE WHOLE THING
+================================================================================
+
+A.1 THERE ARE TWO SYSTEMS IN THIS REPOSITORY, AND ONLY ONE IS LIVE
+
+SYSTEM A -- THE PRODUCT (deployed, serving paying subscribers)
+    The Odds API + ESPN + Baseball Savant
+        |
+    Supabase edge functions on a schedule
+    (fetch-odds-mlb, process-games-mlb, resolve-picks, ...)
+        |
+    scoring_mlb_v2.ts  x  algorithm_weights          <-- a HAND-WEIGHTED
+        |                                                FACTOR SCORER
+    recommendations_cache
+        |
+    React frontend  ->  subscriber sees a pick with a confidence score
+        |
+    the user logs their own bet; resolve-picks settles it later
+
+    The product RECOMMENDS. It never places a bet with a sportsbook itself.
+
+SYSTEM B -- PHASE 1 VALIDATION (offline, read-only, not serving anything)
+    B1. harness/run_backtest.ts  (TypeScript, Deno)
+        Re-scores historical candidates through the REAL production scorer with
+        the SHIPPED weights. NO REFITTING.
+        Question: does the product as shipped beat the vig on clean,
+        point-in-time data?
+
+    B2. harness/uplift/*.py  (Python)          <-- THE VALIDATION WORK LIVES HERE
+        Fits its OWN models on the same priced universe, judged by the same
+        gate.
+        Question: could a fitted model select a better board than the shipped
+        scorer does?
+
+A.2 WHAT THIS WORK IS, IN ONE PARAGRAPH
+The validation work is System B2. It takes every MLB bet a sportsbook actually quoted on
+both sides over 2024-04-01 to 2026-09-16, grades it against the real box score,
+builds 47-65 point-in-time features per row, fits a calibrated probability model
+forward through time so that no prediction can see its own outcome, prices both
+sides of every bet against that probability, keeps the ones whose expected value
+clears a floor, applies the product's own eligibility rules, and grades the
+resulting board under the product's own pass/fail gate -- twice, on two windows,
+the later of which is never looked at while any decision is made.
+
+A.3 THE ANSWER IT RETURNS
+Six of eleven markets pass both gates. Five do not. Target was eleven; minimum
+acceptable was nine. See FINAL_RESULTS.txt.
+
+A.4 WHAT THIS WORK IS NOT
+It is not deployed. Its models import nothing from the production scorer and
+nothing in production imports them. Zero estimators are saved to disk. There is
+no code path in it that can score a game that has not been played.
+AUDIT_COMPLETE.txt section 30.4 lists the five things deployment would require.
+
+
+================================================================================
+PART B -- THE PIPELINE, STAGE BY STAGE
+================================================================================
+
+B.1 RAW DATA IN
+Two sources, assembled into one directory of CSVs:
+    * A Supabase warehouse export (dump_odds.ts, dump_box.ts, dump_events.ts) --
+      SELECT only, never a write.
+    * An Odds API expansion pull covering 2026-06 to 2026-09
+      (ingest_expand.py at T-6h, then build_expanded_data.py).
+
+The assembled snapshot is `data_expanded_6h/` and IT SHIPS WITH THIS HANDOFF.
+`UPLIFT_DATA_DIR` selects it. No ingest ever writes into an existing dataset
+directory, which is why several configurations coexist and each still reproduces.
+
+B.2 NORMALIZATION
+Per (event, market, line): the BEST two-sided price at the entry snapshot, the
+MEDIAN across books, and the de-vigged fair probability
+p_fair = imp_over / (imp_over + imp_under).
+
+"Best price at that line" is the shipped convention, not a research choice --
+`supabase/functions/_shared/best_price.ts selectBestSameLineBook` is what
+production and the TypeScript harness both use.
+
+B.3 DEDUPLICATION
+One row per (event, market, line). An alternate ladder stays as several rows
+here; it is collapsed to a single bet much later, at board time.
+
+B.4 CANDIDATE GENERATION  (frames.load_candidates)
+A priced row becomes a candidate only if:
+    the event maps to a game that exists in the box score;
+    BOTH sides were quoted -- without the other side there is no de-vigged price
+      and no second side to bet;
+    the player name resolves to exactly ONE player id globally (ambiguous names
+      are DROPPED, never guessed -- a wrong id silently grades one player with
+      another's line);
+    the settled stat exists.
+
+B.5 OUTCOME GRADING
+Prop markets read the box-score column for that (player, game). Game markets
+take team runs from the OPPOSING staff's charged runs, because that column is
+populated for every game where the batters' own runs column is not.
+
+    overHit = NaN            on an exact push
+    overHit = actual > line  otherwise
+
+Nothing from the game being bet is read except the settled stat, and that only
+to grade.
+
+B.6 POINT-IN-TIME FEATURES  (features.build)
+    47 columns for batter props, 65 for pitcher props, 53 for game markets.
+
+THREE RULES HOLD EVERYWHERE, each of which has produced a fake edge at least
+once in this project's history:
+    1. Dates are LOCAL CALENDAR DATES, as text. Read as a timestamp a date
+       arrives shifted by the client timezone, which moves a late start across
+       midnight and lets an as-of join match a game to its own box score.
+    2. As-of joins are STRICTLY earlier: a feature for a game on date D may read
+       box scores from dates < D only, never == D.
+    3. Nothing is read from the game being bet except the settled stat.
+
+The families: the de-vigged price on the logit scale (the strongest single
+column everywhere), parametric price models (Poisson, negative binomial,
+park- and opponent-adjusted, binomial), player form and clear rates, expected
+opportunity, starting-pitcher workload, opponent and bullpen context, park
+factors, Elo, Pythagorean expectation, Skellam lambdas, and cross-market
+residuals.
+
+B.7 MODEL TRAINING AND PREDICTION  (policy.walkforward)
+    warm-up      25% of rows, never scored -- they exist only to train fold 1
+    blocks       40 refits per market
+    boundaries   TIMESTAMPS, not row indices, so a game lands wholly on one side
+    window       EXPANDING -- fold k trains on everything before its boundary
+    refit        every fold, from scratch
+
+Every scored row was predicted by a model fit only on rows that had already
+happened.
+
+The estimators:
+    gbm    HistGradientBoostingClassifier, max_depth 3, 8 leaves, L2 5.0,
+           lr 0.05, 200 iters, min leaf 200, seed 20260916      -- 9 markets
+    rf     RandomForestClassifier, 200 trees, depth 8, min leaf 200,
+           max_features sqrt, seed 20260917                     -- 1 market
+    price  LogisticRegression on the de-vigged price alone       -- 1 market
+
+    440 estimators produce the shipped table. 4,840 build the full member cache.
+    ZERO are saved to disk -- only their out-of-sample probabilities.
+
+B.8 CALIBRATION
+There is no separate calibration stage. The estimator IS the calibrator: it is
+fit on binary outcomes and emits a probability. An optional post-hoc isotonic
+member exists, splits its own training fold on the clock, and was not adopted
+because it sat inside the noise band.
+
+B.9 EDGE
+    ev_over   = p * decimal_over  - (1 - p)
+    ev_under  = (1 - p) * decimal_under - p
+    evPerUnit = the larger of the two; the board bets that side
+
+This is expected value per unit staked at the ACTUAL posted price, vig included.
+
+B.10 CONFIDENCE
+    confidence = round(100 * p_of_the_side_being_bet)
+
+A calibrated probability on a 0-100 scale. Not a separate rating.
+
+B.11 THE POLICY FILTER
+A candidate becomes a board row if and only if:
+    1. its walk-forward probability is finite;
+    2. confidence >= 60;
+    3. on a prop market, evPerUnit > 0.02 (game markets have no EV filter, to
+       match the production game write path, which carries no evPerUnit);
+    4. the EV-chosen side matches the market's side policy, if it has one;
+    5. it is not vetoed by the D-164 heavy-juice under rule;
+    6. it is the highest-EV row for its (game, player) -- or its game.
+
+Note on rule 4: the side is chosen by EV, and the side policy then DISCARDS rows
+whose EV-chosen side is the wrong one. An `under`-policy market does not bet the
+under on every row.
+
+B.12 THE BOARD
+One row per unit of betting: (game, player) for props, (game) for game markets.
+The board is 28,141 rows over the full out-of-sample period.
+
+B.13 EVALUATION
+Two windows, one gate. See Part C.
+
+
+================================================================================
+PART C -- HOW A MARKET IS JUDGED
+================================================================================
+
+C.1 THE GATE -- unchanged from the shipped product
+    PASS if  graded n >= 500  AND  ROI > 0
+    PASS if  graded n <  500  AND  the 95% ROI CI lower bound > 0
+    FAIL otherwise
+
+Implemented in harness/lib/metrics.ts (evaluateEvGate, EV_GATE_MIN_GRADED = 500)
+and ported line for line to harness/uplift/mlbgate.py. The port was verified by
+replaying shipped harness report JSONs through it: 0 mismatches, confidence
+intervals reproduced to full printed precision.
+
+The bootstrap is 2,000 percentile iterations on the unit-profit series, seeded.
+An `exact=True` mode walks the harness's own mulberry32 PRNG stream and
+reproduces the shipped interval bit for bit.
+
+C.2 THE TWO WINDOWS
+    FULL OOS        every row outside the warm-up. Out of sample for the MODEL,
+                    but its earlier half was used to choose the filter, the side
+                    policy and the override. OPTIMISTIC BY CONSTRUCTION.
+    VERDICT WINDOW  the later half of each market's out-of-sample period, split
+                    at the median commence time. NEVER READ while anything was
+                    chosen. THE CLEAN NUMBER.
+
+Selection happens entirely inside the SELECT half, which is itself split into
+SELECT-A (choose) and SELECT-B (score) at three inner cuts.
+
+THE HEADLINE IS THE BOTH-GATES COUNT, because the verdict gate alone is the
+clean number and the full-OOS gate alone is the optimistic one.
+
+C.3 FINAL MARKET STATUS
+    both gates PASS                   -> PASS
+    exactly one gate PASSes           -> PASS_WITH_RESTRICTIONS
+    neither, flat-bet ROI < -12%      -> VETO
+    neither, otherwise                -> FAIL_AFTER_ITERATION
+
+"Flat-bet ROI" is the ROI of betting EVERY priced candidate flat -- i.e. the
+vig. A market whose raw vig is worse than -12% is vetoed rather than merely
+failed, because the product would be shipping into a structurally unprofitable
+price.
+
+C.4 A SECOND CONFIDENCE INTERVAL, ALWAYS REPORTED
+Picks on the same game settle together, so a pick-level CI understates the
+spread whenever a board holds several lines on one event. Every verdict row
+therefore carries a GAME-CLUSTERED bootstrap bound beside the gate's own number.
+It is reported next to the gate's number and never in place of it. On the six
+PASS markets the two agree closely.
+
+C.5 SIX ROBUSTNESS VARIANTS
+Each changes exactly one thing and re-runs the WHOLE pipeline, cache included:
+    placebo lag 1 / 3 / 7 days      force the freshest box score a pick may see
+                                    to be older
+    median book, no line shopping   bet the median price, not the best
+    warm-up 15%, 12 refit blocks    a different walk-forward schedule
+
+None of them was used during model selection.
+
+C.6 PRODUCTION PARITY
+`policy.board` re-implements the shipped eligibility rules rather than calling
+them, so "this board is production parity" is a claim about two pieces of code
+agreeing. `parity_audit.py` checks it the other way round: it hands every board
+row to the ported shipped predicates and counts rejections.
+
+Result: 0 of 28,141. Re-verified during the 2026-09-17 audit, byte-identical.
+
+
+================================================================================
+PART D -- WHAT THE PROJECT LEARNED THAT MATTERS MORE THAN THE SCORE
+================================================================================
+
+D.1 THE ENTRY-TIME CONVENTION IS WORTH MORE THAN THE DATA
+The warehouse's own entry snapshot is 6.01 hours before first pitch for
+2024-2025 and 1.01 hours for 2026 -- a convention break inside the warehouse
+itself, caused by the production snapshot scheduler changing.
+
+    entry convention              verdict PASS   both-gates PASS
+    T-1h  (the first pull)            2/11             2
+    T-6h  (matches the warehouse)     5/11             5
+
+Three markets turned on one parameter -- more than the 30% extra data was worth.
+A one-hour line has absorbed five more hours of market information than a
+six-hour line, so edge measured against it is systematically smaller.
+
+D.2 THE MODEL IS WORSE THAN THE PRICE ON MOST MARKETS
+`price` -- the market's own de-vigged number recalibrated against itself and
+nothing else -- has a better log loss than the boosted model on 8 of 11 markets.
+The model wins on batter_hits and batter_rbis and essentially ties on two more.
+On the three game markets it is decisively worse.
+
+This is why `spreads` ships with the model removed entirely, and it is the
+single most important thing to understand about where the remaining edge is:
+it is in the player props, not in the game markets.
+
+D.3 A NOMINAL EDGE IS OVERSTATED BY 3 TO 18 PERCENTAGE POINTS
+Predicted versus realised edge, pooled over 11 markets on the SELECT half:
+
+    predicted bucket        n     predicted   realised    gap
+    0-1%               11,146       0.49%      -3.20%    3.69
+    3-5%               12,880       3.96%      -2.00%    5.96
+    10%+               21,144      19.61%      +1.95%   17.66
+
+This is the winner's curse: selecting on `ev > tau` selects the rows where the
+model's error is largest AND positive. A better probability model does not fix a
+selection problem.
+
+CONSEQUENCE: the EV filter works as a THRESHOLD that produces a profitable board
+on six markets. It does NOT work as a RANKING signal. A 10% predicted edge is
+not ten times better than a 1% one.
+
+D.4 LOG LOSS CANNOT SEE THE BOARD
+When the per-market override rule was first run without a board-size condition,
+it adopted four overrides and made the result worse. Overriding
+`pitcher_strikeouts` to `price` took its board from 2,407 rows to ONE.
+
+The mechanism is structural: a board is `evPerUnit > tau`, and EV is positive
+only where the model DISAGREES with the price. A member better calibrated to the
+price agrees with it more and produces a smaller board; `price` agrees exactly
+and produces almost none. Log loss scores every row; the gate scores only the
+selected ones.
+
+D.5 LINE SHOPPING IS LOAD-BEARING
+At the median book instead of the best number at that line, verdict units fall
+from 202.7 to 73.4 -- roughly two thirds of the profit. The headline assumes
+best-price execution.
+
+D.6 2026 IS FIVE TIMES LESS PROFITABLE THAN 2025
+    season  markets  board n   units   ROI %
+    2024      10       7,428   146.8    1.98
+    2025      10      11,237   353.8    3.15
+    2026       9       9,476    58.6    0.62
+
+Measured on 9,476 picks, not a handful. The decay is concentrated almost
+entirely in the game markets. The props hold up. This is the most important
+production finding in the programme and it is unexplained: it may be market
+sharpening, or the 2026 rows may be priced differently in ways the T-6h fix does
+not fully capture.
+
+D.7 OVER 90% OF WHAT THE CODE CALLED A "VOID" WAS A DATA HOLE
+`DID_NOT_PLAY` (no player-game row -- a true void) and `DATA_MISSING` (the row
+exists, the column is null -- a backfill hole) were conflated. Both are still
+dropped, because an outcome that was never recorded cannot be invented, but they
+are now counted separately, so a backfill gap can no longer hide inside a void
+count. This is what surfaced the twelve-month box-score hole.
+
+
+================================================================================
+PART E -- WHAT WAS TRIED AND REJECTED
+================================================================================
+Nine the experiments, each with a pre-registered acceptance criterion. Two
+adopted, six rejected, one carried as evidence. None was re-run with a changed
+criterion after its number existed.
+
+    E22   price anchor isolated from the EV floor      REJECT (all 3 criteria)
+    E23   calibrated edge in the board filter          REJECT (halves the board)
+    E23-M does a nominal x% edge pay x%?               EVIDENCE (D.3)
+    E24   gate-aligned per-market thresholds           REJECT (no arm beat the
+                                                       incumbent) -- and it
+                                                       established independently
+                                                       that four markets clear
+                                                       the gate on 0 of 3 cuts
+                                                       under every rule tested
+    E25a  data expansion at T-1h                       REJECT (confounded, D.1)
+    E25b  data expansion at T-6h                       ADOPT (both-gates 4 -> 5)
+    E26   per-market model family                      ADOPT, amended
+                                                       (both-gates 5 -> 6)
+    E32   volume guard on the side lever               REJECT (ties on passes)
+    E33   pair ensembles                               REJECT (6/11 -> 4/11)
+
+Model families built and scored but not adopted: three alternative gradient-
+boosting configurations, ExtraTrees, three logistic variants, a GLM with the
+price pinned as an offset, a post-hoc isotonic calibrator, handedness features
+and weather features.
+
+XGBoost, LightGBM, CatBoost and FLAML were NOT used and are not dependencies.
+They appear in two client-supplied testing guides that describe a DIFFERENT
+repository, which is not present in this handoff and could not be located
+anywhere. See AUDIT_COMPLETE.txt section 35.
+
+
+================================================================================
+PART F -- HOW THE CODE IS LAID OUT
+================================================================================
+
+project/betgenius/
+    harness/uplift/          <-- THE FINAL CONFIGURATION. Python.
+        frames.py            universe assembly, grading
+        features.py          every point-in-time feature (the largest file)
+        policy.py            the walk-forward members and board()
+        mlbgate.py           the Python port of the shipped gate maths
+        build_cache.py       candidates -> features -> walk-forward -> .pkl
+        run_final_model.py      THE FINAL CONFIGURATION RUNNER
+        final_matrix.py      the one authoritative client table
+        parity_audit.py      the production-parity check
+        robustness.py        the six-variant stress test
+        live_board.py     the current production board (written for the audit)
+        verify_gate.py       the gate's regression test / smoke test
+        exp_*.py             the experiments, all reported
+        *.ts                 the warehouse export and the API probes (Deno)
+        *.md                 the research record
+    harness/lib/             the Phase 1 TypeScript harness
+        metrics.ts           THE GATE
+        candidates.ts, grade.ts, oddsmath.ts, report.ts, ...
+    harness/run_backtest.ts  System B1 -- the shipped scorer, no refitting
+    supabase/functions/      the live product's edge functions
+        _shared/scoring_mlb_v2.ts   THE PRODUCTION SCORER (not used by the final configuration)
+    src/                     the React frontend
+    tests/                   vitest suites over the production scorer
+
+results/     the authoritative final outputs
+reports/     supporting evidence, inventories, run logs
+docs/        the full research record, unaltered
+configs/     requirements.txt, package.json, lockfiles
+
+
+================================================================================
+PART G -- THE HONEST BOTTOM LINE
+================================================================================
+Six of eleven MLB markets clear the product's own pass/fail gate on two separate
+windows -- the second of which was never looked at while any decision was made
+-- and five of those six survive a six-variant stress test designed to break
+them. The whole result reproduces bit-identically from the data and source in
+this package. No confirmed leakage was found by the implemented audit checks,
+and the placebo-lag profile is the shape a real form signal has rather than the
+shape a leak has.
+
+It is also a backtest. Its most recent season is five times less profitable than
+the one before it. Two thirds of its profit depends on getting the best price
+available at each line. One of its six passing markets is validated on a single
+season and is no longer offered by the books. Predicted edge is systematically
+overstated. No CLV measurement is possible from the available data. And not one
+pick has yet been observed in production, because the models are not deployed
+and there is no code path in this system that can score a game that has not been
+played.
+
+Treat it as a well-controlled research result that earns a small, monitored
+pilot on the prop markets -- not as a system ready to be switched on.

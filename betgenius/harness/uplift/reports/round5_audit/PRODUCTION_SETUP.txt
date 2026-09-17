@@ -1,0 +1,127 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- PRODUCTION SETUP (Round 5)
+================================================================================
+
+--------------------------------------------------------------------------------
+0. READ FIRST
+--------------------------------------------------------------------------------
+
+This pack contains a VALIDATION result. It does not ship a new scorer, and
+nothing in it is a change to production by itself.
+
+Cardinal rule 2 of this codebase stands: scoring / algorithm logic --
+especially supabase/functions/_shared/scoring_mlb_v2.ts -- and anything touching
+algorithm_weights is NOT changed without a plan and explicit approval.
+
+What this pack licenses is a decision about WHICH MARKETS ARE ELIGIBLE TO BE
+SHOWN, at what confidence floor, on what side. Nothing more.
+
+--------------------------------------------------------------------------------
+1. THE PRODUCTION CONTRACT THE BOARD MUST SATISFY
+--------------------------------------------------------------------------------
+
+Every row on a validated board must be a pick production would actually show.
+This is not assumed -- it is measured, row by row, by parity_audit.py, which
+hands every board row back to the SHIPPED predicates and counts what they reject.
+
+      parity_audit.py MUST print 0 rejected before any board is quoted.
+
+Two surfaces, and the distinction is the shipped one, not a choice made here:
+
+  PROP MARKETS (batter_*, pitcher_*)      graded on `ev_filtered`
+        The batter and pitcher write paths carry an evPerUnit, and production
+        shows a pick only when it is positive (isEvFilteredPick).
+
+  GAME MARKETS (h2h, spreads, totals)     graded on `ev_pass`
+        The game write path has no evPerUnit at all, so production shows a game
+        pick on confidence and the heavy-juice veto alone (isEvPassPick).
+        PHASE1_SCOPE.md s1b records this. Measuring a game board through an EV
+        filter it does not have in production would not be measuring the product.
+
+  CONFIDENCE FLOOR 60. isEvPassPick (harness/lib/metrics.ts:149) rejects
+        everything below it, and the D-164 heavy-juice veto has no branch that
+        fires below 60 -- so a lower floor adds exactly the picks the veto cannot
+        reach. The round-1 board at floor 55 had 36.3% of its rows unservable.
+
+--------------------------------------------------------------------------------
+2. LEVERS THAT ARE ALREADY PRODUCTION-LEGAL
+--------------------------------------------------------------------------------
+
+  MLB_EV_SIDE_POLICY     restricts a market to one side. Already shipped and
+                         already used per market.
+  Confidence tier        Dashboard.tsx renders 60 / 70 / 80 / 90, and its
+                         headline card counts picks at >= 65. A board at a
+                         higher floor is a strict SUBSET of the floor-60 board,
+                         so every row stays servable.
+  Market on/off          which markets are eligible at all.
+
+  A lever that only TIGHTENS produces a strict subset of the validated board and
+  cannot introduce an unservable row. A lever that LOOSENS can, and none is
+  recommended here.
+
+--------------------------------------------------------------------------------
+3. STANDING MARKET RULES (these override older port-plan documents)
+--------------------------------------------------------------------------------
+
+  * batter_hits and batter_total_bases stay live and NAMED on the board, both.
+  * batter_rbis stays OFF live, unders included, until a written GO.
+  * No scoring / GLM / weight edits.
+  * No deploy of process-games-mlb from phase1-mlb or the delivery branch --
+    those trees lack scoring_mlb_hits_model.ts and the deploy bundles the
+    working tree.
+  * Staging before production, always.
+
+--------------------------------------------------------------------------------
+4. WHAT TO DO WITH A MARKET AT EACH STATUS
+--------------------------------------------------------------------------------
+
+  PASS                      cleared BOTH gates. Eligible. The verdict-window
+                            number is the one to quote, not the full-OOS one.
+
+  PASS_WITH_RESTRICTIONS    cleared exactly one gate. NOT shown to have
+                            generalised. If it is run at all, run it small,
+                            named, and re-measure on live data before scaling.
+
+  VETO                      cleared neither, and its flat-bet ROI is below -12%.
+                            Off.
+
+  FAIL_AFTER_ITERATION      cleared neither. Off.
+
+--------------------------------------------------------------------------------
+5. THE HIGHEST-VALUE PRODUCTION FIX AVAILABLE
+--------------------------------------------------------------------------------
+
+Re-run the 2026-05-27/28 boxscore backfill WITH THE FULL COLUMN SET.
+
+That backfill populated a reduced set of columns, which left runs_scored and
+batter_strikeouts absent from cache_mlb_boxscore_player_stats for 2025-03 and
+then 2025-06 -> 2026-05. Because a candidate whose settled stat is null is
+dropped, the hole silently deletes the middle of two markets: batter_runs_scored
+covers 2,954 games and batter_strikeouts 1,439, against 5,393 for batter_hits.
+
+The odds for those dates already exist. Only the outcomes are missing. This is
+the single change that would most improve the evidence base, and it is a
+warehouse write, outside this pack's read-only scope.
+
+Second: START CAPTURING LINE MOVEMENT. The odds dumps hold one snapshot per
+(event, line) -- no open, no close, no per-book detail, no snapshot timestamp.
+CLV cannot be computed and price movement cannot be used as a feature. Capturing
+a second snapshot per event going forward would open both.
+
+Third: NORMALISE THE ENTRY-SNAPSHOT SCHEDULE. The warehouse takes its entry
+price ~6.01 h before first pitch in 2024-2025 but ~1.01 h in 2026. Round 4
+measured that this convention was worth three markets. A single documented
+convention going forward removes a whole class of ambiguity.
+
+--------------------------------------------------------------------------------
+6. WHAT THIS PACK DOES NOT CLAIM
+--------------------------------------------------------------------------------
+
+  * It does not claim the model beats the market in general. It has been
+    measured to have LESS skill than the price on 9 of 11 markets.
+  * It does not claim predicted edge is trustworthy as a size or ranking signal.
+    Measured: a 3-5% predicted edge pays -2.00%.
+  * It does not claim a PASS is a forecast. It is a statement about a historical
+    window under a fixed rule, with the confidence interval printed beside it.
+  * It does not claim 2026 behaves like 2024-2025. It measurably does not, and
+    the deterioration is concentrated in the game markets.

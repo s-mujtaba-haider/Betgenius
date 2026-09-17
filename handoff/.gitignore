@@ -1,0 +1,53 @@
+# BetGenius Final handoff -- .gitignore
+# If this handoff is committed to a repository, these must never enter it.
+
+# ---- secrets. NONE ship in this package; keep it that way. -------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+!prod-ca-2021.crt          # a PUBLIC CA certificate, not a private key
+
+# ---- dependencies ------------------------------------------------------------
+node_modules/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- generated model artefacts and caches ------------------------------------
+# The member cache is 939 MB and is a pure function of the shipped data plus the
+# shipped source. Rebuild it with build_cache.py; never commit it.
+harness/uplift/cache*/
+project/betgenius/harness/uplift/cache*/
+*.pkl
+
+# ---- generated reports -------------------------------------------------------
+# The AUTHORITATIVE final outputs live in results/ and reports/ and ARE
+# tracked. These are the working directories a re-run writes into.
+project/betgenius/harness/uplift/reports/
+project/betgenius/harness/out/
+
+# ---- build output ------------------------------------------------------------
+dist/
+build/
+.vite/
+coverage/
+
+# ---- IDE and OS junk ---------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- temporary ---------------------------------------------------------------
+*.tmp
+*.temp
+*.log.bak
+*.bak

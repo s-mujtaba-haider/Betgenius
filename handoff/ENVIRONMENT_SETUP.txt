@@ -1,0 +1,264 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- ENVIRONMENT SETUP
+================================================================================
+
+GOAL: get from this ZIP to a passing smoke test, then to a full reproduction of
+the 6/11 result, with no credentials and no network access.
+
+THE REFERENCE ENVIRONMENT -- what the shipped numbers were produced on:
+    OS              Windows 11 Pro (10.0.26200)
+    Python          3.14.6
+    numpy           2.4.6
+    pandas          3.0.3
+    scikit-learn    1.9.0
+    scipy           1.18.0
+    statsmodels     0.14.6
+    Deno            2.9.6  (TypeScript 6.0.3)
+    Node            24.20.0
+
+The pipeline is pure Python and runs on macOS and Linux equally well. Deno and
+Node are needed only for the warehouse export and the frontend app.
+
+
+================================================================================
+1. WINDOWS
+================================================================================
+
+1.1 PYTHON
+    Install 3.11 or newer (3.14.6 is the reference) from python.org or the
+    Microsoft Store. Tick "Add python.exe to PATH".
+
+    python --version
+
+1.2 CREATE AND ACTIVATE A VIRTUAL ENVIRONMENT
+    cd <extracted>\BetGenius_Client_Handoff_Final\project\betgenius
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+
+    If PowerShell refuses with an execution-policy error:
+        Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+1.3 INSTALL
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+1.4 SET THE THREE PATH VARIABLES (PowerShell)
+    $env:UPLIFT_DATA_DIR  = "$PWD\harness\uplift\data_expanded_6h"
+    $env:UPLIFT_CACHE_DIR = "$PWD\harness\uplift\cache_fam"
+    $env:UPLIFT_MEMBERS   = "rf,et,gbmB,gbmC,gbmD"
+
+    THESE ARE NOT OPTIONAL. Without UPLIFT_DATA_DIR the code looks for a dataset
+    that is not in this package.
+
+1.5 NODE AND DENO -- ONLY IF YOU WILL TOUCH THE APP OR RE-EXPORT THE WAREHOUSE
+    Node:  https://nodejs.org  (24.x)
+    Deno:  irm https://deno.land/install.ps1 | iex
+    $env:DENO_CERT = "$PWD\prod-ca-2021.crt"
+
+
+================================================================================
+2. macOS / LINUX
+================================================================================
+    cd <extracted>/BetGenius_Client_Handoff_Final/project/betgenius
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+
+    export UPLIFT_DATA_DIR="$PWD/harness/uplift/data_expanded_6h"
+    export UPLIFT_CACHE_DIR="$PWD/harness/uplift/cache_fam"
+    export UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD"
+
+    # only for the Deno scripts
+    curl -fsSL https://deno.land/install.sh | sh
+    export DENO_CERT="$PWD/prod-ca-2021.crt"
+
+
+================================================================================
+3. PYTHON DEPENDENCIES
+================================================================================
+From configs/requirements.txt (identical to project/betgenius/requirements.txt):
+
+    pandas       >= 3.0     # 3.0.3 -- pinned at 3.x; the date handling depends
+                            #          on pandas 3 semantics
+    numpy        >= 2.4     # 2.4.6
+    scikit-learn >= 1.9     # 1.9.0
+    scipy        >= 1.18    # 1.18.0
+    statsmodels  >= 0.14    # 0.14.6
+    openpyxl     >= 3.1     # 3.1.5 -- only build_workbook.py needs it
+
+NOTHING ELSE IS IMPORTED BY THE PIPELINE. In particular it does NOT need
+xgboost, lightgbm, catboost or flaml. The boosted member is scikit-learn's
+HistGradientBoostingClassifier. Do not install them for this handoff; they would
+change nothing.
+
+
+================================================================================
+4. NODE / DENO DEPENDENCIES -- OPTIONAL
+================================================================================
+    cd project/betgenius
+    npm ci            # uses configs/package-lock.json, also shipped in project/
+
+    npm run build     # lint:disclaimer + wiring checks + tsc -b + vite build
+    npm run test      # vitest, covers the production scorer
+
+Deno needs no install step -- the harness .ts files declare their own imports.
+It does need DENO_CERT pointed at the shipped prod-ca-2021.crt.
+
+
+================================================================================
+5. GIT
+================================================================================
+Not required. This handoff is a file tree, not a repository, and contains no
+.git directory by design.
+
+
+================================================================================
+6. DOCKER
+================================================================================
+Not used anywhere in this project. There is no Dockerfile and no container
+image. Everything runs directly on the host.
+
+
+================================================================================
+7. DATABASE
+================================================================================
+NOT REQUIRED to reproduce the result. The data snapshot ships with this package.
+
+It is required only to regenerate data from source, and then only for SELECT:
+    HARNESS_DATABASE_URL   a `harness_readonly` Postgres role
+                           (SELECT only, connection limit 10)
+
+HARD RULE: never run two harness processes at once -- the role's connection
+limit is 10 and the sweep scripts sequence markets for this reason.
+
+
+================================================================================
+8. API ACCESS
+================================================================================
+NOT REQUIRED to reproduce the result.
+
+Required only to pull new odds:
+    ODDS_API_KEY   The Odds API. The project's plan is 100,000 credits/month.
+                   The final configuration expansion cost ~331,675 credits in total.
+                   The resulting CSVs are shipped, so you do not need to repeat
+                   it.
+
+`python harness/uplift/ingest_expand.py --plan --group=A,B,C` prices a pull
+before making it. Always run --plan first.
+
+
+================================================================================
+9. ENVIRONMENT VARIABLES -- SUMMARY
+================================================================================
+
+NEEDED TO REPRODUCE THE SHIPPED RESULT
+    UPLIFT_DATA_DIR      -> project/betgenius/harness/uplift/data_expanded_6h
+    UPLIFT_CACHE_DIR     -> project/betgenius/harness/uplift/cache_fam
+    UPLIFT_MEMBERS       -> rf,et,gbmB,gbmC,gbmD   (cache build only)
+
+NEEDED ONLY TO REGENERATE DATA
+    HARNESS_DATABASE_URL, ODDS_API_KEY, DENO_CERT
+
+NOT NEEDED BY THIS PIPELINE AT ALL
+    every VITE_*, SUPABASE_*, STRIPE_*, TWILIO_*, GEMINI_*, ANTHROPIC_* and
+    SENTRY_* variable. Those belong to the live product.
+
+Full annotated list: .env.example
+
+NO POPULATED .env SHIPS IN THIS PACKAGE, deliberately. See the security note at
+the end of .env.example.
+
+
+================================================================================
+10. SMOKE TEST -- RUN THIS FIRST
+================================================================================
+
+    python harness/uplift/verify_gate.py
+
+EXPECTED OUTPUT (an exact reproduction of two shipped harness reports through
+the Python gate port, including the bootstrap confidence interval):
+
+                               report market   slice  pubN  myN     pubRoi      myRoi      pubCiLo       myCiLo  pubPass myVerdict match
+    h2h_2026-04-25_to_2026-05-24.json    h2h ev_pass   263  263  10.353020  10.353020    -1.164874    -1.164874    False      FAIL    OK
+    h2h_2026-05-18_to_2026-05-19.json    h2h ev_pass     4    4  -8.600427  -8.600427  -100.000000  -100.000000    False      FAIL    OK
+
+    2 shipped reports replayed, 0 mismatches
+
+    Runtime      under a minute
+    Needs        nothing but Python and the packaged files
+    PASS means   the gate implementation in this package computes the same
+                 verdict and the same confidence interval as the shipped
+                 TypeScript did.
+    FAIL means   stop. Do not trust any downstream number until it is resolved.
+
+
+================================================================================
+11. SECOND SMOKE TEST -- THE BOARD, WITHOUT A CACHE REBUILD
+================================================================================
+This one needs the member cache, so run it after section 12.
+
+    python harness/uplift/parity_audit.py --tag=_v1
+
+EXPECTED:
+    board rows 28,141   rejected by the shipped predicates 0   (0.000%)
+    PARITY HOLDS
+
+
+================================================================================
+12. FULL REPRODUCTION
+================================================================================
+    python harness/uplift/build_cache.py                          # ~90 min
+    python harness/uplift/run_final_model.py --conf=60 --tag=_v1  # ~5 min
+    python harness/uplift/parity_audit.py --tag=_v1            # ~5 min
+    python harness/uplift/live_board.py --tag=_v1 --windows=1,7,30
+    python harness/uplift/season_analysis.py --tag=_v1
+
+EXPECTED FROM run_final_model.py:
+    global filter chosen on the SELECT halves: spec=gbm  EV floor=0.02
+        confidence floor=60  ladder collapse=maxEv
+    per-market member overrides adopted on SELECT (of 11 markets): 2
+        spreads              -> price
+        batter_total_bases   -> rf
+    PASS on the untouched VERDICT window : 6 / 11
+    PASS on the full out-of-sample period: 7 / 11
+    PASS on BOTH gates                   : 6 / 11
+    units on the verdict window: 202.7   |   units full OOS: 559.3
+
+Then compare:
+    diff harness/uplift/reports/final_v1.csv ../../results/final_v1.csv
+
+On a matching environment this is byte-identical. On a different CPU, BLAS build
+or library version, expect agreement well inside a basis point but not an
+identical hash -- scikit-learn floating point is not guaranteed portable. Every
+shipped file's sha256 is in reports/reproducibility.txt.
+
+
+================================================================================
+13. DISK, MEMORY AND TIME
+================================================================================
+    Extracted package        ~340 MB (329 MB of it is the data snapshot)
+    Member cache once built  ~940 MB
+    Total working space      ~1.5 GB
+    Peak RAM                 comfortably under 8 GB; the largest single market
+                             is 120,269 rows x 47 features
+    Cache build              ~90 minutes, single-threaded
+    Main run                 ~5 minutes from a warm cache
+    Live board               ~10 minutes
+    Full robustness suite    several hours (it rebuilds a cache per variant)
+
+Everything is CPU-only and single-threaded by design -- `n_jobs=1` is set
+explicitly on the forests so a re-run is stable.
+
+
+================================================================================
+14. IF SOMETHING GOES WRONG
+================================================================================
+PRODUCTION_SETUP.txt section 14 is the troubleshooting table. The three most
+common problems:
+
+    ~413k graded rows instead of ~530k   UPLIFT_DATA_DIR is unset.
+    "not in cache: <markets>"            UPLIFT_CACHE_DIR is wrong, or the cache
+                                         has not been built yet.
+    overrides missing / `rf` absent      the cache was built without
+                                         UPLIFT_MEMBERS.

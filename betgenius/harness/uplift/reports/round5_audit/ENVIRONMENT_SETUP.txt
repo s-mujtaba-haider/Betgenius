@@ -1,0 +1,99 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- ENVIRONMENT SETUP (Round 5)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. WHAT WAS ACTUALLY USED
+--------------------------------------------------------------------------------
+
+  OS            Windows 11 Pro 10.0.26200
+  CPU           AMD Ryzen 7 7700, 8 cores / 16 logical
+  RAM           15.1 GB
+  Python        3.14.6 (Anaconda)
+  Deno          required only for the data dumps, not for the analysis
+
+  numpy         2.4.6
+  pandas        3.0.3
+  scikit-learn  1.9.0
+  scipy         1.18.0
+  statsmodels   0.14.6
+  xgboost       3.4.1     <- ADDED IN ROUND 5
+  lightgbm      4.7.0     <- ADDED IN ROUND 5
+
+  NOT INSTALLED: catboost, flaml. See MODEL_DOCUMENTATION.txt section 6 for why
+  each was declined rather than skipped silently.
+
+--------------------------------------------------------------------------------
+2. INSTALL
+--------------------------------------------------------------------------------
+
+  cd betgenius
+  python -m venv .venv
+  # Windows:  .venv\Scripts\Activate.ps1
+  # macOS/Linux:  source .venv/bin/activate
+  pip install -r requirements.txt
+  pip install xgboost lightgbm        # round-5 members only
+
+  Without xgboost and lightgbm the round-5 members `xgb` and `lgbm` cannot be
+  built. Everything else, including the round-2 and round-4 results, runs
+  without them.
+
+--------------------------------------------------------------------------------
+3. CREDENTIALS
+--------------------------------------------------------------------------------
+
+  betgenius/harness/.env, NEVER committed:
+
+      HARNESS_DATABASE_URL=postgresql://harness_readonly...   # SELECT only
+      ODDS_API_KEY=...                                        # historical endpoint
+
+  The harness_readonly Postgres role has a CONNECTION LIMIT OF 10. Never run two
+  data-dump processes at the same time.
+
+  No credential is required to reproduce any RESULT in this pack: the dumps and
+  the member caches are on disk, and every analysis script is offline.
+
+--------------------------------------------------------------------------------
+4. ENVIRONMENT SWITCHES
+--------------------------------------------------------------------------------
+
+  All three default to the previous behaviour, so an unset environment
+  reproduces the earlier rounds exactly.
+
+  UPLIFT_DATA_DIR    which dataset to read.
+                     unset          -> harness/uplift/data/           (round 2)
+                     data_expanded_6h -> the T-6h corrected set       (rounds 4, 5)
+
+  UPLIFT_CACHE_DIR   where member probabilities are cached.
+                     unset      -> harness/uplift/cache/    (round 2, `_c60`)
+                     cache_fam  -> round 4
+                     cache_r5   -> round 5
+
+  UPLIFT_MEMBERS     extra ensemble members to build, comma-separated, on top of
+                     the shipped six.
+                     round 4: rf,et,gbmB,gbmC,gbmD
+                     round 5: rf,et,gbmB,gbmC,gbmD,xgb,lgbm,nb,poi,gbmW,gbmR
+
+--------------------------------------------------------------------------------
+5. RESOURCE NOTES
+--------------------------------------------------------------------------------
+
+  * data/ and cache/ are git-ignored: a few hundred megabytes each, rebuildable.
+  * A full round-5 member cache is ~1 GB per dataset variant.
+  * Building the round-5 cache for all 11 markets takes roughly 5 CPU-hours.
+    It parallelises cleanly across markets -- round 5 ran it as three concurrent
+    processes partitioned by row count, which cut wall time to about 1.8 hours
+    on the machine above. Each process peaks around 2 GB of RSS, so three is a
+    safe maximum at 15 GB of RAM.
+  * The analysis scripts that READ the cache run in seconds to minutes.
+
+--------------------------------------------------------------------------------
+6. NETWORK
+--------------------------------------------------------------------------------
+
+  Reachable from the build machine:  api.the-odds-api.com, the Supabase pooler.
+  NOT reachable:                     statsapi.mlb.com, baseballsavant.mlb.com.
+
+  So MLB box-score data cannot be refetched from this machine; it comes from the
+  warehouse dump only. This is the reason the twelve-month box-score hole
+  (DATA_DOCUMENTATION.txt section 5a) cannot be repaired from here.

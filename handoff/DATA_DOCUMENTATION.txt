@@ -1,0 +1,473 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- DATA DOCUMENTATION
+================================================================================
+All figures verified directly from the shipped files on 2026-09-17.
+
+
+================================================================================
+1. SOURCES
+================================================================================
+
+SOURCE                                  PROVIDES                    REACHABLE
+--------------------------------------  --------------------------  ----------
+Supabase `cache_mlb_historical_odds`    the priced universe.          YES
+                                        18,652,650 rows, 7,440
+                                        events, 11 market keys,
+                                        2023-05-03 -> 2026-05-24
+Supabase `cache_mlb_boxscore_player_    outcomes. 322,730 rows,       YES
+  stats`                                2024-04-01 -> 2026-09-17
+Supabase `cache_mlb_historical_events`  the event list, 8,678 rows,   YES
+                                        -> 2026-06-25
+The Odds API (historical endpoints)     the 2026-06 -> 2026-09        YES (paid)
+                                        expansion, 2,111 events
+statsapi.mlb.com                        official box scores            NO
+baseballsavant.mlb.com                  Statcast                       NO
+
+The two unreachable sources were verified unreachable by `curl` (HTTP 000), not
+assumed. They are why the twelve-month box-score hole cannot be repaired locally.
+
+TWO FINDINGS AN OPERATOR MUST KNOW
+  * THE WAREHOUSE ODDS TABLE STOPPED ON 2026-05-24 while box scores are current
+    to 2026-09-17. Every 2026-06 -> 2026-09 price in this project came from the
+    Odds API pull, not from the warehouse. Fixing the odds capture pipeline is
+    the first operational task for anyone running this system forward.
+  * 2023 odds EXIST in the warehouse (from 2023-05-03) but cannot be used: box
+    scores start 2024-04-01, and odds without an outcome cannot be graded. The
+    2023 season is dead from either source.
+
+
+================================================================================
+2. SCHEMA
+================================================================================
+
+2.1 ODDS CSV -- one row per (event, market, line)
+    eventId             provider event id
+    game_pk             MLB game id, resolved via the event bridge
+    commenceTime        event start, UTC
+    home_team, away_team
+    player_name         prop markets only
+    market, line
+    imp_over_best, imp_under_best    best implied probability at that line
+    imp_over_med,  imp_under_med     median implied probability across books
+    p_fair_over         de-vigged fair probability for the over / home side
+    n_books, n_twoway   how many books quoted it, and how many quoted both sides
+
+2.2 BOX SCORE CSV -- one row per (player, game)
+    game_pk, game_date (LOCAL calendar date, stored and read as TEXT)
+    player_id, player_name, team_id
+    hits, total_bases, home_runs, rbi, runs_scored, batter_strikeouts
+    strikeouts (pitcher), innings_pitched, pitcher_runs, outs
+    plus lineup slot, start flags and the columns the features roll up
+
+    `outs_derived` is computed at load time from `innings_pitched`, the decimal
+    shorthand where 5.1 means five and one third:
+        outs_derived = floor(ip)*3 + round((ip - floor(ip)) * 3)
+    The stored `outs` column agrees wherever both exist but is null for most of
+    2025, so outs is derived from IP everywhere -- consistently, not selectively.
+
+2.3 AUXILIARY TABLES (built, measured, NOT in the shipped feature set)
+    aux_events.csv, aux_opposing_pitcher.csv, aux_player_metadata.csv,
+    aux_weather.csv. Handedness and weather features were measured
+    (reports/featureset_hands.csv, exp_hands_logloss.csv) and were inside the
+    noise band, so they are not used by any shipped model.
+
+2.4 THE MEMBER CACHE (.pkl, NOT shipped -- regenerable)
+    market, frame (identifiers + line + odds + outcome), probs (one array per
+    member), cols (the feature list), candidates, graded, events, fromDate,
+    toDate.
+
+
+================================================================================
+3. COVERAGE
+================================================================================
+
+3.1 BOX SCORES -- verified directly from boxscores.csv
+    distinct games       5,914
+    player-game rows   321,890
+    distinct players     4,419
+    span             2024-04-01 -> 2026-09-16
+
+    season   games    rows
+    2024     1,587    82,284
+    2025     2,011   105,614
+    2026     2,316   133,992
+
+3.2 THE SHIPPED THE FINAL CONFIGURATION UNIVERSE (T-6h)
+    priced candidates    530,193
+    pushes                   498
+    graded candidates    529,695
+    games with box scores  5,914
+    games with odds        5,428
+    games used by model    5,421
+    games unused             493
+
+    model universe   2024  217,693
+                     2025  177,066
+                     2026  134,936
+
+3.3 MARKET COUNTS (reports/inventory_exp6.csv)
+
+    MARKET              PRICED   GRADED  GAMES  FROM        TO          2024    2025    2026
+    batter_hits        120,269  120,269  5,393  2024-04-01  2026-09-16  47,922  39,187  33,160
+    batter_rbis         96,439   96,439  5,409  2024-04-01  2026-09-16  28,510  36,823  31,106
+    totals               8,653    8,299  5,287  2024-04-01  2026-09-16   2,635   3,121   2,543
+    spreads              7,489    7,457  5,392  2024-04-01  2026-09-16   2,395   2,807   2,255
+    batter_total_bases 116,642  116,642  5,394  2024-04-01  2026-09-16  37,969  42,601  36,072
+    batter_home_runs    59,338   59,338  3,459  2024-04-01  2026-06-19  28,187  28,826   2,325
+    pitcher_strikeouts  24,291   24,291  4,858  2024-04-01  2026-09-16   7,000  10,255   7,036
+    h2h                  5,956    5,956  5,391  2024-04-01  2026-09-16   1,833   2,289   1,834
+    batter_runs_scored  53,348   53,348  2,954  2024-04-01  2026-09-16  30,986   7,617  14,745
+    pitcher_outs         9,933    9,821  4,383  2024-04-02  2026-09-16   2,433   3,540   3,848
+    batter_strikeouts   27,835   27,835  1,439  2024-04-01  2026-07-17  27,823       0      12
+
+3.4 CORRECTION TO A PRIOR DOCUMENT
+`docs/VALIDATION_REPORT.md` section 1.4 quotes 535,961 graded rows, 177,773 in
+2025, 140,495 in 2026, 5,397 games used and 517 unused. Those are the T-1h
+expansion's figures (reports/inventory_exp.csv), not the T-6h dataset the
+shipped table was produced from. The correct figures are in 3.2 above and in
+reports/inventory_exp6.csv. No result is affected -- every result was computed
+from the T-6h cache.
+
+Figures of 413,253 priced / 412,886 graded / 217,693-169,449-25,744 that appear
+in older briefs are the PRE-EXPANSION dataset (reports/inventory_base.csv) and
+are correct for the earlier baseline.
+
+
+================================================================================
+4. THE DROP FUNNEL
+================================================================================
+
+    MARKET              rawOdds  matched  twoSided  idResolved  DNP    dataMissing  graded
+    batter_hits         342,353  311,010   134,269     132,823  1,136      11,418  120,269
+    batter_rbis         205,057  184,957   107,627     106,500    878       9,183   96,439
+    totals                9,444    8,653     8,653       8,653      0           0    8,299
+    spreads               8,145    7,489     7,489       7,489      0           0    7,457
+    batter_total_bases  573,608  517,148   130,620     129,302  1,109      11,551  116,642
+    batter_home_runs    314,096  284,934    66,383      65,675    589       5,748   59,338
+    pitcher_strikeouts   40,997   38,040    31,179      30,659    384       5,984   24,291
+    h2h                   6,502    5,956     5,956       5,956      0           0    5,956
+    batter_runs_scored  165,034  142,991    76,297      75,489    390      21,751   53,348
+    pitcher_outs         14,067   13,264    12,469      12,241    127       2,181    9,821
+    batter_strikeouts    44,686   38,806    38,805      38,407    133      10,439   27,835
+
+STAGE BY STAGE
+    rawOdds -> matched       the event must resolve to a game_pk that exists in
+                             the box score
+    matched -> twoSided      BOTH sides must have been quoted. Without the other
+                             side there is no de-vigged price and no second side
+                             to bet. On total_bases this removes 75% of rows,
+                             because the alternate ladder is quoted one-sided at
+                             most lines. This is structural, not a defect.
+    twoSided -> idResolved   the player name must resolve to exactly ONE
+                             player_id globally. Ambiguous names are DROPPED,
+                             never guessed -- a wrong id silently grades one
+                             player with another's line.
+    idResolved -> graded     the settled stat must exist
+
+DID_NOT_PLAY vs DATA_MISSING -- A DISTINCTION THAT MATTERS
+Before the final configuration these were conflated and both were called a "void".
+    DID_NOT_PLAY   no player-game row exists. The book voids the prop. A true
+                   void, correctly dropped.
+    DATA_MISSING   the row EXISTS but the column is null. That is a hole in the
+                   warehouse backfill, not a void, and calling it one silently
+                   deletes real games.
+
+OVER 90% OF WHAT THE OLD CODE CALLED A VOID IS A DATA HOLE. Both are still
+dropped -- an outcome that was never recorded cannot be invented -- but they are
+now counted separately, so a backfill gap can no longer hide inside a void
+count. The graded set is unchanged by construction.
+
+
+================================================================================
+5. MISSING DATA AND KNOWN DEFECTS
+================================================================================
+
+5.1 THE TWELVE-MONTH BOX-SCORE HOLE
+`runs_scored` and `batter_strikeouts` are 0% NON-NULL for 2025-06 -> 2026-05.
+Consequences:
+    * batter_runs_scored covers 2,954 games against batter_hits' 5,393, and its
+      2025 count collapses to 7,617 rows against 2024's 30,986.
+    * batter_strikeouts is effectively 2024-only: 27,823 of its 27,835 rows are
+      2024. ITS VERDICT WINDOW CONTAINS ONLY 2024 ROWS, and its PASS says
+      nothing about 2025-2026 behaviour.
+Repair requires a warehouse backfill re-run with the full column set. It is
+data-ops, not data science, and statsapi.mlb.com is unreachable from here.
+
+5.2 MARKETS THE BOOKS STOPPED OFFERING
+    batter_home_runs   last priced 2026-06-19
+    batter_strikeouts  last priced 2026-07-17 (probed and confirmed: 0 outcomes
+                       returned on every sampled 2026 event)
+Neither produces a single board row on any recent window.
+
+5.3 THE EVENT BRIDGE -- 0.87% KNOWN-WRONG
+`cache_mlb_historical_events` runs only to 2026-06, and for 2026 games the
+warehouse never priced it stores a synthetic `mlb_<game_pk>` id the provider
+rejects with HTTP 422. Past that point the bridge is rebuilt from team names
+plus the UTC game date and was VALIDATED BEFORE USE:
+
+    events with ground-truth game_pk           5,726
+    resolved by the rebuilt bridge             5,384  (94.0%)
+    of those, correct                          5,337  (99.13%)
+    restricted to 2026-06, the adjacent tail   248/248 correct, 0 wrong
+
+An earlier version derived a US LOCAL date by shifting back eight hours;
+measured against the same ground truth it resolved 550 events to the WRONG GAME.
+The measurement caught it. The shipped rule uses the UTC date, because that is
+what `game_date` empirically equals in 5,648 of 5,726 cases.
+
+0.87% of bridged events are known-wrong and are carried. It is small, quantified,
+and not zero.
+
+5.4 DOUBLEHEADERS
+313 doubleheaders in the 2026-06 -> 2026-09 pull were DROPPED, not guessed: two
+games share a team pair and a date and nothing in the provider's event
+distinguishes them.
+
+5.5 THE ENTRY-LEAD SPLIT INSIDE THE SHIPPED DATASET
+2026 warehouse rows sit at their native ~1.01 h lead; 2026 API rows sit at 6 h.
+The project carries this rather than overwriting authoritative warehouse values.
+It is a known inconsistency and one plausible contributor to the 2026
+degradation. See section 6.
+
+
+================================================================================
+6. TIMESTAMPS AND THE ENTRY-TIME CONVENTION
+================================================================================
+
+6.1 SEMANTICS
+    commence_time        event start, UTC, from the provider
+    snapshot_timestamp   when the price was OBSERVED -- a real observation time,
+                         not a proxy and not a settlement time
+    entry price          the price at the EARLIEST snapshot strictly before
+                         commence_time, at the configured lead
+    game_date            LOCAL calendar date, stored and READ AS TEXT
+    feature as-of cut    strictly an EARLIER local calendar date than the game
+
+6.2 WHY game_date IS READ AS TEXT
+Read as a timestamp it arrives shifted by the client timezone, which moves a
+late start across midnight and lets an as-of join match a game to its own box
+score. That defect produced a fake edge in this project once already. It is
+rule 1 of the three stated at the top of frames.py.
+
+6.3 THE CONVENTION BREAK -- MEASURED, NOT ASSUMED
+`probe_entry_lead.ts` measures min(snapshot_timestamp) strictly before commence,
+which is exactly the row dump_odds.ts selects:
+
+    2024-03 -> 2025-10      6.01 hours before first pitch
+    2026-04 -> 2026-05      1.01 hours
+
+The WAREHOUSE ITSELF contains a convention break at the 2026 boundary. It was
+not introduced by any ingest; the production snapshot scheduler changed.
+
+6.4 WHAT IT WAS WORTH
+    entry convention              verdict PASS   both-gates PASS
+    T-1h  (the first pull)            2/11             2
+    T-6h  (matches the warehouse)     5/11             5
+
+THREE MARKETS TURNED ON ONE PARAMETER -- more than the 30% extra data was worth.
+All 2,111 events were re-pulled at lead=6h and the served lead verified at a
+6.01 h median. That dataset, `data_expanded_6h/`, is what the final configuration runs on.
+
+6.5 THE OPERATIONAL CONSEQUENCE
+Whatever lead production prices at, the backtest must match it. A system pricing
+at 1 h sees a sharper line and a smaller measurable edge. This is production
+recommendation 2 and it is not optional.
+
+
+================================================================================
+7. PRICE CONVENTION
+================================================================================
+
+`price="best"` takes the BEST number quoted at that line at the entry snapshot.
+This is the shipped convention, not a research choice:
+`supabase/functions/_shared/best_price.ts selectBestSameLineBook` is what the
+production write path and `harness/lib/game_candidates.ts` both use.
+
+`price="median"` bets the median book instead and is reported as the
+no-line-shopping sensitivity (robustness variant 5).
+
+LINE SHOPPING IS LOAD-BEARING: at the median book the verdict units fall from
+202.7 to 73.4 -- roughly two thirds of the profit. Anyone assuming the edge
+survives worse execution should read that number first.
+
+De-vigging is proportional: p_fair_over = imp_over / (imp_over + imp_under),
+matching `harness/lib/oddsmath.ts noVigProb`.
+
+
+================================================================================
+8. OUTCOME GRADING
+================================================================================
+
+PROP MARKETS -- from the box score at (player_id, game_pk)
+    batter_hits         -> hits              batter_rbis        -> rbi
+    batter_total_bases  -> total_bases       batter_runs_scored -> runs_scored
+    batter_home_runs    -> home_runs         batter_strikeouts  -> batter_strikeouts
+    pitcher_strikeouts  -> strikeouts        pitcher_outs       -> outs_derived
+
+    overHit = NaN            if actual == line   (a push)
+    overHit = actual > line  otherwise
+
+GAME MARKETS -- team runs come from the OPPOSING staff's charged runs (a team's
+pitchers' runs sum to what the other side scored). That column is populated for
+every game in the table where the batters' own runs_scored column is not.
+    totals   overHit = (home + away) > line, NaN on an exact push
+    h2h      overHit = home margin > 0        ("over" = home)
+    spreads  overHit = (margin + line) > 0, NaN on an exact push
+             (line is the HOME number)
+
+Pushes (498 rows) are excluded from grading, matching the shipped
+computeTierMetrics graded slice.
+
+NOTHING from the game being bet is read except the settled stat itself, and that
+only to grade.
+
+
+================================================================================
+9. WHAT IS PACKAGED, AND WHAT IS NOT
+================================================================================
+
+9.1 INCLUDED -- REQUIRED FOR REPRODUCTION
+    project/betgenius/harness/uplift/data_expanded_6h/
+        25 files, 344,635,080 bytes (329 MB)
+        boxscores.csv plus 24 odds CSVs (warehouse export and Odds API pull)
+        Every file's sha256 is in reports/reproducibility.txt.
+
+    THIS IS THE COMPLETE INPUT SET. With it you can rebuild the member cache and
+    reproduce the entire final result WITH NO NETWORK ACCESS AND NO API
+    CREDITS.
+
+9.2 INCLUDED -- DOCUMENTATION AND RESULTS
+    results/   the authoritative final outputs (101 KB)
+    reports/   supporting evidence, inventories and run logs (357 KB)
+    docs/      the full research record, unaltered (316 KB)
+
+9.3 EXCLUDED BY SIZE -- WITH REGENERATION INSTRUCTIONS
+
+    FILE            harness/uplift/cache_fam/   (the member cache)
+    SIZE            939 MB, 66 .pkl files
+    PURPOSE         pre-computed walk-forward member probabilities. Everything
+                    downstream reads it, so the expensive half of the pipeline
+                    runs once.
+    WHY EXCLUDED    it is a pure function of the shipped data plus the shipped
+                    source, and it is nearly three times the size of everything
+                    else combined.
+    HOW TO REGEN    from project/betgenius/ with UPLIFT_DATA_DIR and
+                    UPLIFT_CACHE_DIR set and UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD":
+                        python harness/uplift/build_cache.py
+    TIME            ~90 minutes on the reference machine (Python 3.14,
+                    single-threaded)
+    API REQUIRED    NONE
+    COST            zero
+
+    FILE            harness/uplift/data/  and  data_expanded/
+    SIZE            518 MB and 330 MB
+    PURPOSE         the PRE-expansion dataset (the earlier baseline's inputs) and the T-1h
+                    expansion that was superseded.
+    WHY EXCLUDED    neither produced any final number. data_expanded/ is the
+                    rejected T-1h pull.
+    HOW TO REGEN    data/: re-run the warehouse export
+                        deno run --no-check --allow-net --allow-env --allow-read
+                          --allow-write harness/uplift/dump_odds.ts
+                        (plus dump_box.ts, dump_events.ts)
+                    data_expanded/: re-run ingest_expand.py at --lead=1. There is
+                    no reason to.
+    API REQUIRED    warehouse credentials for data/; Odds API credits for the
+                    T-1h pull
+    COST            data/ is free (SELECT only). The T-1h pull cost ~165k credits
+                    and is not worth repeating.
+
+    FILE            harness/uplift/cache, cache_v1, cache_v2, cache_h,
+                    cache_repro, cache_expanded, cache_expanded_6h
+    SIZE            ~1.6 GB combined
+    PURPOSE         member caches for earlier stages and the intermediate
+                    expansions.
+    WHY EXCLUDED    superseded; none produced a final number.
+    HOW TO REGEN    build_cache.py with the matching UPLIFT_DATA_DIR and
+                    UPLIFT_CACHE_DIR.
+
+    FILE            node_modules/
+    SIZE            large
+    WHY EXCLUDED    standard practice; package.json and package-lock.json ship
+                    in configs/ and in project/.
+    HOW TO REGEN    npm ci
+
+    FILE            three PDFs in the source tree, plus a text dump of one
+    SIZE            161 KB / 856 KB / 6 KB
+    WHY EXCLUDED    Two are unrelated non-project material. The third
+                    (`betgenius/betgenius.pdf`, 161 KB) appears to be a product
+                    document, but its text could not be extracted in the audit
+                    environment, so its contents could not be checked for
+                    personal or confidential material before packaging. It was
+                    excluded rather than shipped unverified.
+    HOW TO OBTAIN   it is unchanged in the source repository at
+                    betgenius/betgenius.pdf; copy it in directly if wanted.
+    IMPACT          none on any result. No code reads any of them.
+
+9.4 THE ODDS API EXPANSION -- WHAT IT COST, FOR BUDGETING
+    group   window                    markets  events   credits
+    A       2026-06-01 -> 2026-09-17     11     1,068    ~117,000
+    B       2026-03-01 -> 2026-06-01     11       484     ~46,000
+    C       2025-04-01 -> 2025-06-01      2       559     ~15,000
+    total, at T-6h                              2,111
+
+    Total credits spent across the programme, including the superseded T-1h pull
+    that was kept for the comparison it made possible: 331,675.
+    Balance at audit time: 355,792 remaining (100k/month plan).
+
+    YOU DO NOT NEED TO SPEND ANY OF THIS. The resulting CSVs are shipped.
+
+
+================================================================================
+10. DATA REGENERATION -- THE FULL CHAIN
+================================================================================
+From project/betgenius/. PowerShell users: `$env:X = "..."` instead of `export`.
+
+    export DENO_CERT="$PWD/prod-ca-2021.crt"
+
+    # 1. establish what exists before spending anything
+    python harness/uplift/probe_api_coverage.py
+    deno run --no-check --allow-net --allow-env --allow-read harness/uplift/probe_warehouse.ts
+    deno run --no-check --allow-net --allow-env --allow-read harness/uplift/probe_entry_lead.ts
+
+    # 2. the warehouse export (SELECT only, free)
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_odds.ts
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_box.ts
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_events.ts
+
+    # 3. the Odds API expansion -- COSTS CREDITS. --plan first, always.
+    python harness/uplift/ingest_expand.py --plan --group=A,B,C
+    python harness/uplift/ingest_expand.py --run  --group=A,B,C --lead=6 --suffix=6h
+
+    # 4. assemble. data/ is never written to.
+    export UPLIFT_DATA_DIR="$PWD/harness/uplift/data_expanded_6h"
+    python harness/uplift/build_expanded_data.py --pattern="apix6h_*.jsonl" --out="$UPLIFT_DATA_DIR"
+    python harness/uplift/inventory_expanded.py --tag=exp6
+
+    # 5. the member cache
+    export UPLIFT_CACHE_DIR="$PWD/harness/uplift/cache_fam"
+    export UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD"
+    python harness/uplift/build_cache.py
+
+STEPS 1-4 ARE UNNECESSARY IF YOU USE THE SHIPPED SNAPSHOT. Start at step 5.
+
+SAFETY RULES CARRIED FROM THE PROJECT
+  * The harness DB role is `harness_readonly`: SELECT only, connection limit 10.
+    NEVER run two harness processes at once.
+  * `data/` is never written to by any ingest, which is why the earlier baseline result
+    still reproduces bit-identically from the original inputs.
+  * `ingest_expand.py --plan` prices a pull before it is made. Use it.
+
+
+================================================================================
+11. LIMITATIONS -- SUMMARY
+================================================================================
+ 1. The warehouse odds table stops at 2026-05-24; box scores are current.
+ 2. A twelve-month box-score hole (2025-06 -> 2026-05) cripples two markets.
+ 3. batter_strikeouts is effectively 2024-only and is no longer offered.
+ 4. batter_home_runs stops at 2026-06-19.
+ 5. 0.87% of bridged events resolve to the wrong game.
+ 6. 313 doubleheaders were dropped rather than guessed.
+ 7. 2026 warehouse rows and 2026 API rows sit at different entry leads.
+ 8. 2023 odds exist but cannot be graded -- box scores start 2024-04-01.
+ 9. Only ~2 price snapshots per event, so CLV cannot be reconstructed.
+10. Statcast starts 2026-05-20 -- too young to use.

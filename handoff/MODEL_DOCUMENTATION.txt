@@ -1,0 +1,471 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- MODEL DOCUMENTATION
+================================================================================
+Every statement here was verified against the source at commit 2629293 and
+against the shipped member cache. Nothing is inferred from prose.
+
+
+================================================================================
+1. THE SHIPPED PRODUCTION TABLE
+================================================================================
+
+MARKET              MODEL  FEATURES  TRAINING            CALIBRATION   POLICY                CONF  USED IN PROD
+batter_hits         gbm       47     expanding walk-     none (the     under, EV>0.02,        60   NO (research
+                                     forward, 40 refit   estimator is  ev_filtered                  only -- see 6)
+                                     blocks, 25% warm-up is the
+batter_rbis         gbm       47     same                calibrator)   under, EV>0.02         60   NO
+totals              gbm       53     same                same          under, ev_pass         60   NO
+spreads             price     53*    same                same          both, ev_pass          60   NO
+batter_total_bases  rf        47     same                same          under, EV>0.02         60   NO
+batter_home_runs    gbm       47     same                same          both, EV>0.02          60   NO
+pitcher_strikeouts  gbm       65     same                same          both, EV>0.02          60   NO
+h2h                 gbm       53     same                same          both, ev_pass          60   NO
+batter_runs_scored  gbm       47     same                same          both, EV>0.02          60   NO
+pitcher_outs        gbm       65     same                same          both, EV>0.02          60   NO
+batter_strikeouts   gbm       47     same                same          under, EV>0.02         60   NO
+
+* `price` is fit on ONE column (pLogit) out of the 53 available. The other 52
+  are built and cached for that market but the shipped member ignores them.
+
+  9 markets use gbm.  1 uses rf.  1 uses price.
+  Every market: confidence floor 60, ladder collapse maxEv, EV floor 0.02 where
+  an EV floor applies at all.
+
+"USED IN PROD: NO" is not a defect report. This work is an offline uplift study.
+The live product scores picks with supabase/functions/_shared/scoring_mlb_v2.ts
+and the algorithm_weights table, which shares no code with these models. See
+section 6.
+
+
+================================================================================
+2. THE THREE ESTIMATORS, EXACTLY AS SHIPPED
+================================================================================
+
+2.1 gbm -- the default member, 9 of 11 markets
+    sklearn.ensemble.HistGradientBoostingClassifier
+        max_depth            = 3
+        max_leaf_nodes       = 8
+        l2_regularization    = 5.0
+        learning_rate        = 0.05
+        max_iter             = 200
+        min_samples_leaf     = 200
+        random_state         = 20260916
+    Source: policy._fit_predict_gbm
+
+    Deliberately small. A prop board carries one weak signal, and a boosted
+    model given room finds the noise instead. NaN is handled natively. A column
+    that is constant or all-missing INSIDE a fold (fewer than 20 finite values,
+    or standard deviation below 1e-12) is dropped for that fold rather than
+    allowed to kill the member on one thin fold. If a fold has fewer than 800
+    rows or only one class, the member returns the training base rate.
+
+2.2 rf -- batter_total_bases only
+    sklearn.ensemble.RandomForestClassifier
+        n_estimators         = 200
+        max_depth            = 8
+        min_samples_leaf     = 200
+        max_features         = "sqrt"
+        n_jobs               = 1
+        random_state         = 20260917
+    Source: policy._fit_predict_forest
+
+    Inputs are median-imputed using the TRAINING fold's medians only, then
+    standardised using the TRAINING fold's mean and standard deviation
+    (policy._prep). n_jobs=1 is set so a re-run is stable.
+
+2.3 price -- spreads only
+    sklearn.linear_model.LogisticRegression(max_iter=3000, C=1.0)
+    fit on the single column `pLogit` = logit of the de-vigged fair probability.
+    Source: policy._design (member == "price") and policy._fit_predict
+
+    This is the market's own number recalibrated against itself and nothing
+    else. It is the bar every other member has to clear: a member with a worse
+    log loss than `price` knows less about the outcome than the book does.
+
+
+================================================================================
+3. HOW MANY MODELS EXIST
+================================================================================
+
+    Walk-forward folds per market                     40 (verified, all 11)
+    Estimators fitted to produce the SHIPPED TABLE    440   (11 x 40 x 1 member)
+    Estimators fitted to build the FULL MEMBER CACHE  4,840 (11 x 40 x 11 members)
+    Estimators PERSISTED TO DISK                      0
+
+NOTHING IS SAVED BUT THE PROBABILITY. There is no model artifact, no pickled
+estimator, no registry, no ONNX export. Every prediction in this project was
+made by a model that was fit and then discarded. That is a correct property of a
+walk-forward backtest and a hard blocker for deployment.
+
+MODELS ARE REFIT, NOT PERSISTED. Every fold refits from scratch on everything
+that had already happened at its boundary. There is no warm start and no
+incremental update.
+
+What IS cached, in `cache_fam/<market>_lag0_best.pkl`, is:
+    the candidate frame (identifiers, line, odds, outcome),
+    one out-of-sample probability array PER MEMBER,
+    the feature column list, and the row/event/date counts.
+Total 939 MB for the delivered set. Regenerable from the shipped data in ~90 min.
+
+
+================================================================================
+4. THE ELEVEN CANDIDATE MEMBERS
+================================================================================
+
+MEMBER    WHAT IT IS                                        DECISION
+--------  ----------------------------------------------   -------------------
+price     LogisticRegression on pLogit alone                ADOPTED -- spreads
+box       LogisticRegression on the full feature vector     rejected
+compact   LogisticRegression on a hand-picked 13-14 column  rejected
+          subset, for thin markets
+gbm       HistGradientBoosting, the incumbent               ADOPTED -- 9 markets
+rf        RandomForest                                      ADOPTED --
+                                                            batter_total_bases
+et        ExtraTrees                                        rejected -- won
+                                                            `totals` at 1 of 3
+                                                            inner cuts only
+iso       gbm plus a post-hoc isotonic recalibration,       rejected -- inside
+          the training fold split on the clock              the noise band
+offset    statsmodels GLM with the price PINNED at          rejected
+          coefficient 1 and the features fitting only
+          the residual
+gbmB      HistGB depth 4 / 15 leaves / L2 10 / lr 0.03 /    rejected -- never
+          400 iters / min leaf 300                          chosen at any cut
+gbmC      HistGB depth 2 / 4 leaves / L2 2 / lr 0.08 /      rejected -- ditto
+          150 iters / min leaf 100
+gbmD      HistGB depth 6 / 31 leaves / L2 20 / lr 0.02 /    rejected -- ditto
+          600 iters / min leaf 500
+
+All eleven are built into the cache for every market, so the override rule
+compares like with like on identical scores.
+
+
+================================================================================
+5. MODEL SELECTION -- HOW A MARKET GETS ITS MODEL
+================================================================================
+
+5.1 THE GLOBAL FILTER
+Chosen once over the pooled SELECT halves of all 11 markets, sweeping roughly
+4,600 configurations (spec x EV floor x confidence x ladder collapse):
+
+    spec = gbm    EV floor = 0.02    confidence floor = 60    collapse = maxEv
+
+The confidence floor is PINNED at 60 and was never searched. It is the shipped
+product's own floor.
+
+5.2 THE PER-MARKET OVERRIDE RULE -- FOUR CONDITIONS, ALL NECESSARY
+A market may replace the global ensemble with a single member only if:
+
+    1. the SAME member wins on SELECT-A at ALL THREE inner cuts (q=0.5/0.6/0.7);
+    2. it beats the global spec on held-out SELECT-B by more than 0.0011 -- the
+       noise band measured by E8/E16/E19 -- at all three cuts;
+    3. its SELECT board holds at least 500 rows (EV_GATE_MIN_GRADED);
+    4. otherwise the market keeps the global spec, unchanged.
+
+Decided on LOG LOSS, a proper scoring rule over every scored row -- not on board
+ROI over a few hundred rows the model selected using its own largest errors. The
+verdict window is never read.
+
+5.3 THE DECISION TABLE (results/overrides_v1.csv)
+
+    MARKET              CHOSEN   GAIN @ q=0.5/0.6/0.7      SAME  BEATS  SELECT n  ADOPTED
+    spreads             price    0.0132 / 0.0127 / 0.0171  yes   yes     1,076    YES
+    batter_total_bases  rf       0.0015 / 0.0016 / 0.0014  yes   yes     3,004    YES
+    batter_rbis         compact  0.0005 / 0.0007 / 0.0012  yes   NO      1,044    no
+    pitcher_strikeouts  price    0.0060 / 0.0058 / 0.0047  yes   yes         1    no (cond 3)
+    pitcher_outs        price    0.0018 / 0.0014 / 0.0027  yes   yes       374    no (cond 3)
+    h2h                 price    0.0035 / 0.0002 /-0.0012  yes   NO        515    no
+    batter_home_runs    rf       0.0003 / 0.0000 / 0.0001  yes   NO         14    no
+    batter_hits         box/offset/offset                  NO    NO          0    no
+    totals              et/price/price                     NO    yes        0    no
+    batter_runs_scored  compact/price/compact              NO    yes        0    no
+    batter_strikeouts   compact -0.0003 /-0.0004 /-0.0001  yes   NO        993    no
+
+Two adopted. Nine not. Every rejection traces to a named condition.
+
+5.4 WHY CONDITION 3 EXISTS -- A FAILURE WORTH RECORDING
+Run WITHOUT condition 3, the rule adopted four overrides and made the result
+WORSE (both-gates 5 -> 4):
+
+    market              override  full-OOS board n    outcome
+    batter_total_bases  rf        409 -> 5,356        repaired; verdict
+                                                      -15.07% -> +1.07% PASS
+    pitcher_outs        price     1,957 -> 507        PASS -> FAIL
+    pitcher_strikeouts  price     2,407 -> 1          NO_DATA
+
+The mechanism is structural, not statistical. A prop board is `evPerUnit > tau`,
+and EV is positive only where the model DISAGREES with the price. A member
+better calibrated to the price agrees with it more and produces a smaller board;
+`price` agrees exactly and produces almost none. Log loss cannot see this,
+because log loss scores every row while the gate scores only the selected ones.
+
+Condition 3 is taken from the gate's own constant and evaluated entirely on
+SELECT. DISCLOSURE, carried from docs/methodology/EXPERIMENT_PLAN.md Addendum 3: the verdict
+consequence of the unamended rule was SEEN BEFORE the amendment was written.
+That is a real researcher degree of freedom and it is disclosed rather than
+presented as if condition 3 had been specified first.
+
+5.5 THE SIDE POLICY
+Chosen per market on the SELECT half only. This is the same lever the shipped
+MLB_EV_SIDE_POLICY already pulls in production on hits, total bases, game_total
+and game_side. Result: `under` on four markets, `both` on seven.
+
+
+================================================================================
+6. WHAT IS ACTUALLY IN PRODUCTION -- AND IT IS NOT THESE MODELS
+================================================================================
+
+The live SharpAI product scores picks with
+`supabase/functions/_shared/scoring_mlb_v2.ts` -- per-market functions
+(scoreBatterHits, scoreBatterTotalBases, scoreBatterHomeRuns, scoreBatterRbis,
+scoreBatterRunsScored, scorePitcherStrikeouts, scorePitcherOuts, scoreGameSide,
+scoreGameTotal) driven by the `algorithm_weights` table -- and writes the result
+into `recommendations_cache`.
+
+VERIFIED BY IMPORT GRAPH:
+    harness/run_backtest.ts   imports scoring_mlb_v2.ts     (production scorer)
+    harness/lib/*.ts          imports scoring_mlb_v2.ts     (production scorer)
+    harness/uplift/*.py       imports it NOWHERE
+
+There are therefore TWO validation layers in this project and they answer
+different questions:
+
+    LAYER 1  harness/run_backtest.ts
+             Re-scores historical candidates through the REAL production scorer
+             with the SHIPPED weights, NO REFITTING, read-only.
+             Question: does the product as shipped beat the vig?
+
+    LAYER 2  harness/uplift/*.py       <-- THE FINAL CONFIGURATION IS HERE
+             Fits its own models on the same priced universe.
+             Question: could a fitted model do better?
+
+This work answers Layer 2's question. It does not change Layer 1, and it is not
+deployed.
+
+WHAT DEPLOYMENT WOULD STILL REQUIRE
+  1. An inference path that does not need a settled outcome. Today
+     frames.load_candidates drops any candidate whose outcome is missing, so a
+     live slate produces an empty frame.
+  2. A persisted model. Zero estimators are saved today; the final fold would
+     have to be fitted once, written to disk, and put on a refit schedule.
+  3. A live odds feed at a lead matching the backtest's. The warehouse odds
+     table stopped at 2026-05-24, and the entry-lead choice was worth three
+     markets.
+  4. Feature parity at serve time -- every feature computed from pre-first-pitch
+     data with the same as-of cut. The features are designed for this; nothing
+     has been run in that mode.
+  5. A decision about which markets ship. the evidence says six, and
+     says explicitly not to ship the three game markets.
+
+
+================================================================================
+7. MODELS TESTED AND REJECTED
+================================================================================
+
+7.1 REJECTED WITHIN THE FINAL CONFIGURATION, WITH THE REASON
+    gbmB / gbmC / gbmD (E28 grid)   never chosen at any of the three inner cuts
+                                    on any market -- entirely inside the noise
+                                    band
+    ExtraTrees (et)                 won `totals` at 1 of 3 cuts; not stable
+    box / compact / offset / iso    within the noise band everywhere
+    price-anchored hybrid (E22)     failed all three pre-registered conditions
+                                    once isolated from the EV floor
+    isotonic edge calibration (E23) lifts held-out ROI on 6 of 8 markets but
+                                    halves the board, so units fall
+    pair ensembles (E33)            widening the override pool from 11 single
+                                    members to 66 pairs took both-gates from
+                                    6/11 to 4/11 -- it displaced the
+                                    batter_total_bases -> rf override that had
+                                    repaired that market
+    handedness features (hands.py)  measured, inside the noise band, not adopted
+    weather features                measured, not adopted
+
+7.2 MODELS THAT APPEAR ONLY IN THIRD-PARTY RESEARCH GUIDES
+The files `docs/TESTING_GUIDE_3_PASS_MARKETS.md` and
+`docs/TESTING_GUIDE_8_POOLED_ML.md` describe XGBoost (per-market and pooled,
+plain and tuned), LightGBM, HistGradientBoosting, RandomForest,
+LogisticRegression and FLAML AutoML.
+
+THOSE GUIDES DESCRIBE A DIFFERENT REPOSITORY, AND IT IS NOT IN THIS HANDOFF.
+They reference `MLB Markets/`, `db/mlb_markets.duckdb`, branches
+`3-pass-markets` and `8-pooled-ml`, and scripts and reports that do not exist
+here. Searches of the git history, the remote, the other repositories on the
+account and the whole disk found none of it
+(docs/methodology/THIRD_PARTY_GUIDE_AUDIT.md).
+
+Nothing from those guides is used, promoted or claimed by the final configuration. In
+particular, the pooled "Model B" result (edge>0.03, minus-money, n=1,264,
+ROI +5.65%, CI [+1.56%, +9.75%]) is NOT a final result and is NOT a seventh
+passing market. That guide's own section 3 states the same model re-run produces
+a different PASS/FAIL verdict from run to run, calls it genuine training
+instability, and says "the verdict itself is the noise".
+
+7.3 MODELS NOT TESTED IN THE FINAL CONFIGURATION AT ALL
+    XGBoost   not imported by any delivered file, not in requirements.txt
+    LightGBM  same
+    CatBoost  same, and not installed
+    FLAML     same, and not installed
+
+    xgboost 3.4.1 and lightgbm 4.7.0 ARE installed on the developer machine at
+    audit time -- for later research, not for the final configuration. Nothing in the final configuration
+    source calls them.
+
+    HistGradientBoosting IS the histogram-boosting family LightGBM belongs to,
+    so the genuinely untested ground is CatBoost's ordered target statistics.
+    That is a real gap and it is named as one.
+
+
+================================================================================
+8. CALIBRATION
+================================================================================
+
+8.1 THERE IS NO SEPARATE CALIBRATION STAGE
+In the shipped configuration the estimator IS the calibrator. gbm, rf and price
+are all fit on binary outcomes and emit a probability directly. No Platt
+scaling, no isotonic map, no temperature.
+
+8.2 THE OPTIONAL CALIBRATOR THAT WAS NOT ADOPTED
+The `iso` member splits the TRAINING fold itself on the clock: fits on the
+earlier 80%, fits an isotonic map on the last 20% it has not seen, refits on the
+whole fold, applies the map. Nothing from the test block is used at either
+stage. Point-in-time correct by construction. Rejected because it was inside the
+noise band, not for any integrity reason.
+
+8.3 MEASURED CALIBRATION (reports/calibration.csv)
+The finding that matters: `price` -- the market's own de-vigged number with
+nothing added -- has a BETTER log loss than `gbm` on 8 of the 11 markets. The
+model beats the book on batter_hits and batter_rbis and essentially ties on
+batter_total_bases and batter_strikeouts. On the three game markets the model is
+decisively worse (recalibration slopes of 0.025, 0.509 and 0.675 against a
+well-calibrated 1.0).
+
+This is the same conclusion the override rule reached independently by adoption
+test, and it is why `spreads` ships as `price` with the model removed entirely.
+
+CAVEAT: reports/calibration.csv was computed on the PRE-EXPANSION cache (n=70,646
+for batter_hits against the final dataset's 120,269 graded rows). Its
+direction is confirmed by the override table, but its numbers are a
+An earlier stage diagnostic and should be quoted as such.
+
+8.4 EDGE AND CONFIDENCE
+    ev_over   = p * decimal_over  - (1 - p)
+    ev_under  = (1 - p) * decimal_under - p
+    evPerUnit = max of the two; the board bets that side
+    confidence = round(100 * p_of_the_side_being_bet)
+
+Confidence is therefore a calibrated probability on a 0-100 scale, not a
+separate rating. Because it is max(p, 1-p) after the side is chosen, it is
+bounded below by 50, and a floor of 60 is not a demanding filter on a market
+whose probabilities cluster near 0.5.
+
+8.5 THE EDGE IS OVERSTATED -- MEASURED (E23-MEAS)
+    predicted bucket        n     predicted   realised    gap
+    0-1%               11,146       0.49%      -3.20%    3.69
+    1-2%                9,594       1.49%      -1.48%    2.96
+    2-3%                7,939       2.49%      -0.73%    3.21
+    3-5%               12,880       3.96%      -2.00%    5.96
+    5-7%                9,844       5.97%      +1.60%    4.37
+    7-10%              10,759       8.40%      +0.67%    7.74
+    10%+               21,144      19.61%      +1.95%   17.66
+
+A nominal edge is overstated by 3 to 18 percentage points at every level, and
+the relationship to realised edge is weak and non-monotone. This is the winner's
+curse: selecting on `ev > tau` selects the rows where the model's error is
+largest AND positive.
+
+CONSEQUENCE FOR ANY CONSUMER OF THIS SYSTEM: the EV filter works as a THRESHOLD
+that produces a profitable board on six markets. It does NOT work as a RANKING
+signal. A 10% predicted edge is not ten times better than a 1% one.
+
+
+================================================================================
+9. TRAINING DETAIL
+================================================================================
+
+    TARGET              binary `overHit` -- did the settled stat clear the
+                        posted line (or did the home side win / cover).
+                        NaN on a push; NaN rows excluded before any fit.
+    POSITIVE CLASS      the OVER (or the HOME side on h2h and spreads)
+    TRAINING POPULATION every graded candidate for that market whose commence
+                        time is strictly before the fold boundary. No
+                        down-sampling, no class balancing, no re-weighting.
+    TEMPORAL CUTOFF     a timestamp, not a row index, so a game never straddles
+                        a fold boundary
+    WINDOW              EXPANDING -- fold k trains on everything before it
+    REFIT               every fold, from scratch, 40 folds per market
+    MINIMUM TRAIN FOLD  200 rows for the fold to run at all; 800 rows and two
+                        classes for a tree member to fit rather than return the
+                        base rate
+    MISSING VALUES      gbm handles NaN natively; rf and the logistic members
+                        median-impute using TRAINING-FOLD medians only
+    CATEGORICALS        none -- every column is numeric by construction
+    SCALING             training-fold mean/std for rf and the logistic members;
+                        none for gbm
+    FEATURE SELECTION   none in the adopted configuration; every member gets the
+                        market's whole feature vector
+    SEEDS               HistGradientBoosting 20260916; RandomForest and
+                        ExtraTrees 20260917; bootstrap 20260701
+
+IS EVERY PREDICTION OUT OF SAMPLE? Yes, for the model. Every scored row was
+predicted by an estimator fit only on strictly earlier rows, using features that
+read only strictly earlier calendar dates. Warm-up rows are never scored.
+
+The qualification is at the SELECTION layer: the global filter and the override
+were chosen on the SELECT half of the same out-of-sample period. That is why two
+gates are reported and why the verdict window exists.
+
+
+================================================================================
+10. FEATURE SETS
+================================================================================
+
+    batter prop markets    47 features
+    pitcher prop markets   65 features  (the 47 plus 18 starting-pitcher columns)
+    game markets           53 features
+
+FAMILIES
+    price / market        pLogit (the de-vigged fair probability on the logit
+                          scale -- the strongest single column everywhere),
+                          overround, line, lineZ, dispOver/dispUnder (best minus
+                          median price), nBooks, and the game market's own
+                          prices as context for a prop
+    parametric price      Poisson, negative-binomial, park-adjusted,
+                          opponent-adjusted and binomial models of
+                          P(stat > line) built from the player's own rate and
+                          the expected opportunity count
+    player form           empirical clear rate, per-opportunity rate, 25- and
+                          100-game clear rates and their edge over the price,
+                          history depth, lineup slot, start share
+    opportunity           expected opportunities, plate appearances, rest days
+    pitcher (pitcher      pitch counts, outs, out variance, pitches per out,
+      markets only)       batters faced per start, K and BB per batter faced at
+                          5 and 25 games, season outs, form deltas, expected
+                          outs and batters-faced budget
+    opponent context      opponent runs per out, K per BF, outs per game, OBP,
+                          runs allowed per game, and the same for the bullpen
+    team and park         team OBP and runs per game, bullpen outs per game,
+                          park run and HR factors
+    game markets add      Elo difference and implied probability, Pythagorean
+                          expectation and gap, Skellam/Poisson lambdas for each
+                          side, the market's own implied lambdas and their gap,
+                          cross-market implied probability and residual,
+                          starter and bullpen run gaps, scoring form
+    situation             home/away, dispersion columns
+
+EVERY roll-up is an expanding window over STRICTLY EARLIER local calendar dates.
+No feature in the shipped set is built from a global or whole-sample aggregate.
+
+Full column-level listing: AUDIT_COMPLETE.txt section 13.
+
+
+================================================================================
+11. WHERE TO LOOK
+================================================================================
+    policy.py                        every estimator and the walk-forward
+    run_final_model.py                  the override rule and the final run
+    features.py                      every feature
+    results/overrides_v1.csv        the override decision table
+    results/final_v1.csv            the per-market configuration actually used
+    reports/calibration.csv          calibration by member and market
+    reports/model_families_e26.csv   the full E26 model-family comparison
+    AUDIT_COMPLETE.txt sections 15-20

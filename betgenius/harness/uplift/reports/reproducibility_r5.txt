@@ -1,0 +1,108 @@
+ROUND 5 -- REPRODUCIBILITY RECORD
+Generated 2026-09-17T17:10:19
+
+STATUS: round 5 closed without a change to the table. The model experiments
+(R5-01..R5-05) were implemented and verified working but NOT RUN. The
+authoritative result remains round 4's _r4v: 6/11 both-gates PASS.
+
+ENVIRONMENT
+  python       3.14.6
+  numpy        2.4.6
+  pandas       3.0.3
+  scikit-learn 1.9.0
+  scipy        1.18.0
+  statsmodels  0.14.6
+  xgboost      3.4.1   (INSTALLED IN ROUND 5)
+  lightgbm     4.7.0   (INSTALLED IN ROUND 5)
+  catboost     NOT INSTALLED -- declined in the pre-registration, with reasons
+  flaml        NOT INSTALLED -- declined in the pre-registration, with reasons
+
+SEEDS AND DETERMINISM
+  gbm / gbmB / gbmC / gbmD / gbmW / gbmR   random_state=20260916
+  rf / et                                  random_state=20260917
+  xgb                                      random_state=20260917, n_jobs=1, tree_method=hist
+  lgbm                                     random_state=20260917, num_threads=1,
+                                           deterministic=True, force_row_wise=True
+  pooled model (R5-04, not run)            seeds 1..5, all five reported, none selected
+  row order                                stable sort on commenceTime
+  fold boundaries                          TIMESTAMPS, never row indices
+
+VERIFICATIONS RUN IN ROUND 5
+  verify_gate.py            2 shipped reports replayed, 0 mismatches
+  run_final_r4.py --conf=60 reproduces _r4v exactly: 6/11 both gates, 7/11 full
+                            OOS, 6/11 verdict, 202.7 verdict units
+  policy.py inertness       h2h rebuilt from data/ with the default member list:
+                            box, compact, gbm, iso, offset, price all BIT-IDENTICAL
+                            to the round-2 cache; frame identical
+  Odds API probe            2020/2021/2022 HTTP 422; 2023 served from 2023-05;
+                            356,468 credits remaining, 670 spent
+  boxscores.csv             321,890 rows, 2024-04-01..2026-09-16, zero 2023 rows
+
+COMMANDS -- WHAT WAS RUN
+  cd betgenius
+  python harness/uplift/verify_gate.py
+  python harness/uplift/probe_api_coverage.py
+  D="$PWD/harness/uplift/data_expanded_6h"; C="$PWD/harness/uplift/cache_fam"
+  UPLIFT_DATA_DIR="$D" UPLIFT_CACHE_DIR="$C" \
+    python harness/uplift/run_final_r4.py --conf=60 --tag=_r4v
+
+COMMANDS -- WHAT WOULD FINISH THE MODEL HALF (~45 min at 3-way parallelism)
+  D="$PWD/harness/uplift/data_expanded_6h"; C5="$PWD/harness/uplift/cache_r5"
+  UPLIFT_DATA_DIR="$D" python harness/uplift/build_cache_r5.py \
+    --src=cache_fam --out=cache_r5      # only the 6 new members; frame asserted equal
+  UPLIFT_DATA_DIR="$D" UPLIFT_CACHE_DIR="$C5" \
+    python harness/uplift/run_final_r5.py --conf=60 --tag=_r5
+  UPLIFT_DATA_DIR="$D" UPLIFT_CACHE_DIR="$C5" \
+    python harness/uplift/parity_audit.py --tag=_r5      # must print 0 rejected
+  # then exp_model_comparison_r5.py, exp_recency_r5.py, exp_pooled_r5.py
+
+SOURCE HASHES (sha256, first 16 hex)
+  8593f8647cd79a1c  api_to_csv.py
+  7d84f97a21b36988  attribute.py
+  07ab828c5a6c4258  boardfast.py
+  04bf2f197c393163  build_cache.py
+  6ade1f6d1d2788df  build_cache_r5.py
+  4bdc0bc94367dd45  build_expanded_data.py
+  d3744333755a6ec3  build_workbook.py
+  97a5650e49217f29  calibration.py
+  30ea6434ae2f01f1  check_asof.py
+  526a583e10a0d949  check_asof_hands.py
+  2796e3f7c2f238e0  compare_runs.py
+  d29ec1431bf28b1b  data_inventory.py
+  b6ae489ef6c44d19  diag_signal.py
+  64869ab4ecb96e4b  dump_aux.py
+  c7aa3574981321c3  exp_anchor_isolation.py
+  10825dc7cdab8224  exp_edge_calibration.py
+  be968452a773ca42  exp_featureset.py
+  b6630b37a10db90f  exp_gate_aligned.py
+  627966959752aa13  exp_hybrid.py
+  a9150491829035cb  exp_model_comparison_r5.py
+  4ad7bcc005c0e615  exp_model_families.py
+  04e74fa9e80712e7  exp_nested_rules.py
+  6c0d32b66522be2f  exp_pooled_r5.py
+  28edd33470c910ff  exp_price_members.py
+  47d3ed70ac1288ee  exp_recency_r5.py
+  c008d031405ba36a  exp_side_guard.py
+  9724e6d18e719f62  features.py
+  a2d2a018a7b2a074  final_matrix.py
+  025808a4e6645147  frames.py
+  1e31e7c6b2b0dca7  hands.py
+  70537f385a90d726  hybrid.py
+  4ae0fc3a7875eef4  ingest_expand.py
+  04adb8a80257e544  inventory_expanded.py
+  57d92171caf9e3cc  mlbgate.py
+  2c774df24786a312  parity_audit.py
+  05da9d7228185170  policy.py
+  ac32edc02c5deb23  pricemodels.py
+  b6dd088bdefd1514  probe_api_coverage.py
+  de63c00d9eb328b0  robustness.py
+  c174cc41ab264b05  run_final.py
+  3ff2bce913b2e691  run_final_r4.py
+  949e75554d86e14b  run_final_r5.py
+  32dd373d7ef9c68d  run_final_v2.py
+  7f9a4c865144a74c  run_improve.py
+  1ad20e9d3e3a30f0  run_markets.py
+  e1cde2dcdcbd3c79  run_spec_sweep.py
+  79cc44a91bbaad5b  season_analysis.py
+  2e048e570ba900be  verify_gate.py
+  7798dd4b7e2effe8  version_comparison_r5.py

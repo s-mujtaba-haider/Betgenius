@@ -1,0 +1,185 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- DATA DOCUMENTATION (Round 5)
+================================================================================
+Generated 2026-09-17. Supersedes nothing: earlier rounds' documentation is
+preserved. This file describes the dataset round 5 evaluated on, which is the
+same dataset round 4 adopted.
+
+--------------------------------------------------------------------------------
+1. THE DATASET
+--------------------------------------------------------------------------------
+
+  Location      betgenius/harness/uplift/data_expanded_6h/
+  Selected by   UPLIFT_DATA_DIR
+  Size          ~330 MB, 12 CSV + 3 JSONL
+  Period        2024-04-01 -> 2026-09-16
+  Graded rows   529,695 model rows across 11 markets
+  Games         5,421 distinct games
+  Box scores    321,890 player-game lines, 5,914 games, 4,419 players
+
+  data/ (the original, round-2 dataset) is NEVER written to. The round-2 `_c60`
+  result still reproduces bit-identically from it. Round 5 verified this.
+
+--------------------------------------------------------------------------------
+2. SOURCES
+--------------------------------------------------------------------------------
+
+  boxscores.csv
+      cache_mlb_boxscore_player_stats, via dump_box.ts, read-only against the
+      harness_readonly Postgres role. game_date is pulled as ::text ON PURPOSE --
+      read as a timestamp it arrives shifted by the client timezone, which moves
+      a late start across midnight and lets an as-of join match a game to its own
+      box score. That defect produced a fake edge in this project once.
+
+  odds_*.csv
+      cache_mlb_historical_odds, via dump_odds.ts. One snapshot per (event, line)
+      at the entry convention below.
+
+  odds_*_api.csv / apix6h_group*.jsonl
+      The Odds API historical endpoint, for the markets and dates the warehouse
+      never held. 2,111 events, 331,675 credits, pulled in round 4 at a 6-hour
+      lead and verified served at a 6.01 h median.
+
+--------------------------------------------------------------------------------
+3. ENTRY-PRICE CONVENTION -- READ THIS BEFORE COMPARING ANY NUMBER
+--------------------------------------------------------------------------------
+
+The entry price is the earliest snapshot STRICTLY BEFORE first pitch, at the
+configured lead. The warehouse's own lead, measured by probe_entry_lead.ts:
+
+      2024-03 -> 2025-10      6.01 h before first pitch
+      2026-04 -> 2026-05      1.01 h before first pitch
+
+The warehouse therefore contains a convention break at the 2026 boundary. This
+is a property of the production snapshot scheduler, not of any ingest.
+
+All Odds API rows were pulled at 6 h to match the majority convention. This
+mattered more than the volume of data:
+
+      entry convention      verdict PASS      both-gates PASS
+      T-1h                      2/11                 2
+      T-6h                      5/11                 5
+
+RESIDUAL, DISCLOSED: 2026 warehouse rows remain at their native ~1.01 h while
+2026 API rows are at 6 h. Normalising it would mean overwriting authoritative
+warehouse values, which is not done without a documented reconciliation.
+
+A number produced under a different entry convention is NOT comparable to a
+number in this pack.
+
+--------------------------------------------------------------------------------
+4. PER-MARKET INVENTORY (as evaluated)
+--------------------------------------------------------------------------------
+
+  market                raw odds   two-sided   graded    games   period
+  batter_hits            342,353     134,269   120,269   5,393   2024-04-01..2026-09-16
+  batter_rbis            205,057     107,627    96,439   5,409   2024-04-01..2026-09-16
+  batter_total_bases     573,608     130,620   116,642   5,394   2024-04-01..2026-09-16
+  batter_home_runs       314,096      66,383    59,338   3,459   2024-04-01..2026-06-19
+  batter_runs_scored     165,034      76,297    53,348   2,954   2024-04-01..2026-09-16
+  batter_strikeouts       44,686      38,805    27,835   1,439   2024-04-01..2026-07-17
+  pitcher_strikeouts      40,997      31,179    24,291   4,858   2024-04-01..2026-09-16
+  pitcher_outs            14,067      12,469     9,821   4,383   2024-04-02..2026-09-16
+  h2h                      6,502       5,956     5,956   5,391   2024-04-01..2026-09-16
+  spreads                  8,145       7,489     7,457   5,392   2024-04-01..2026-09-16
+  totals                   9,444       8,653     8,299   5,287   2024-04-01..2026-09-16
+
+--------------------------------------------------------------------------------
+5. WHAT IS MISSING, AND WHY IT CANNOT BE FIXED FROM HERE
+--------------------------------------------------------------------------------
+
+  (a) THE TWELVE-MONTH BOX-SCORE HOLE -- the biggest remaining data defect.
+      runs_scored and batter_strikeouts are absent from
+      cache_mlb_boxscore_player_stats for a continuous block: 2025-03, then
+      2025-06 -> 2026-05, with 2026-06 at 47%. hits / total_bases / rbi are 100%
+      throughout. The gap tracks WHEN ROWS WERE WRITTEN: the 2026-05-27/28
+      backfill populated a reduced column set.
+
+      Effect: batter_runs_scored covers 2,954 games and batter_strikeouts 1,439,
+      against 5,393 for batter_hits, and both markets' verdict windows start
+      earlier than the rest.
+
+      *** RE-RUNNING THAT BACKFILL WITH THE FULL COLUMN SET IS THE HIGHEST-VALUE
+      PRODUCTION FIX AVAILABLE TO THIS PROJECT. *** It is a write to the
+      warehouse and is outside this pack's read-only scope.
+
+      Odds for those dates EXIST. Outcomes do not. A larger n is only obtainable
+      by inventing settlements, so the gap is left open.
+
+  (b) 2020-2022 -- the Odds API historical endpoint returns HTTP 422,
+      "Historical odds are not available". Confirmed in round 4 and re-confirmed
+      2026-09-17. Not a credit limit. Cannot be bought.
+
+  (c) 2023 -- odds ARE served from 2023-05, all 11 markets. But boxscores.csv
+      starts 2024-04-01, so no 2023 candidate can be settled. NOT purchased:
+      spending credits on ungradeable rows is waste, and fabricating 2023
+      outcomes is not an option.
+
+  (d) LINE MOVEMENT / CLV -- the odds dumps hold a single snapshot per
+      (event, line). No opening price, no closing price, no per-book detail, no
+      snapshot timestamp column. Line movement cannot be reconstructed.
+      Capturing it going forward is a standing recommendation.
+
+--------------------------------------------------------------------------------
+6. TABLES DELIBERATELY NOT USED
+--------------------------------------------------------------------------------
+
+  cache_mlb_historical_lineups (135,324 rows) -- UNUSABLE, LEAK.
+      Every row was written AFTER first pitch (minimum +87.5 h, mean +600 days).
+      It is the game's own lineup, backfilled, late scratches included. Lineup
+      features are built from PRIOR games' box scores instead.
+
+  cache_mlb_historical_weather (7,527 rows, 100% of games) -- EXISTS, NOT USED.
+      open-meteo historical is REANALYSIS: the weather that happened, not the
+      forecast a bettor had at T-6h. Validating on actuals while production runs
+      on forecasts overstates the backtest. Needs a forecast archive or a
+      noise-injection study first.
+
+  cache_statcast_* (137k rows) -- genuine daily series, 117 snapshot_dates each
+      written same-day, but STARTS 2026-05-20: three months into a 29-month
+      evaluation. Too short to gate on. Keep accumulating it -- it is the one
+      source that may contain something the book does not fully price.
+
+  cache_mlb_historical_bullpen (13,141 rows) -- ends 2025-10-31, and
+      features.bullpen() already rebuilds the same quantities from relief
+      box-score lines over the full period. Skipped.
+
+  cache_mlb_player_metadata (1,337 rows) -- bats/throws. Static and safe, and it
+      WAS tested (round 3, E19). Rejected on its merits: it added nothing,
+      because the book knows the starter and the batter's hand too.
+
+--------------------------------------------------------------------------------
+7. DATA THAT WAS ASKED FOR AND COULD NOT BE RECOVERED
+--------------------------------------------------------------------------------
+
+Round 5 was asked to recover data from two research branches, `3-pass-markets`
+and `8-pooled-ml`, including a DuckDB file db/mlb_markets.duckdb and Odds API
+caches under data_raw/.
+
+NEITHER BRANCH EXISTS ON THIS MACHINE. Not in this repository, not on its
+remote, not in any other repository on the account, and not anywhere on the
+filesystem. The full search record is in
+betgenius/harness/uplift/BRANCH_RESEARCH_INVENTORY.md section 0.
+
+ZERO ROWS WERE IMPORTED FROM EITHER BRANCH. Two of the three markets they
+backfilled are already present here at equal or greater volume from the same
+provider; the third is short of settlements, not of odds. Neither guide states
+an entry-time convention, so even if the files were available their prices could
+not be shown comparable to these. See
+betgenius/harness/uplift/reports/entry_time_reconciliation.txt.
+
+--------------------------------------------------------------------------------
+8. POINT-IN-TIME INTEGRITY
+--------------------------------------------------------------------------------
+
+  * Every feature roll-up reads box scores from an EARLIER LOCAL CALENDAR DATE
+    than the game it feeds. Enforced in frames.asof_rollup.
+  * check_asof.py recomputes sampled feature rows the slow way: 0 mismatches --
+    AND, the control that makes the test meaningful, 188/200, 179/200 and
+    195/200 sampled rows WOULD CHANGE if the game's own day were admitted. A
+    test that passes because nothing moves is not a test.
+  * Walk-forward fold boundaries are TIMESTAMPS, not row indices, so picks
+    sharing a commence time cannot straddle a boundary. That leak alone has
+    turned a FAIL into a PASS in this project before.
+  * Placebo-lag variants (1d, 3d, 7d) are run on every headline configuration.
+    A same-game leak dies at the first day of lag; a form signal does not.

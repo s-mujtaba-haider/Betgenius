@@ -1,0 +1,2941 @@
+================================================================================
+BETGENIUS / SharpAI -- MLB PHASE 1
+COMPLETE FORENSIC TECHNICAL AUDIT
+================================================================================
+Audit performed        2026-09-17
+Audited commit         2629293f09fb28343378a111340b80766da731f5
+Repository             private development repository (identity withheld;
+                       the source tree itself ships in project/)
+Source of truth        the repository files, the report CSVs, and commands
+                       re-run during this audit -- not prior prose
+
+This document is an audit, not a sales document. Where a prior project document
+and the files disagree, the files win and the disagreement is recorded. Where a
+check could not be performed, it says so rather than asserting a result.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+ 1. Executive Summary
+ 2. Audit Scope
+ 3. Repository Inventory
+ 4. Architecture
+ 5. Data Pipeline
+ 6. Data Sources
+ 7. Data Coverage
+ 8. Market Universe
+ 9. Odds Ingestion
+10. Timestamp / Entry-Time Methodology
+11. Candidate Generation
+12. Outcome Grading
+13. Feature Engineering
+14. Point-in-Time / As-Of Integrity
+15. Model Inventory
+16. Model Training
+17. Model Selection
+18. Probability Calibration
+19. Edge Calculation
+20. Confidence Calculation
+21. Market Policies
+22. Betting Decision Logic
+23. Official Gate Logic
+24. Walk-Forward Validation
+25. Full OOS Evaluation
+26. Verdict Window Evaluation
+27. Robustness Testing
+28. Production Parity
+29. Historical Results
+30. Production / Live Board Evaluation
+31. Live Market Coverage
+32. Live Predictions
+33. Live PASS/FAIL Classification
+34. Live Data Limitations
+35. Testing Guide Audit
+36. Experiment History
+37. Leakage Audit
+38. Reproducibility Audit
+39. Dependency Audit
+40. Security / Secrets Audit
+41. Client Handoff Audit
+42. Known Bugs / Technical Debt
+43. Known Limitations
+44. Generalization Risk
+45. Final Technical Assessment
+46. Exact Files Used as Evidence
+
+
+================================================================================
+1. EXECUTIVE SUMMARY
+================================================================================
+
+WHAT THIS WORK IS
+
+This work is an offline UPLIFT STUDY, not a deployed product change. It asks one
+question: on the same priced MLB universe the live product sees, can a fitted
+statistical model select a board of bets that beats the vig, measured under the
+product's own pass/fail gate, without ever reading the data it is judged on?
+
+The answer it returns is: on 6 of 11 markets, yes. On 5, no.
+
+WHAT IS AND IS NOT IN PRODUCTION -- READ THIS FIRST
+
+The live SharpAI product generates its picks from
+`supabase/functions/_shared/scoring_mlb_v2.ts` plus the `algorithm_weights`
+table, written into `recommendations_cache` by scheduled edge functions. That is
+a hand-weighted factor scorer. Verified by direct inspection of the import graph.
+
+THE VALIDATED MODELS (`harness/uplift/*.py`) ARE A SEPARATE CODEBASE. They import
+nothing from `scoring_mlb_v2.ts` and nothing imports them. Grep across the whole
+repository confirms this:
+
+    harness/run_backtest.ts        imports scoring_mlb_v2.ts   (production scorer)
+    harness/lib/*.ts               imports scoring_mlb_v2.ts   (production scorer)
+    harness/uplift/*.py            imports it NOWHERE
+
+So:
+  * NO MODEL FROM THIS WORK IS SERVING TRAFFIC TODAY.
+  * "Production parity PASS" does NOT mean "these models are live". It means every row
+    this board selects would pass the shipped eligibility predicates if it
+    were shown -- a necessary condition for deployment, not evidence of it.
+  * Deploying these models would be a new engineering project (section 30.4).
+
+HEADLINE RESULT, VERIFIED THIS AUDIT
+
+    Markets evaluated                        11
+    PASS on the full out-of-sample gate        7 / 11
+    PASS on the verdict-window gate            6 / 11
+    PASS on BOTH gates                         6 / 11   <-- the headline
+    Target                                    11 / 11   NOT MET
+    Minimum acceptable                         9 / 11   NOT MET
+
+    Final status counts
+        PASS                     6   batter_hits, batter_total_bases,
+                                     pitcher_strikeouts, batter_runs_scored,
+                                     pitcher_outs, batter_strikeouts
+        PASS_WITH_RESTRICTIONS   1   totals
+        VETO                     2   batter_rbis, batter_home_runs
+        FAIL_AFTER_ITERATION     2   spreads, h2h
+
+    Verdict-window units  +202.7      Full-OOS units  +559.3
+    Production parity     0 of 28,141 board rows rejected
+    Confidence floor      60 (pinned, never searched)
+
+The minimum target was missed by three markets. Section 43 names the binding
+constraint for each market that failed; in four of the five cases it is not
+modelling technique.
+
+CURRENT PRODUCTION / LIVE BOARD
+
+Generated this audit under the locked configuration, on the most recent
+slate in the packaged data (2026-09-16):
+
+    latest slate (1 day, 3 games)    248 priced, 150 predictions, 7 selected,
+                                     0 unservable, all settled, +2.59 units
+    last 7 days (64 games)         5,020 priced, 4,834 predictions, 230 selected,
+                                     0 unservable, all settled, +3.61 u / +1.57%
+    last 30 days (309 games)      24,279 priced, 24,065 predictions, 1,465 selected,
+                                     0 unservable, all settled, +18.24 u / +1.25%
+
+    Board rows with an unsettled outcome, all windows:   0
+    Post-deployment settled markets:                     0
+
+No live PASS/FAIL can be computed. Two independent reasons, both verified:
+  (a) The harness cannot score an unfinished game at all. `frames.load_candidates`
+      keeps only rows whose outcome exists and `features.graded` keeps only graded
+      rows, so there is no unsettled board to settle later, and no persisted
+      estimator to score one with.
+  (b) Every date above falls INSIDE the out-of-sample period and is
+      already counted in the historical table. It is not independent evidence.
+
+These live numbers describe board COVERAGE and SERVING STATUS. They are not a
+result. Section 33 is explicit about this.
+
+WHAT THIS AUDIT FOUND THAT PRIOR DOCUMENTS DID NOT
+
+  * A documentation error in the validation report: it quotes 535,961 graded model
+    rows and 5,397 games. Those are the T-1h dataset's numbers. The dataset that
+    actually produced the shipped table is T-6h, with 529,695 graded rows and
+    5,421 games. Section 7.3.
+  * `robustness_v1.csv` is a byte-identical copy of `robustness_v1.csv`,
+    made so `final_matrix.py --tag=_v1` could find it. Benign, undocumented.
+    Section 27.4.
+  * `reports/calibration.csv` was computed on the PRE-expansion cache and is a
+    An earlier stage diagnostic, not the final configuration one. Its conclusions still hold but its
+    row counts do not match the final dataset. Section 18.3.
+  * The working tree at audit time carried an uncommitted later draft of
+    policy.py. The handoff ships the committed delivered file. Section 38.2.
+
+CONFIDENCE IN THE RESULT
+
+The result stage reproduced BIT-IDENTICALLY when re-run during this audit
+(sha256 match on all 37 columns of the final table). The gate is a faithful port
+of the shipped TypeScript, verified by replay. No confirmed leakage was found by
+the implemented checks. The main reasons to hold the result loosely are named in
+sections 43 and 44 and are about generalization, not about arithmetic.
+
+
+================================================================================
+2. AUDIT SCOPE
+================================================================================
+
+2.1 IN SCOPE
+  * Every file under betgenius/harness/uplift (the validation pipeline).
+  * betgenius/harness/lib/metrics.ts (the gate the whole project is judged by)
+    and the surrounding Phase 1 TypeScript harness.
+  * the validation report CSVs and JSONs under harness/uplift/reports.
+  * The packaged data snapshot harness/uplift/data_expanded_6h.
+  * The production surface (supabase/functions, src) to the depth needed to say
+    what is and is not deployed.
+  * The two client-supplied testing guides, audited as third-party claims.
+
+2.2 OUT OF SCOPE
+  * The NBA / NFL / NHL code paths.
+  * The frontend beyond confirming how it reads picks.
+  * Billing, auth and subscription code.
+  * `loop/` (the autonomous builder harness) -- not present in this working copy.
+
+2.3 WHAT WAS ACTUALLY EXECUTED DURING THIS AUDIT
+  1. `git rev-parse`, `git diff`, `git branch -a`, `git log` -- source state.
+  2. `python harness/uplift/run_final_model.py --conf=60 --tag=_recheck` -- full
+     the final configuration re-run. Output compared byte for byte.
+  3. `python harness/uplift/parity_audit.py --tag=_v1` -- parity re-run.
+  4. `python harness/uplift/verify_gate.py` -- gate port replay.
+  5. `python harness/uplift/live_board.py --windows=1,7,30` -- the live board
+     (this script was WRITTEN for this audit; it reads the locked config and
+     changes nothing).
+  6. A read-only SQL probe of the Supabase warehouse for live-data span.
+  7. A free-tier balance check against The Odds API.
+  8. sha256 of the data snapshot and of every shipped result file.
+  9. Secret scans of the assembled handoff.
+ 10. Direct verification of box-score coverage from boxscores.csv.
+
+2.4 WHAT WAS NOT EXECUTED
+  * The member cache was not rebuilt from raw data (~90 min). See 38.3.
+  * The six robustness variants were not re-run (~6 x 5 min plus cache builds).
+  * check_asof.py was not re-run; its shipped log is quoted as evidence.
+  * No new Odds API pull was made. Section 34.2 explains why one would be
+    useless to this harness even if paid for.
+
+
+================================================================================
+3. REPOSITORY INVENTORY
+================================================================================
+
+3.1 COUNTS (excluding .git and node_modules)
+
+    Python                 107 files   (50 of them in harness/uplift)
+    TypeScript             181 .ts + 21 .tsx
+    JavaScript              41 .mjs + 3 .cjs + 1 .js
+    SQL                    921 files   (917 of them supabase/migrations)
+    Markdown                29
+    JSON                    44
+    Supabase edge functions 79 directories
+    Test files              15 (tests/, supabase/tests/, harness/test/)
+
+3.2 THE VALIDATION PIPELINE -- FILE BY FILE
+
+Only files that matter to the final result are listed with full detail. Status
+is one of: PRODUCTION-PATH (runs to produce the shipped table), RESEARCH (an
+experiment that was run and reported), REPORTING (turns results into documents),
+INGEST (fetches or assembles data), DIAGNOSTIC, LEGACY (superseded but kept).
+
+FILE      harness/uplift/frames.py
+PURPOSE   Universe assembly. Reads odds CSVs and boxscores.csv, matches a priced
+          candidate to a game and a player, grades it against the settled stat.
+USED BY   features.py, build_cache.py, inventory_expanded.py, live_board.py
+INPUTS    $UPLIFT_DATA_DIR/odds_*.csv, boxscores.csv
+OUTPUTS   in-memory candidate frame; frames.LAST_FUNNEL (the drop accounting)
+STATUS    PRODUCTION-PATH
+
+FILE      harness/uplift/features.py   (50 KB, the largest single file)
+PURPOSE   Point-in-time feature construction. 47 features for batter props, 65
+          for pitcher props, 53 for game markets.
+USED BY   build_cache.py
+INPUTS    candidate frame + box scores
+OUTPUTS   (frame, column list)
+STATUS    PRODUCTION-PATH
+
+FILE      harness/uplift/policy.py
+PURPOSE   The walk-forward calibrator (all ensemble members) and `board()`, the
+          function that turns probabilities into the picks a board would show.
+USED BY   build_cache.py, run_final*.py, parity_audit.py, boardfast.py, every
+          experiment
+INPUTS    feature frame
+OUTPUTS   member probability arrays; selected board rows
+STATUS    PRODUCTION-PATH
+NOTE      The handoff ships the file as committed at 2629293. See 38.2.
+
+FILE      harness/uplift/mlbgate.py
+PURPOSE   Line-for-line Python port of the shipped gate maths from
+          src/lib/odds.ts, src/lib/kelly.ts, harness/lib/oddsmath.ts and
+          harness/lib/metrics.ts.
+USED BY   everything that grades anything
+STATUS    PRODUCTION-PATH. Verified against the TypeScript in section 23.
+
+FILE      harness/uplift/build_cache.py
+PURPOSE   Runs the expensive half once (candidates -> features -> walk-forward)
+          and pickles the result so every later comparison is on identical scores.
+INPUTS    $UPLIFT_DATA_DIR; $UPLIFT_MEMBERS selects extra members
+OUTPUTS   $UPLIFT_CACHE_DIR/<market>_lag0_best.pkl  (939 MB for the R4 set)
+STATUS    PRODUCTION-PATH
+
+FILE      harness/uplift/run_final.py
+PURPOSE   The base runner: chooses the global filter on the SELECT halves,
+          chooses a side policy per market, reports both gates.
+USED BY   run_final_model.py imports choose_global, choose_side, prob, halves,
+          board_of, summarise from it
+STATUS    PRODUCTION-PATH (as a library) and LEGACY (as a runner -- it produces
+          the superseded `_v1` result)
+
+FILE      harness/uplift/run_final_model.py          *** THE FINAL CONFIGURATION RUNNER ***
+PURPOSE   run_final.py plus ONE addition: the per-market member override rule.
+INPUTS    the member cache; --conf, --tag, --lag, --price, --warmup, --blocks
+OUTPUTS   reports/final_v1.csv, final_v1.json, boards_v1.csv,
+          overrides_v1.csv, global_sweep_v1.csv
+STATUS    PRODUCTION-PATH
+
+FILE      harness/uplift/final_matrix.py
+PURPOSE   The one authoritative client table. Applies build_workbook.status_of
+          and joins the robustness count.
+OUTPUTS   reports/final_matrix.csv
+STATUS    REPORTING
+
+FILE      harness/uplift/parity_audit.py
+PURPOSE   Hands every board row to the ported shipped predicates and counts
+          rejections. This is the production-parity number.
+OUTPUTS   reports/parity_audit_v1.csv
+STATUS    PRODUCTION-PATH (it is a gate on the result, not a report about it)
+
+FILE      harness/uplift/robustness.py
+PURPOSE   Re-runs the whole locked pipeline under six single-variable changes.
+OUTPUTS   reports/robustness_v1.csv
+STATUS    PRODUCTION-PATH
+
+FILE      harness/uplift/boardfast.py
+PURPOSE   Vectorised re-implementation of policy.board for the 4,600-cell global
+          sweep. `selfcheck()` asserts it agrees with policy.board exactly, and
+          run_final_v2.py calls selfcheck before using it.
+STATUS    PRODUCTION-PATH (search only -- no reported board is built by it)
+
+FILE      harness/uplift/build_workbook.py
+PURPOSE   status_of() -- the four-way market status -- and the Excel workbook.
+STATUS    REPORTING. status_of is load-bearing; the workbook is not.
+
+FILE      harness/uplift/verify_gate.py
+PURPOSE   Replays shipped harness report JSONs through mlbgate.py.
+STATUS    DIAGNOSTIC / the gate's own regression test
+
+FILE      harness/uplift/check_asof.py, check_asof_hands.py
+PURPOSE   Recompute sampled feature rows the slow way and compare; and report
+          how many rows WOULD change if the game's own day were admitted.
+STATUS    DIAGNOSTIC -- the leakage control
+
+FILE      harness/uplift/calibration.py, diag_signal.py, attribute.py,
+          season_analysis.py, data_inventory.py, inventory_expanded.py,
+          compare_runs.py, dump_aux.py
+STATUS    DIAGNOSTIC / REPORTING
+
+FILE      harness/uplift/ingest_expand.py, build_expanded_data.py,
+          api_to_csv.py, probe_api_coverage.py
+          harness/uplift/dump_odds.ts, dump_box.ts, dump_events.ts,
+          ingest_odds_api.ts, probe_warehouse.ts, probe_entry_lead.ts
+STATUS    INGEST. The .ts files read the Supabase warehouse; the .py files talk
+          to The Odds API and assemble CSVs.
+
+FILE      harness/uplift/exp_anchor_isolation.py       (E22)
+          harness/uplift/exp_edge_calibration.py       (E23, E23-MEAS)
+          harness/uplift/exp_gate_aligned.py           (E24)
+          harness/uplift/exp_model_families.py         (E26)
+          harness/uplift/exp_side_guard.py             (E32)
+          harness/uplift/exp_featureset.py, exp_hybrid.py,
+          exp_nested_rules.py, exp_price_members.py    (earlier stages)
+STATUS    RESEARCH. Every one is reported in reports/experiment_log.csv.
+
+FILE      harness/uplift/run_final_v2.py
+PURPOSE   An alternative "v2" architecture (nested per-market rules). Superseded.
+STATUS    LEGACY -- kept because boardfast.selfcheck lives off it and because
+          reports/experiment_log_v2.csv refers to it.
+
+FILE      harness/uplift/run_improve.py, run_markets.py, run_spec_sweep.py
+STATUS    LEGACY (an earlier stage). run_markets.MEMBERS is still imported by
+          build_cache._members(), so run_markets.py is NOT dead.
+
+FILE      harness/uplift/hands.py, hybrid.py, pricemodels.py
+STATUS    RESEARCH, earlier stages. hands.py (handedness splits) was measured and
+          not adopted; pricemodels.py holds the parametric price models that
+          feed features.
+
+FILE      harness/uplift/live_board.py
+PURPOSE   WRITTEN FOR THIS AUDIT. Generates the current production board under
+          the locked config and reports it by settlement status.
+OUTPUTS   reports/live_production_results.csv, reports/live_summary.txt
+STATUS    DIAGNOSTIC. It reads the configuration; it never chooses one.
+
+3.3 DUPLICATE AND NEAR-DUPLICATE IMPLEMENTATIONS (found, not removed)
+
+  * run_final.py / run_final_v2.py / run_final_model.py are three runners that
+    share ~90% of their code. r4 is the shipped one. This is real duplication
+    and a maintenance risk; it is also why each configuration's result can still be
+    reproduced exactly, which is why nothing was collapsed.
+  * policy.board and boardfast.Fast.board_mask implement the same filter twice.
+    This is deliberate and guarded by selfcheck().
+  * mlbgate.py duplicates harness/lib/metrics.ts in Python. Deliberate, and
+    guarded by verify_gate.py.
+  * Six cache directories (cache, cache_v1, cache_v2, cache_h, cache_repro,
+    cache_expanded, cache_expanded_6h, cache_fam) total ~2.6 GB and hold the
+    member scores for earlier configurations. Only cache_fam matters to the final configuration.
+
+3.4 DEAD CODE
+
+No file in harness/uplift was found to be unreachable from every entry point.
+The root-level `*.py` scripts in betgenius/ (add_factors.py, tomorrow_*.py,
+wire_*.py, etc.) are one-off algorithm-tuning scripts from the live product's
+history; CLAUDE.md states they are "not part of the build". They are shipped in
+project/ for completeness and are NOT part of the final configuration.
+
+Nothing was deleted from the source repository by this audit.
+
+
+================================================================================
+4. ARCHITECTURE
+================================================================================
+
+4.1 THE TWO SYSTEMS
+
+    SYSTEM A -- the live product (deployed)
+        The Odds API + ESPN + Baseball Savant
+              |
+        Supabase edge functions (fetch-odds-mlb, process-games-mlb, ...)
+              |
+        scoring_mlb_v2.ts  x  algorithm_weights   <-- hand-weighted factor scorer
+              |
+        recommendations_cache  ->  React frontend  ->  subscriber
+              |
+        resolve-picks  ->  settled results
+
+    SYSTEM B -- Phase 1 validation (offline, read-only)
+        B1. harness/run_backtest.ts
+            Re-scores historical candidates through the REAL production scorer
+            with the SHIPPED weights, no refitting. Answers "does the product
+            as shipped beat the vig?"
+        B2. harness/uplift/*.py                        <-- THE VALIDATION WORK LIVES HERE
+            Fits its own models on the same priced universe. Answers "could a
+            fitted model do better?"
+
+    B2 shares the priced universe, the gate and the eligibility predicates with
+    A. It shares no scoring code with A.
+
+4.2 THE VALIDATION PIPELINE, STAGE BY STAGE
+
+    RAW DATA
+      Supabase warehouse export (dump_odds.ts, dump_box.ts) -> odds_*.csv,
+      boxscores.csv. Plus an Odds API expansion pull (ingest_expand.py) ->
+      apix6h_*.jsonl -> build_expanded_data.py -> odds_*_api.csv.
+                                |
+    INGESTION / NORMALIZATION   frames.read_market
+      Per (event, market, line): best and median two-sided price at the entry
+      snapshot; de-vigged fair probability; book count.
+                                |
+    DEDUPLICATION
+      One row per (event, market, line). An alternate ladder stays as multiple
+      rows here and is collapsed to one bet later, at board time, by
+      `one_per=unit_key(market)`.
+                                |
+    MARKET CANDIDATES           frames.load_candidates
+      Requires: a matched game_pk; a resolvable player id (ambiguous names are
+      dropped, never guessed); BOTH sides quoted.
+                                |
+    OUTCOME GRADING             frames.load_candidates
+      Against the box-score stat for that (player, game) or the team score for a
+      game market. Pushes -> NaN -> excluded from grading.
+                                |
+    POINT-IN-TIME FEATURES      features.build
+      Every roll-up reads strictly EARLIER local calendar dates.
+                                |
+    MODEL TRAINING + PREDICTION policy.walkforward
+      Expanding-window walk-forward, 40 blocks, 25% warm-up, fold boundaries on
+      the clock. Produces one out-of-sample probability per row per member.
+                                |
+    CALIBRATION
+      Not a separate stage in the shipped config. The estimator IS the
+      calibrator: it is fit on outcomes, so it emits a probability directly.
+      Optional post-hoc isotonic exists as the `iso` member and was not adopted.
+                                |
+    EDGE                        policy.board
+      ev_over = p*dec_over - (1-p);  ev_under = (1-p)*dec_under - p
+                                |
+    CONFIDENCE                  policy.board
+      round(100 * p_of_the_side_being_bet)
+                                |
+    POLICY FILTER               policy.board + mlbgate
+      confidence >= 60; EV > 0.02 (prop markets only); side policy; D-164
+      heavy-juice under veto; ladder collapse on max EV.
+                                |
+    BOARD                       one row per (game, player) or per game
+                                |
+    EVALUATION                  mlbgate.grade + mlbgate.verdict
+      Two windows: full OOS and the verdict window. Same gate.
+
+
+================================================================================
+5. DATA PIPELINE
+================================================================================
+
+5.1 WAREHOUSE EXPORT (TypeScript, read-only)
+
+`harness/uplift/dump_odds.ts` selects, per event and market, the earliest
+snapshot strictly before commence_time, and from that snapshot the BEST
+two-sided price at each line plus the MEDIAN across books. `dump_box.ts` exports
+`cache_mlb_boxscore_player_stats`. `dump_events.ts` exports the event list.
+All three are SELECT-only; the harness role is `harness_readonly` with a
+connection limit of 10 (CLAUDE.md), and the project rule is never to run two
+harness processes at once.
+
+5.2 ODDS API EXPANSION (Python)
+
+`probe_api_coverage.py` establishes what exists before anything is spent.
+`ingest_expand.py --plan` prices the pull; `--run --lead=6 --suffix=6h` executes
+it, requesting the snapshot 6 hours before first pitch.
+`build_expanded_data.py` converts the JSONL to the same CSV schema the warehouse
+export produces, writing to `data_expanded_6h/`. `data/` is never written to,
+which is why the earlier baseline result still reproduces from the original inputs.
+
+5.3 ASSEMBLY
+
+`UPLIFT_DATA_DIR` selects the dataset. `UPLIFT_CACHE_DIR` selects the member
+cache. Both default to the original paths, so an unset environment reproduces
+the earlier baseline result and a set one reproduces the final result. This is the mechanism that
+lets several configurations coexist without any of them being overwritten.
+
+5.4 THE EVENT_ID <-> GAME_PK BRIDGE
+
+`cache_mlb_historical_events` runs only to 2026-06, and for 2026 games the
+warehouse never priced it stores a synthetic `mlb_<game_pk>` id that the provider
+rejects with HTTP 422. Past that point the bridge is rebuilt from team names plus
+the UTC game date and was VALIDATED BEFORE USE against the rows where the
+warehouse does store the true game_pk:
+
+    events with ground-truth game_pk        5,726
+    resolved by the rebuilt bridge          5,384  (94.0%)
+    of those, correct                       5,337  (99.13%)
+    restricted to 2026-06 (the adjacent tail) 248/248 correct, 0 wrong
+
+An earlier version of the rule derived a US LOCAL date by shifting back eight
+hours; measured against the same ground truth it resolved 550 events to the
+WRONG GAME. The measurement caught it. The shipped rule uses the UTC date,
+because that is what `game_date` empirically equals in 5,648 of 5,726 cases.
+
+AUDIT NOTE: 0.87% of bridged events are known-wrong and are carried. On a
+529,695-row graded universe that is a small, quantified contamination, and it is
+the only one the project has measured to this precision. It is not zero.
+
+
+================================================================================
+6. DATA SOURCES
+================================================================================
+
+    SOURCE                              WHAT IT PROVIDES              REACHABLE?
+    ----------------------------------  ----------------------------  ----------
+    Supabase `cache_mlb_historical_odds` priced universe 2023-05-03    YES
+                                         -> 2026-05-24, 18,652,650
+                                         rows, 7,440 events, 11 markets
+    Supabase `cache_mlb_boxscore_        outcomes; 2024-04-01 onward    YES
+      player_stats`                      (322,730 rows to 2026-09-17)
+    Supabase `cache_mlb_historical_      event list -> 2026-06-25       YES
+      events`                            (8,678 rows)
+    The Odds API (historical)            2026-06 -> 2026-09 expansion   YES (paid)
+    statsapi.mlb.com                     official box scores            NO (HTTP 000
+                                                                        from here)
+    baseballsavant.mlb.com               Statcast                       NO (HTTP 000)
+
+The two unreachable sources are verified unreachable from this environment by
+`curl`, not assumed. They are the reason the 2025-06 -> 2026-05 box-score hole
+cannot be repaired locally (section 43.2).
+
+WAREHOUSE STATE AS MEASURED DURING THIS AUDIT (read-only SQL, 2026-09-17):
+
+    cache_mlb_historical_odds     max(commence_time) = 2026-05-24 23:21 UTC
+                                  max(snapshot_timestamp) = 2026-05-24 22:20 UTC
+    cache_mlb_historical_events   max(commence_time) = 2026-06-25 01:45 UTC
+    cache_mlb_boxscore_player_stats  max(game_date) = 2026-09-17, 322,730 rows
+
+That is a material finding for anyone planning to run this live: THE WAREHOUSE
+ODDS TABLE STOPPED ON 2026-05-24. Box scores are current; prices are not. Every
+2026-06 -> 2026-09 price in this project came from the Odds API pull, not from
+the warehouse. Section 34.
+
+The Odds API key in the developer environment is live: 355,792 credits
+remaining, 4,644,208 used (checked on the free `/v4/sports` endpoint, which
+costs nothing).
+
+
+================================================================================
+7. DATA COVERAGE
+================================================================================
+
+7.1 BOX SCORES -- VERIFIED DIRECTLY FROM boxscores.csv
+
+    distinct games        5,914
+    player-game rows    321,890
+    distinct players      4,419
+    span                2024-04-01 -> 2026-09-16
+
+    season   games    rows
+    2024     1,587    82,284
+    2025     2,011   105,614
+    2026     2,316   133,992
+
+Every one of these figures matches the numbers carried in prior project
+documents exactly.
+
+7.2 PRICED AND GRADED CANDIDATES -- THE SHIPPED THE FINAL CONFIGURATION DATASET (T-6h)
+
+    priced candidates (an outcome exists)   530,193
+    pushes (line exactly matched)               498
+    graded candidates                       529,695
+    games with box scores                     5,914
+    games with odds                           5,428
+    games used by the model                   5,421
+    games unused                                493
+
+    season universe   2024  217,693
+                      2025  177,066
+                      2026  134,936
+
+7.3 DISCREPANCY AGAINST PRIOR DOCUMENTS -- RECORDED
+
+(a) The figures quoted in earlier briefs -- 413,253 priced, 412,886 graded,
+    2024/2025/2026 = 217,693 / 169,449 / 25,744, 3,954 games -- are the
+    PRE-EXPANSION dataset (`reports/inventory_base.csv`). Verified: every one
+    matches that file exactly. They are correct for the earlier baseline and superseded for
+    the final configuration.
+
+(b) `docs/VALIDATION_REPORT.md` section 1.4 quotes 535,961 graded rows,
+    177,773 in 2025, 140,495 in 2026, 5,397 games used and 517 games unused.
+    Those are the T-1h expansion's numbers (`reports/inventory_exp.csv`), NOT
+    the T-6h dataset the shipped table was produced from. The correct the final configuration
+    figures are in 7.2 above and in `reports/inventory_exp6.csv`. The
+    discrepancy is 6,266 graded rows (1.2%) and does not affect any result,
+    because every result was computed from the T-6h cache. It is a reporting
+    error in that document and is corrected here and in FINAL_RESULTS.txt.
+
+(c) "4,417 priced games" from earlier briefs corresponds to the pre-expansion
+    inventory's per-market maximum (3,941 in inventory_base.csv for the largest
+    market) and could not be reproduced as stated. The verified figures are in
+    7.2 and in the per-market table of section 8.
+
+7.4 THE DROP FUNNEL, PER MARKET (reports/inventory_exp6.csv)
+
+    market              rawOdds  matched  twoSided  idResolved  DNP  dataMissing  graded  games
+    batter_hits         342,353  311,010   134,269     132,823 1,136     11,418  120,269  5,393
+    batter_rbis         205,057  184,957   107,627     106,500   878      9,183   96,439  5,409
+    totals                9,444    8,653     8,653       8,653     0          0    8,299  5,287
+    spreads               8,145    7,489     7,489       7,489     0          0    7,457  5,392
+    batter_total_bases  573,608  517,148   130,620     129,302 1,109     11,551  116,642  5,394
+    batter_home_runs    314,096  284,934    66,383      65,675   589      5,748   59,338  3,459
+    pitcher_strikeouts   40,997   38,040    31,179      30,659   384      5,984   24,291  4,858
+    h2h                   6,502    5,956     5,956       5,956     0          0    5,956  5,391
+    batter_runs_scored  165,034  142,991    76,297      75,489   390     21,751   53,348  2,954
+    pitcher_outs         14,067   13,264    12,469      12,241   127      2,181    9,821  4,383
+    batter_strikeouts    44,686   38,806    38,805      38,407   133     10,439   27,835  1,439
+
+The two largest drops are structural, not defects:
+  * rawOdds -> twoSided: a candidate is only honest if BOTH sides were quoted.
+    On total_bases that removes 75% of rows, because the alternate ladder is
+    quoted one-sided at most lines.
+  * DNP vs dataMissing: these were CONFLATED before the final configuration. `DID_NOT_PLAY` is a
+    true void (no player-game row exists -- the book voids the prop);
+    `DATA_MISSING` is a row that exists with a null column, i.e. a warehouse
+    backfill hole. Over 90% of what the old code called a void is a data hole.
+    Both are still dropped -- an outcome never recorded cannot be invented --
+    but they are now counted separately, so a backfill gap can no longer hide
+    inside a void count. The graded set is unchanged by construction.
+
+7.5 DUPLICATE AND INVALID RECORDS
+
+  * 313 doubleheaders in the 2026-06 -> 2026-09 pull were DROPPED, not guessed:
+    two games share a team pair and a date and nothing in the provider's event
+    distinguishes them.
+  * Ambiguous player names (the same normalized name mapping to more than one
+    player_id) are dropped globally by `frames.name_to_id`, not resolved by a
+    heuristic. A wrong id silently grades one player with another's line.
+  * Pushes (498 rows) are excluded from grading, matching the shipped
+    computeTierMetrics graded slice.
+  * No duplicate (event, market, line) rows survive read_market.
+
+
+================================================================================
+8. MARKET UNIVERSE
+================================================================================
+
+All 11 markets are carried through to the final table. None was silently
+removed. Two carry a coverage caveat that is stated wherever they appear.
+
+    MARKET              PRICED   GRADED  GAMES  FROM        TO          SIDE   MODEL
+    batter_hits        120,269  120,269  5,393  2024-04-01  2026-09-16  under  gbm
+    batter_rbis         96,439   96,439  5,409  2024-04-01  2026-09-16  under  gbm
+    totals               8,653    8,299  5,287  2024-04-01  2026-09-16  under  gbm
+    spreads              7,489    7,457  5,392  2024-04-01  2026-09-16  both   price
+    batter_total_bases 116,642  116,642  5,394  2024-04-01  2026-09-16  under  rf
+    batter_home_runs    59,338   59,338  3,459  2024-04-01  2026-06-19  both   gbm
+    pitcher_strikeouts  24,291   24,291  4,858  2024-04-01  2026-09-16  both   gbm
+    h2h                  5,956    5,956  5,391  2024-04-01  2026-09-16  both   gbm
+    batter_runs_scored  53,348   53,348  2,954  2024-04-01  2026-09-16  both   gbm
+    pitcher_outs         9,933    9,821  4,383  2024-04-02  2026-09-16  both   gbm
+    batter_strikeouts   27,835   27,835  1,439  2024-04-01  2026-07-17  under  gbm
+
+CONFIDENCE POLICY: 60 for all 11 markets, without exception. EV FLOOR: 0.02 for
+all 11. LADDER COLLAPSE: maxEv for all 11. PARITY SURFACE: ev_pass for the three
+game markets, ev_filtered for the eight prop markets.
+
+COVERAGE CAVEATS
+  * batter_home_runs stops at 2026-06-19 and covers 3,459 games. Its verdict
+    window holds 15 picks.
+  * batter_strikeouts stops at 2026-07-17 and covers only 1,439 games, of which
+    essentially all are 2024 (27,823 of 27,835 rows). ITS VERDICT WINDOW IS
+    2024-ONLY. Its PASS says nothing about 2025-2026 behaviour and must carry
+    that caveat wherever it is quoted. Books do not offer the market in 2025 or
+    mid-2026; this was probed and confirmed, not assumed.
+
+The full per-market result table (Full OOS n / ROI / CI / gate, verdict n / ROI
+/ CI / gate, robustness, final status) is section 29 and
+`results/final_matrix.csv`.
+
+
+================================================================================
+9. ODDS INGESTION
+================================================================================
+
+9.1 SNAPSHOT SELECTION
+The entry price is the earliest snapshot STRICTLY BEFORE commence_time. That is
+what `dump_odds.ts` selects from the warehouse and what `ingest_expand.py`
+requests from the API at a configured lead.
+
+9.2 BOOKMAKER SELECTION AND PRICE NORMALIZATION
+`price="best"` takes the best number quoted AT THAT LINE at the entry snapshot.
+This is the shipped convention, not a choice made by the research:
+`supabase/functions/_shared/best_price.ts selectBestSameLineBook` is what the
+production write path and `harness/lib/game_candidates.ts` both use. A backtest
+priced any other way would not be measuring the same board.
+
+`price="median"` bets the median book instead and is reported alongside every
+verdict as the no-line-shopping sensitivity (robustness variant 5). It is worth
+roughly two thirds of the verdict units -- see section 27.
+
+Implied probabilities are stored per side (`imp_over_best`, `imp_under_best`,
+`imp_over_med`, `imp_under_med`) and converted back to American odds for
+grading. The de-vigged fair probability is `p_fair_over = ps / (ps + po)` --
+proportional normalization, the same method as `harness/lib/oddsmath.ts noVigProb`.
+
+9.3 LINE HANDLING
+One candidate row per (event, market, line). Alternate lines are kept as
+separate candidates through feature building and collapsed to ONE BET at board
+time by `one_per=policy.unit_key(market)`, keeping the row with the highest EV
+(`collapse="maxEv"`). The alternative collapse -- `mostBooks`, the most liquid
+line -- exists and was swept; maxEv won on the SELECT halves.
+
+For spreads the `line` column is the HOME number. "plus" means whichever side
+RECEIVES the number; on an MLB runline the home side is the plus side when the
+home line is +1.5 and the away side is when it is -1.5.
+
+9.4 MISSING, STALE AND DUPLICATE ODDS
+  * A candidate with only one side quoted is dropped (`n_twoway > 0` and
+    `p_fair_over` not null are both required).
+  * A candidate with no `imp_over` or `imp_under` at the chosen price convention
+    is dropped.
+  * Staleness is not separately modelled -- the entry snapshot is by
+    construction the one closest to the configured lead, and the warehouse holds
+    roughly 2 snapshots per event, which is too sparse to reconstruct line
+    movement. Capturing a denser series is production recommendation 5.
+
+9.5 TIMEZONE HANDLING -- THE DEFECT THAT PRODUCED A FAKE EDGE ONCE
+`game_date` is read as TEXT and truncated to 10 characters, never parsed as a
+timestamp. Read as a timestamp it arrives shifted by the client timezone, which
+moves a late start across midnight and lets an as-of join match a game to its
+own box score. `frames.py` states this at the top of the file as rule 1 of
+three, each of which has produced a fake edge at least once.
+
+`commence_time` is UTC throughout. The local calendar date used for as-of joins
+comes from the BOX SCORE, never from commence_time -- a 10pm start is already
+tomorrow in UTC.
+
+
+================================================================================
+10. TIMESTAMP / ENTRY-TIME METHODOLOGY
+================================================================================
+
+This section covers the single most consequential parameter in this work.
+
+10.1 THE MEASUREMENT
+`probe_entry_lead.ts` measures the warehouse's own entry snapshot -- min(snapshot
+_timestamp) strictly before commence_time, which is exactly the row dump_odds.ts
+selects:
+
+    2024-03 -> 2025-10      6.01 hours before first pitch
+    2026-04 -> 2026-05      1.01 hours before first pitch
+
+The WAREHOUSE ITSELF contains a convention break at the 2026 boundary. It was
+not introduced by any ingest; the production snapshot scheduler changed.
+
+This audit independently corroborated the break by a second route: average lead
+across ALL snapshots per month is 2.2-2.4 h through 2025-10 and 1.0 h in
+2026-04/05 (read-only SQL, section 6).
+
+10.2 WHY IT MATTERS
+A one-hour line has absorbed five more hours of market information than a
+six-hour line. Edge measured against it is systematically smaller. The first
+expansion pull (`ingest_odds_api.ts`) used T-1h, which DEEPENED a break the
+project already contained.
+
+10.3 WHAT IT WAS WORTH -- MEASURED, NOT ASSUMED
+
+    entry convention               verdict PASS   both-gates PASS
+    T-1h  (first pull)                 2/11             2
+    T-6h  (matches the warehouse)      5/11             5
+
+Three markets turned on one parameter -- more than the 30% extra data was worth.
+All 2,111 events were re-pulled at lead=6h and the served lead verified at a
+6.01 h median.
+
+10.4 RESIDUAL, DISCLOSED
+2026 WAREHOUSE rows remain at their native ~1.01 h while 2026 API rows are at
+6 h. The project carries this rather than overwriting authoritative warehouse
+values. It is a known inconsistency inside the shipped dataset, and it is one
+plausible contributor to the 2026 degradation in section 44.
+
+10.5 SEMANTICS, STATED
+    commence_time        event start, UTC, from the provider
+    snapshot_timestamp   when the price was OBSERVED -- a real observation time,
+                         not a proxy, not a settlement time
+    entry price          the price at the earliest snapshot strictly before
+                         commence_time, at the configured lead
+    game_date            local calendar date, read as text (see 9.5)
+    feature as-of cut    strictly an EARLIER local calendar date than the game
+
+
+================================================================================
+11. CANDIDATE GENERATION
+================================================================================
+
+`frames.load_candidates(market, box, price)` produces one row per
+(event, market, line), and applies these filters in order:
+
+  1. The event must map to a `game_pk` that exists in the box score. The local
+     game date is taken from the box score.
+  2. BOTH sides must have been quoted (`n_twoway > 0`, `p_fair_over` not null).
+  3. Both implied probabilities must exist at the chosen price convention.
+  4. For prop markets: the player name must resolve to exactly one player_id
+     globally. Ambiguous names are dropped.
+  5. For game markets: both team names must resolve to team ids, and both team
+     scores must exist.
+  6. The settled stat must exist (section 12).
+
+The funnel is instrumented. `frames.LAST_FUNNEL` records, per market, the priced
+count, the DID_NOT_PLAY count, the DATA_MISSING count and the withOutcome count;
+`inventory_expanded.py` writes them to reports/inventory_exp6.csv (section 7.4).
+
+A UNIT OF BETTING is a player-game for prop markets and a game for game markets
+(`policy.unit_key`). That is what stops an alternate ladder counting as eight
+bets on one player.
+
+
+================================================================================
+12. OUTCOME GRADING
+================================================================================
+
+12.1 PROP MARKETS
+The settled stat is read from the box score at (player_id, game_pk):
+
+    batter_hits        -> hits
+    batter_total_bases -> total_bases
+    batter_home_runs   -> home_runs
+    batter_rbis        -> rbi
+    batter_runs_scored -> runs_scored
+    batter_strikeouts  -> batter_strikeouts
+    pitcher_strikeouts -> strikeouts
+    pitcher_outs       -> outs_derived
+
+`outs_derived` is computed from `innings_pitched`, the decimal shorthand where
+5.1 means five and one third: floor(ip)*3 + round(frac*3). The stored `outs`
+column agrees wherever both exist but is null for most of 2025, so outs is
+derived from IP everywhere instead -- consistently, not selectively.
+
+    overHit = NaN            if actual == line   (a push)
+    overHit = actual > line  otherwise
+
+12.2 GAME MARKETS
+Team runs come from the OPPOSING staff's charged runs: a team's pitchers' runs
+sum to what the other side scored. That column is populated for every game in
+the table where the batters' own runs_scored column is not.
+
+    totals   overHit = (home+away) > line, NaN on an exact push
+    h2h      overHit = home margin > 0     ("over" = home)
+    spreads  overHit = (margin + line) > 0, NaN on an exact push
+             (line is the home number)
+
+12.3 WHAT IS NEVER READ
+Nothing from the game being bet is read except the settled stat itself, and that
+only to grade. This is rule 3 of the three stated at the top of frames.py.
+
+
+================================================================================
+13. FEATURE ENGINEERING
+================================================================================
+
+13.1 COUNTS, VERIFIED FROM THE SHIPPED CACHE
+
+    batter prop markets   47 features
+    pitcher prop markets  65 features  (the 47 plus 18 starting-pitcher features)
+    game markets          53 features
+
+13.2 BATTER PROP FEATURE SET (47)
+
+    PRICE / MARKET (9)
+      pLogit            logit of the de-vigged fair probability -- the single
+                        strongest column in every market
+      overround         imp_over_med + imp_under_med (the vig)
+      line              the posted number
+      lineZ             the line standardised against the player's own history
+      dispOver/dispUnder  best price minus median price -- what line shopping is
+                        worth on this row
+      nBooks            how many books quoted it
+      mktTotalLine, mktHomeWinP, mktHomeTeamTotal, mktAwayTeamTotal
+                        the GAME market's own prices, as context for the prop
+
+    PARAMETRIC PRICE MODELS (7)  -- pricemodels.py
+      parP, parPAdj, parPPark, parPNb, parPW, parPOpp, parPBin
+      Poisson, negative-binomial, park-adjusted, opponent-adjusted and binomial
+      models of P(stat > line) built from the player's own rate and the expected
+      opportunity count.
+
+    PLAYER FORM (9)
+      empP              empirical clear rate at this line
+      rate              the player's own per-opportunity rate
+      clr25, clr100     clear rate over the last 25 / 100 games
+      clrEdge25, clrEdge100   that clear rate minus the price's implied
+      nHist             how many prior games the roll-up had
+      slot25, startShare25    lineup slot and start share over 25 games
+
+    OPPORTUNITY (5)
+      expOpp, slotPa, oppGap, teamPaPg25, restDays
+
+    OPPONENT / PITCHING CONTEXT (9)
+      oppPerGame, oppAllowRel, oppRunPerOut, oppKPerBf, oppOutsPerGame,
+      oppRapg25, oppObp25, oppBpKPerBf, oppBpRunPerOut
+
+    TEAM AND PARK (5)
+      teamObp25, teamRpg25, teamBpOutsPerGame, parkRunRel, parkHrRel
+
+    SITUATION (3)
+      isHome, and the two dispersion columns already counted
+
+13.3 PITCHER PROP ADDITIONS (18)
+    spPitch5, spPitch25, spOuts5, spOuts25, spOutsSd25, spPitchPerOut,
+    spBfPerStart, spKPerBf5, spKPerBf25, spBbPerBf25, spStarts25, spSeasonOuts,
+    spKForm, spOutsForm, oppObpRel, expOuts, expOutsBudget, expBf
+    -- the starter's own workload, strikeout rate, walk rate, form and the
+    expected batters-faced budget for this start.
+
+13.4 GAME MARKET FEATURE SET (53)
+    PRICE (9)    pLogit, overround, line, mktTotalLine, mktTotalOverP,
+                 mktHomeWinP, mktHomeCoverP, mktSpreadLine, mktMargin
+    TEAM TOTALS (2)  mktHomeTeamTotal, mktAwayTeamTotal
+    SCORING FORM (4) hsco25, hall25, asco25, aall25
+    STARTERS (4)     hspRunPerOut, aspRunPerOut, hspOutsPerGame, aspOutsPerGame
+    BULLPENS (7)     hbpRunPerOut, abpRunPerOut, hbpKPerBf, abpKPerBf,
+                     hbpOutsPerGame, abpOutsPerGame, bpRunGap
+    PARK (2)         parkRunRel, parkHrRel
+    ELO (2)          eloDiff, eloP
+    PYTHAGOREAN (3)  hPythag, aPythag, pythagGap
+    SKELLAM / POISSON (9)  parP, parPSP, parPSkel, lamHome, lamAway,
+                     mktLamHome, mktLamAway, mktLamGap, expTotal
+    EXPECTATIONS (4) expMargin, expTotalSP, expMarginSP, spRunGap
+    CROSS-MARKET (2) crossP, crossResid -- what the moneyline and the total
+                     jointly imply for this market, and the residual
+    OTHER (5)        empP, nHist, dispOver, dispUnder, nBooks
+
+13.5 FEATURE AUDIT TABLE
+
+    FAMILY            SOURCE       CUTOFF        AT ENTRY?  TRAIN  PROD  LEAKAGE
+    price / market    odds CSV     entry snap    YES        YES    YES   LOW*
+    parametric price  derived      earlier dates YES        YES    YES   LOW
+    player form       box scores   < game date   YES        YES    YES   LOW
+    opportunity       box scores   < game date   YES        YES    YES   LOW
+    pitcher workload  box scores   < game date   YES        YES    YES   LOW
+    opponent context  box scores   < game date   YES        YES    YES   LOW
+    team / bullpen    box scores   < game date   YES        YES    YES   LOW
+    park factors      box scores   < game date   YES        YES    YES   MEDIUM**
+    Elo               box scores   < game date   YES        YES    YES   LOW
+    Pythagorean       box scores   < game date   YES        YES    YES   LOW
+    handedness        aux CSV      static/lagged YES        NO***  NO    n/a
+    weather           aux CSV      forecast      PARTIAL    NO***  NO    n/a
+    calibration feats none         --            --         NO     NO    n/a
+
+    *   "LOW" for price is a statement about TIMING, not about value. The price
+        is available at entry by definition. Its danger is different and is
+        covered in section 19: selecting on disagreement with the price selects
+        the model's own largest errors.
+    **  Park factors are a season-to-date roll-up over earlier dates only, which
+        is point-in-time correct, but they change slowly and a park's factor
+        computed to date D is highly correlated with its factor computed over the
+        whole season. Not a leak; a weak one-directional information channel.
+        Flagged, not repaired.
+    *** hands.py (handedness) and the weather aux table were built and MEASURED
+        (reports/featureset_hands.csv, exp_hands_logloss.csv) and NOT adopted:
+        they did not clear the noise band. They are not in the shipped feature
+        set.
+
+    NO feature in the shipped set is built from a global or whole-sample
+    aggregate. Every roll-up is an expanding window over strictly earlier dates.
+
+
+================================================================================
+14. POINT-IN-TIME / AS-OF INTEGRITY
+================================================================================
+
+14.1 THE THREE RULES (stated at the top of frames.py, each having produced a
+     fake edge at least once)
+  1. Dates are LOCAL CALENDAR DATES, as text.
+  2. As-of joins are STRICTLY earlier: a feature for a game on date D may read
+     box scores from dates < D only, never == D.
+  3. Nothing is read from the game being bet except the settled stat, and that
+     only to grade.
+
+14.2 THE CONTROL THAT MAKES THE TEST MEANINGFUL
+`check_asof.py` recomputes sampled feature rows the slow way and compares. A
+test that passes because nothing moves is not a test, so it ALSO reports how
+many sampled rows WOULD change if the game's own day were admitted:
+
+    starter workload   200 rows recomputed, 0 mismatches; 188 of 200 would change
+    bullpen            200 rows recomputed, 0 mismatches; 179 of 200 would change
+    park               200 rows recomputed, 0 mismatches; 195 of 200 would change
+
+That is the shape of a real as-of test: it passes, AND it would fail loudly if
+the cut were wrong.
+
+14.3 TRAINING-TIME INTEGRITY
+`policy.walkforward` makes fold boundaries on the CLOCK, not on row index.
+Picks that share a commence time straddle a row boundary, and that leak alone
+has turned a FAIL into a PASS before now in this project. A game therefore lands
+wholly on one side of a fold boundary.
+
+14.4 LIMITS OF THE CHECK
+  * 200 rows per family is a sample, not a proof.
+  * Three feature families were sampled, not thirteen.
+  * The bridge error rate of 0.87% (section 5.4) is a data-integrity issue
+    rather than a temporal one, and it is not covered by these checks.
+
+
+================================================================================
+15. MODEL INVENTORY
+================================================================================
+
+15.1 THE SHIPPED THE FINAL CONFIGURATION CONFIGURATION
+
+    MARKET              MEMBER  ESTIMATOR
+    batter_hits         gbm     HistGradientBoostingClassifier
+    batter_rbis         gbm     HistGradientBoostingClassifier
+    totals              gbm     HistGradientBoostingClassifier
+    spreads             price   LogisticRegression on ONE column (pLogit)
+    batter_total_bases  rf      RandomForestClassifier
+    batter_home_runs    gbm     HistGradientBoostingClassifier
+    pitcher_strikeouts  gbm     HistGradientBoostingClassifier
+    h2h                 gbm     HistGradientBoostingClassifier
+    batter_runs_scored  gbm     HistGradientBoostingClassifier
+    pitcher_outs        gbm     HistGradientBoostingClassifier
+    batter_strikeouts   gbm     HistGradientBoostingClassifier
+
+    9 markets: gbm.  1 market: rf.  1 market: price.
+
+15.2 HYPERPARAMETERS, EXACTLY AS SHIPPED
+
+    gbm   sklearn.ensemble.HistGradientBoostingClassifier
+          max_depth=3, max_leaf_nodes=8, l2_regularization=5.0,
+          learning_rate=0.05, max_iter=200, min_samples_leaf=200,
+          random_state=20260916
+          Deliberately small: a prop board carries one weak signal and a boosted
+          model given room finds the noise.
+
+    rf    sklearn.ensemble.RandomForestClassifier
+          n_estimators=200, max_depth=8, min_samples_leaf=200,
+          max_features="sqrt", n_jobs=1, random_state=20260917
+          Inputs median-imputed on the TRAINING fold only, then standardised.
+
+    price sklearn.linear_model.LogisticRegression(max_iter=3000, C=1.0)
+          fitted on the single column pLogit. This is the market's own de-vigged
+          number recalibrated against itself and nothing else.
+
+15.3 HOW MANY MODELS ACTUALLY EXIST
+
+    Estimators fitted to produce the SHIPPED TABLE
+        11 markets x 40 walk-forward folds x 1 member = 440
+
+    Estimators fitted to BUILD THE MEMBER CACHE (all 11 candidate members)
+        11 markets x 40 folds x 11 members = 4,840
+
+    Estimators PERSISTED TO DISK
+        0
+
+    Nothing is saved but the out-of-sample probability each fold produced. There
+    is no model artifact, no .pkl of a fitted estimator, no ONNX, no registry.
+    Every prediction in this project was made by a model that was fit and then
+    discarded. That is a deliberate property of a walk-forward backtest and a
+    hard blocker for deployment (section 30.4).
+
+15.4 THE ELEVEN CANDIDATE MEMBERS IN THE CACHE
+
+    price     logistic on pLogit alone                      ADOPTED (spreads)
+    box       logistic on the full feature vector           rejected
+    compact   logistic on a hand-picked 13-14 column subset  rejected
+    gbm       HistGradientBoosting, the incumbent            ADOPTED (9 markets)
+    rf        RandomForest                                   ADOPTED (total_bases)
+    et        ExtraTrees                                     rejected -- won
+                                                             `totals` at 1 of 3
+                                                             inner cuts only
+    iso       gbm plus a post-hoc isotonic recalibration     rejected
+    offset    GLM with the price pinned at coefficient 1     rejected
+    gbmB      depth 4 / 15 leaves / L2 10 / 400 iters        rejected -- never
+                                                             chosen at any cut
+    gbmC      depth 2 / 4 leaves / L2 2 / 150 iters          rejected -- ditto
+    gbmD      depth 6 / 31 leaves / L2 20 / 600 iters        rejected -- ditto
+
+15.5 WHAT WAS NOT USED -- STATED PLAINLY
+
+    XGBoost    NOT used in the final production configuration. NOT imported by
+               any delivered file. NOT in requirements.txt.
+    LightGBM   NOT used. Same three statements.
+    CatBoost   NOT used and NOT installed.
+    FLAML      NOT used and NOT installed.
+
+    xgboost 3.4.1 and lightgbm 4.7.0 ARE importable on the developer machine at
+    audit time. They were installed for later research. Nothing in this work calls
+    them, and `grep -r "xgboost\|lightgbm\|catboost\|flaml"` over the shipped
+    the final configuration source returns nothing.
+
+    These four names appear in the two client-supplied TESTING_GUIDE files. That
+    is a DIFFERENT project (section 35). Their presence there is not evidence of
+    their use here, and this handoff does not claim them.
+
+    Note on the gap: HistGradientBoosting IS the histogram-boosting family that
+    LightGBM belongs to, so the genuinely untested ground is CatBoost's ordered
+    target statistics. That is a real gap and section 43.3 names it as one.
+
+15.6 MODEL CATEGORIES, COUNTED
+    production models          3 distinct estimators (gbm, rf, price)
+    market-specific models     2 overrides (spreads, batter_total_bases)
+    pooled / cross-market      0 -- every model is fit within one market
+    experimental members       8 built and scored, 0 adopted
+    calibration models         1 optional (`iso`), not adopted
+    baseline models            1 (`price`), adopted on one market
+    rejected model families    3 external libraries never tested (15.5)
+
+
+================================================================================
+16. MODEL TRAINING
+================================================================================
+
+16.1 TARGET
+Binary. `overHit` = 1 if the settled stat cleared the posted line (or the home
+side won / covered), 0 otherwise, NaN on a push. NaN rows are excluded before
+any fit. The model always predicts P(OVER) -- or P(HOME) on h2h and spreads --
+and the board decides which side to bet afterwards, from that one probability.
+
+16.2 TRAINING POPULATION
+Every graded candidate for that market whose commence time is strictly before
+the fold boundary. No down-sampling, no class balancing, no re-weighting.
+
+16.3 THE WALK-FORWARD SCHEDULE
+    warm-up      25% of rows, never scored -- they exist only to train fold 1
+    blocks       40
+    boundaries   TIMESTAMPS derived from the data, so a game never straddles one
+    window       EXPANDING. Fold k trains on everything before its boundary.
+    minimum      a fold is skipped if the training side holds under 200 rows
+    verified     40 usable folds in every one of the 11 markets
+
+16.4 REFIT
+Every fold refits from scratch. There is no warm start and no incremental
+update. Each of the 440 shipped estimators sees only data that had already
+happened at its boundary.
+
+16.5 MISSING VALUES, SCALING, CATEGORICALS
+    gbm    HistGradientBoosting handles NaN natively. Columns that are constant
+           or all-missing INSIDE a fold are dropped for that fold (fewer than 20
+           finite values, or standard deviation below 1e-12) -- dropped rather
+           than allowed to kill the whole member on one thin fold.
+    rf     median-imputed using the TRAINING fold's medians only, then
+           standardised using the TRAINING fold's mean and standard deviation.
+    price / box / compact
+           same training-fold-only impute-and-standardise.
+    There are no categorical features. Every column is numeric by construction;
+    `features.build` coerces with `pd.to_numeric(errors="coerce")` and maps
+    infinities to NaN.
+
+16.6 FEATURE SELECTION
+None, in the adopted configuration. Every member is handed the market's whole
+feature vector. The `compact` member (a hand-picked 13-14 column subset for thin
+markets) is the only selection experiment and it was not adopted anywhere.
+
+16.7 THE ANSWER TO "IS EVERY PREDICTION OUT OF SAMPLE?"
+Yes, for the model. Every scored row was predicted by an estimator fit only on
+rows whose commence time was strictly earlier than that row's fold boundary,
+using features that read only strictly earlier calendar dates. Rows inside the
+warm-up window are never scored at all.
+
+The qualification is at the SELECTION layer, not the training layer: the global
+filter and the per-market override were chosen using the SELECT half of the same
+out-of-sample period. That is why the project reports TWO gates, and why the
+verdict window exists (sections 25-26).
+
+
+================================================================================
+17. MODEL SELECTION
+================================================================================
+
+17.1 THE GLOBAL FILTER
+Chosen once, over the pooled SELECT halves of all 11 markets, by
+`run_final.choose_global` sweeping roughly 4,600 configurations (spec x EV floor
+x confidence x ladder collapse). Result, reproduced during this audit:
+
+    spec = gbm    EV floor = 0.02    confidence floor = 60    collapse = maxEv
+
+The confidence floor is PINNED at 60 and was never searched. It is the shipped
+product's own floor.
+
+17.2 THE SIDE POLICY
+Chosen per market on the SELECT half only (`run_final.choose_side`). This is the
+same lever the shipped `MLB_EV_SIDE_POLICY` already pulls in production on hits,
+total bases, game_total and game_side. Result: `under` on four markets,
+`both` on seven.
+
+17.3 THE PER-MARKET MEMBER OVERRIDE -- THE ONE ARCHITECTURAL CHANGE IN THE FINAL CONFIGURATION
+
+A market may replace the global ensemble with a single member only if ALL FOUR
+conditions hold:
+
+  1. The SAME member wins on SELECT-A at ALL THREE inner cuts (q = 0.5/0.6/0.7).
+  2. It beats the global spec on held-out SELECT-B by more than 0.0011 -- the
+     noise band measured by experiments E8/E16/E19 -- at all three cuts.
+  3. Its SELECT board holds at least 500 rows (EV_GATE_MIN_GRADED, the gate's
+     own floor).
+  4. Otherwise the market keeps the global spec, unchanged.
+
+Decided on LOG LOSS -- a proper scoring rule over every scored row -- not on
+board ROI over a few hundred rows the model selected using its own largest
+errors. The verdict window is never read.
+
+RESULT (reports/overrides_v1.csv, reproduced identically this audit):
+
+    market              chosen  gains at q=0.5/0.6/0.7      same  beats  selectN  ADOPTED
+    spreads             price   0.0132 / 0.0127 / 0.0171    yes   yes     1,076   YES
+    batter_total_bases  rf      0.0015 / 0.0016 / 0.0014    yes   yes     3,004   YES
+    batter_rbis         compact 0.0005 / 0.0007 / 0.0012    yes   NO      1,044   no
+    pitcher_strikeouts  price   0.0060 / 0.0058 / 0.0047    yes   yes         1   no (cond 3)
+    pitcher_outs        price   0.0018 / 0.0014 / 0.0027    yes   yes       374   no (cond 3)
+    h2h                 price   0.0035 / 0.0002 / -0.0012   yes   NO        515   no
+    batter_home_runs    rf      0.0003 / 0.0000 / 0.0001    yes   NO         14   no
+    batter_hits         box/offset/offset                   NO    NO          0   no
+    totals              et/price/price                      NO    yes        0   no
+    batter_runs_scored  compact/price/compact               NO    yes        0   no
+    batter_strikeouts   compact -0.0003 / -0.0004 / -0.0001 yes   NO        993   no
+
+  Two adopted. Nine not. Every rejection is traceable to a named condition.
+
+17.4 A FAILURE WORTH RECORDING -- AND IT IS RECORDED
+Run WITHOUT condition 3, the rule adopted four overrides and made the result
+WORSE (both-gates 5 -> 4):
+
+    market              override  full-OOS board n     outcome
+    batter_total_bases  rf        409 -> 5,356         repaired; verdict
+                                                       -15.07% -> +1.07% PASS
+    pitcher_outs        price     1,957 -> 507         PASS -> FAIL
+    pitcher_strikeouts  price     2,407 -> 1           NO_DATA
+
+The mechanism is structural, not statistical. A prop board is `evPerUnit > tau`,
+and EV is positive only where the model DISAGREES with the price. A member
+better calibrated to the price agrees with it more and produces a smaller board;
+`price` agrees exactly and produces almost none. Log loss cannot see this,
+because log loss scores every row while the gate scores only the selected ones.
+
+Condition 3 is derived from the gate's own definition -- SELECT and VERDICT are
+equal halves, so a SELECT board under 500 projects to a verdict board under 500
+-- and is evaluated entirely on SELECT.
+
+AUDIT POSITION ON THIS: the project discloses, in
+`docs/methodology/EXPERIMENT_PLAN.md` Addendum 3, that the verdict consequence of the unamended
+rule was SEEN BEFORE the amendment was written. That is the honest disclosure of
+a real researcher-degree-of-freedom. It is not laundered as "condition 3 was
+specified first". An auditor should note that condition 3 is nonetheless
+justified from the gate's own constant rather than tuned, and that the market it
+saved (pitcher_strikeouts at 1 board row) is an obvious degenerate case. The
+disclosure is adequate; the exposure is real and small.
+
+
+================================================================================
+18. PROBABILITY CALIBRATION
+================================================================================
+
+18.1 IS THERE A SEPARATE CALIBRATION STAGE? NO.
+In the shipped configuration the estimator IS the calibrator. `gbm`, `rf` and
+`price` are all fit on binary outcomes and emit a probability directly. No
+Platt scaling, no isotonic map, no temperature.
+
+18.2 THE CALIBRATION MEMBER THAT WAS BUILT AND NOT ADOPTED
+`policy._fit_predict_iso` (the `iso` member) splits the TRAINING fold itself on
+the clock: fits on the earlier 80%, fits an isotonic map on the last 20% it has
+not seen, refits on the whole fold, applies the map. Nothing from the test block
+is used at either stage. It is point-in-time correct BY CONSTRUCTION and it was
+rejected because it was inside the noise band everywhere -- not because of any
+integrity concern.
+
+18.3 MEASURED CALIBRATION QUALITY  (reports/calibration.csv)
+
+    market              member  logLoss   slope   intercept  meanP   meanY
+    batter_hits         price   0.64618   1.017    0.007     0.5081  0.5099
+    batter_hits         gbm     0.64577   1.003    0.020     0.5052  0.5099
+    batter_rbis         price   0.59497   1.047    0.065     0.2846  0.2891
+    batter_rbis         gbm     0.59443   0.881   -0.112     0.2906  0.2891
+    batter_total_bases  price   0.67073   1.014    0.025     0.4547  0.4600
+    batter_total_bases  gbm     0.67076   0.992    0.013     0.4566  0.4600
+    pitcher_strikeouts  price   0.63176   1.029    0.064     0.4878  0.5016
+    pitcher_strikeouts  gbm     0.63790   0.935    0.033     0.4939  0.5016
+    spreads             price   0.66001   1.087    0.010     0.4851  0.4863
+    spreads             gbm     0.67688   0.675   -0.039     0.4939  0.4863
+    h2h                 price   0.67809   0.883    0.009     0.5390  0.5369
+    h2h                 gbm     0.68949   0.509    0.047     0.5472  0.5369
+    totals              price   0.69370   0.171   -0.017     0.4881  0.4938
+    totals              gbm     0.71350   0.025   -0.025     0.5007  0.4938
+    pitcher_outs        price   0.68101   0.916   -0.038     0.5113  0.5012
+    pitcher_outs        gbm     0.68946   0.572    0.025     0.4917  0.5012
+    batter_runs_scored  price   0.65315   1.102    0.094     0.3675  0.3767
+    batter_runs_scored  gbm     0.65550   0.808   -0.074     0.3708  0.3767
+    batter_home_runs    price   0.35680   0.994    0.068     0.1121  0.1201
+    batter_home_runs    gbm     0.35720   0.947   -0.057     0.1153  0.1201
+    batter_strikeouts   price   0.66044   0.970    0.060     0.4898  0.5041
+    batter_strikeouts   gbm     0.66054   0.994    0.036     0.4957  0.5041
+
+THE FINDING AN AUDITOR SHOULD NOT MISS: `price` -- the market's own de-vigged
+number with nothing added -- has a BETTER log loss than `gbm` on 8 of these 11
+markets. The model beats the book's own probability on batter_hits and
+batter_rbis, and essentially ties on batter_total_bases and batter_strikeouts.
+On the three game markets the model is decisively worse (totals slope 0.025,
+h2h slope 0.509, spreads slope 0.675 -- all badly under-confident relative to a
+well-calibrated 1.0).
+
+This is the same finding the override rule arrived at independently by adoption
+test, and it is why `spreads` ships as `price` with the model removed entirely.
+
+CAVEAT ON THIS TABLE, FOUND BY THIS AUDIT: `reports/calibration.csv` was
+computed on the PRE-EXPANSION cache. Its n for batter_hits is 70,646 against the
+The final configuration dataset's 120,269 graded rows. The conclusions are directionally
+unchanged -- the override table computed on the final configuration data agrees -- but the
+NUMBERS in this file are an earlier-stage diagnostic and should be quoted as such. It
+was not recomputed on the member cache, and that is a gap.
+
+18.4 DOES CALIBRATION LEAK?
+No path was found by which it could. There is no global calibration map, no
+whole-sample recalibration, and no post-hoc fit on the evaluation window. The
+one optional calibrator splits its own training fold on the clock. Section 37
+records this as PASS with the wording the evidence supports.
+
+
+================================================================================
+19. EDGE CALCULATION
+================================================================================
+
+19.1 THE ARITHMETIC (policy.board)
+
+    dec_over  = american_to_decimal(overOdds)     net profit on a 1u win
+    dec_under = american_to_decimal(underOdds)
+    ev_over   = p * dec_over  - (1 - p)
+    ev_under  = (1 - p) * dec_under - p
+    take_over = ev_over >= ev_under
+    evPerUnit = max(ev_over, ev_under)
+
+This is expected value per unit staked at the ACTUAL posted price, vig included.
+A positive evPerUnit is exactly the condition "the model's probability beats the
+price the book is offering".
+
+19.2 THE FLOOR
+`tau = 0.02`, applied on prop markets only. Game markets are scored on the
+`ev_pass` surface, which has no EV filter at all, because the shipped game write
+path carries no evPerUnit (section 28).
+
+19.3 THE MOST IMPORTANT MEASUREMENT IN THE FINAL CONFIGURATION (E23-MEAS)
+
+Predicted edge against realised edge, SELECT half, pooled over 11 markets:
+
+    predicted bucket        n     predicted   realised    gap
+    0-1%               11,146       0.49%      -3.20%    3.69
+    1-2%                9,594       1.49%      -1.48%    2.96
+    2-3%                7,939       2.49%      -0.73%    3.21
+    3-5%               12,880       3.96%      -2.00%    5.96
+    5-7%                9,844       5.97%      +1.60%    4.37
+    7-10%              10,759       8.40%      +0.67%    7.74
+    10%+               21,144      19.61%      +1.95%   17.66
+
+A NOMINAL EDGE IS OVERSTATED BY 3 TO 18 PERCENTAGE POINTS AT EVERY LEVEL, and
+the relationship to realised edge is weak and non-monotone.
+
+This is the winner's curse, and it is structural: selecting on `ev > tau`
+selects the rows where the model's error is largest AND positive. A better
+probability model does not fix a selection problem.
+
+Correcting it directly (E23: an isotonic map from predicted EV to realised
+profit, fitted chronologically) LIFTS held-out ROI on 6 of 8 markets but cuts
+board size 50-75%, so total units fall (24,278 vs 34,062) and it was rejected on
+its own pre-registered criterion.
+
+AUDIT POSITION: this measurement should govern how any client reads a
+"predicted edge" number from this system. The EV filter works as a THRESHOLD
+that produces a profitable board on six markets. It does not work as a RANKING
+signal, and a 10% predicted edge is not ten times better than a 1% one.
+
+
+================================================================================
+20. CONFIDENCE CALCULATION
+================================================================================
+
+    confidence = round(100 * p_of_the_side_being_bet)
+
+That is the whole definition (policy.board). If the board takes the over,
+confidence is round(100*p); if it takes the under, round(100*(1-p)).
+
+It is therefore a CALIBRATED PROBABILITY expressed on a 0-100 scale, not a
+separate score and not a rating. A confidence of 64 means the model assigns 64%
+to that side.
+
+The floor is 60, pinned. It is the shipped product's own floor
+(`mlbgate.ev_pass_mask` requires `confidence >= 60`) and it was never searched,
+never lowered, and is identical across all 11 markets.
+
+CONSEQUENCE WORTH STATING: because confidence is max(p, 1-p) after the side is
+chosen, it is bounded below by 50 and a 60 floor is not a demanding filter on a
+market whose probabilities cluster near 0.5. On batter_rbis, where the base rate
+is 0.289, nearly every row clears 60 on the under side -- which is visible in the
+live board (section 32): 5,129 of 5,183 predictions clear the floor. The EV
+floor, not the confidence floor, is what actually cuts that board down to 111.
+
+
+================================================================================
+21. MARKET POLICIES
+================================================================================
+
+21.1 THE SHIPPED THE FINAL CONFIGURATION POLICY, IN FULL
+
+    global spec              gbm
+    EV floor (tau)           0.02
+    confidence floor         60
+    ladder collapse          maxEv
+    per-market overrides     spreads -> price;  batter_total_bases -> rf
+    side policy              per market, chosen on SELECT (table in section 8)
+    parity surface           ev_pass on h2h/spreads/totals; ev_filtered elsewhere
+    heavy-juice veto         D-164, unchanged
+    unit of betting          (game_pk, playerId) for props; (game_pk) for games
+
+21.2 THE D-164 HEAVY-JUICE UNDER VETO (mlbgate.is_unbettable_juice)
+Applies to the UNDER side only; over, home and away are never flagged.
+
+    confidence >= 90 AND odds <= -350   -> veto
+    confidence >= 80 AND odds <= -300   -> veto
+    confidence >= 70 AND odds <= -250   -> veto
+    confidence >= 60 AND odds <= -200   -> veto
+
+This is a product rule shipped in the live app. The pipeline applies it verbatim and
+did NOT loosen it, even where loosening it would have produced a pass:
+`batter_home_runs` has 59,338 graded candidates and 29 board rows, and the veto
+plus the confidence floor is why. Loosening a product rule to pass a gate was
+refused. Section 43.1.
+
+21.3 THE OVER-BREAKEVEN RULE
+`mlbgate.passes_over_breakeven` requires confidence/100 >= implied_prob(odds)
+for a pick whose side is literally called "over". `policy.board` does NOT apply
+it; `parity_audit.py` measures how many rows it would reject. The answer is 0
+(section 28).
+
+21.4 DUPLICATE HANDLING
+An alternate ladder is collapsed to one bet per unit key, keeping the row with
+the highest evPerUnit. `mostBooks` (the most liquid line) was the alternative and
+lost on the SELECT halves.
+
+
+================================================================================
+22. BETTING DECISION LOGIC
+================================================================================
+
+Reading policy.board end to end, a candidate becomes a board row if and only if:
+
+  1. The walk-forward probability for that row is finite (it is outside the
+     warm-up window and its fold had enough data).
+  2. confidence >= 60.
+  3. On a prop market: evPerUnit > 0.02. On a game market: no EV condition.
+  4. The chosen side matches the market's side policy, if it has one.
+  5. It is not vetoed by the D-164 heavy-juice rule.
+  6. It is the highest-EV row for its (game, player) -- or its game.
+
+The side is NOT chosen by the side policy. The side is chosen by EV, and the
+side policy then DISCARDS rows whose EV-chosen side is the wrong one. This
+matters: an `under`-policy market does not bet the under on every row; it bets
+the under on the rows where the under had the better EV, and shows nothing on
+the rest.
+
+
+================================================================================
+23. OFFICIAL GATE LOGIC
+================================================================================
+
+23.1 THE RULE
+    PASS if   graded n >= 500  AND  ROI > 0
+    PASS if   graded n <  500  AND  95% ROI CI lower bound > 0
+    FAIL otherwise
+    NO_DATA if graded n == 0
+
+23.2 VERIFICATION AGAINST THE SHIPPED TYPESCRIPT
+`harness/lib/metrics.ts` lines 316-390:
+
+    const EV_GATE_MIN_GRADED = 500;
+    const pass = tier.graded >= EV_GATE_MIN_GRADED
+        ? tier.roiPct > 0
+        : tier.roiCiLoPct > 0;
+
+`harness/uplift/mlbgate.py verdict()`:
+
+    if m["graded"] >= EV_GATE_MIN_GRADED:   return "PASS" if m["roiPct"] > 0 ...
+    if m["roiCiLoPct"] > 0:                 return "PASS" ...
+
+Identical, including the reason strings, which are formatted character for
+character the same way. EV_GATE_MIN_GRADED = 500 in both.
+
+23.3 THE GRADED SLICE
+`computeTierMetrics` drops voids and pushes before computing ROI.
+`mlbgate.grade` does the same: `(~voided) & hit.notna()`.
+
+23.4 THE BOOTSTRAP
+2,000 iterations, percentile method, on the unit-profit series. Seed 20260701.
+`exact=True` walks the harness's own mulberry32 PRNG stream and reproduces the
+shipped CI bit for bit; `exact=False` draws the same percentile bootstrap from
+numpy PCG64 and is used in the sweeps for speed.
+
+23.5 THE REPLAY TEST, RUN THIS AUDIT
+`python harness/uplift/verify_gate.py` replays shipped harness report JSONs
+through the Python port:
+
+    report                              market  slice     pubN  myN  pubRoi     myRoi      pubCiLo    myCiLo     match
+    h2h_2026-04-25_to_2026-05-24.json   h2h     ev_pass   263   263  10.353020  10.353020  -1.164874  -1.164874  OK
+    h2h_2026-05-18_to_2026-05-19.json   h2h     ev_pass     4     4  -8.600427  -8.600427  -100.0     -100.0     OK
+
+    2 shipped reports replayed, 0 mismatches.
+
+That is an exact reproduction including the bootstrap CI. It is also a SAMPLE OF
+TWO -- the only two shipped report JSONs in harness/out that carry a picks array.
+Recorded as a limitation.
+
+23.6 FINAL MARKET STATUS (build_workbook.status_of, unchanged)
+    both gates PASS                            -> PASS
+    exactly one gate PASSes                    -> PASS_WITH_RESTRICTIONS
+    neither, and flat-bet ROI < -12%           -> VETO
+    neither, otherwise                         -> FAIL_AFTER_ITERATION
+
+    "flat-bet ROI" is the ROI of betting EVERY priced candidate flat -- i.e. the
+    vig. A market whose raw vig is worse than -12% is vetoed rather than merely
+    failed, because the product would be shipping into a structurally
+    unprofitable price.
+
+23.7 NOTHING WAS MODIFIED
+The gate was not changed at any point in this work, and this audit re-verified
+it rather than taking the claim on trust.
+
+
+================================================================================
+24. WALK-FORWARD VALIDATION
+================================================================================
+
+    warm-up            25% of rows (never scored)
+    refit blocks       40
+    boundary type      timestamp, not row index
+    window             expanding
+    minimum train fold 200 rows
+    usable folds       40 in every one of the 11 markets (verified this audit)
+    members per fold   11 built into the cache; 1 used per market in the result
+
+The reason boundaries are timestamps and not row indices is recorded in the
+source: picks that share a commence time straddle a row boundary, and that leak
+alone has turned a FAIL into a PASS before now in this project.
+
+An alternative schedule (15% warm-up, 12 blocks) is one of the six robustness
+variants, so the result is not reported at a single refit cadence.
+
+
+================================================================================
+25. FULL OOS EVALUATION
+================================================================================
+
+The FULL OUT-OF-SAMPLE period is every row outside the 25% warm-up window --
+i.e. every row the walk-forward scored. For the final configuration that is 28,141 board rows
+across 11 markets, 2024-04-01 to 2026-09-16.
+
+    Gate (full OOS) PASS: 7 / 11
+        batter_hits, totals, batter_total_bases, pitcher_strikeouts,
+        batter_runs_scored, pitcher_outs, batter_strikeouts
+    Full-OOS units: +559.3
+
+WHAT THIS NUMBER IS AND IS NOT: the full OOS period is out of sample FOR THE
+MODEL but its earlier half was used to CHOOSE the filter, the side policy and
+the override. It is therefore an optimistic estimate. That is precisely why the
+project reports a second gate on a window that was never read.
+
+A WARNING ABOUT COMPARING CONFIGURATIONS: the full-OOS count is the count most
+easily moved by things that have nothing to do with model quality. On a smaller,
+earlier dataset it reads 9/11; on this one it reads 7/11 -- and both changes that
+caused the fall make the test HARDER rather than the model worse. The verdict
+windows move roughly three months later, and 2026 is 134,936 rows here rather
+than 25,744 and is a materially harder period (section 29.4). ANY COMPARISON
+BETWEEN TWO CONFIGURATIONS OF THIS SYSTEM MUST USE THE BOTH-GATES COUNT, NEVER
+THE FULL-OOS COUNT ALONE.
+
+
+================================================================================
+26. VERDICT WINDOW EVALUATION
+================================================================================
+
+26.1 WHAT IT IS
+The LATER HALF of each market's out-of-sample period, split at the median
+commence time of the scored rows (`run_final.halves`). It is never read while
+the global filter, the side policy or the per-market override is chosen. Every
+one of those decisions is made on the SELECT half, and SELECT is itself split
+into SELECT-A (choose) and SELECT-B (score) at three inner cuts.
+
+26.2 THE RESULT
+    Gate (verdict window) PASS: 6 / 11
+        batter_hits, batter_total_bases, pitcher_strikeouts,
+        batter_runs_scored, pitcher_outs, batter_strikeouts
+    Verdict units: +202.7  over 12,687 picks
+
+26.3 THE SECOND CONFIDENCE INTERVAL
+Every verdict row carries TWO CI lower bounds:
+  * `ciLo`       -- the gate's own pick-level bootstrap. This is what decides
+                    PASS/FAIL, because it is what the shipped gate computes.
+  * `clusCiLo`   -- a GAME-CLUSTERED bootstrap that resamples whole games rather
+                    than picks. Picks on the same game settle together, so a
+                    pick-level CI understates the spread whenever a board holds
+                    several lines on one event.
+The clustered bound is reported next to the gate's number everywhere and never
+in place of it. On the six PASS markets the two agree closely (e.g. batter_hits
+9.51 vs 9.24), which is evidence the pick-level CI is not badly understating.
+
+26.4 PER-MARKET VERDICT WINDOWS -- THEY ARE NOT THE SAME DATES
+    batter_strikeouts   from 2024-06-19   <-- 2024 ONLY. See section 8.
+    batter_runs_scored  from 2025-04-19
+    batter_home_runs    from 2025-05-24
+    batter_hits         from 2025-08-08
+    pitcher_strikeouts  from 2025-08-25
+    spreads             from 2025-08-25
+    totals              from 2025-08-27
+    h2h                 from 2025-08-29
+    batter_total_bases  from 2025-08-31
+    batter_rbis         from 2025-09-06
+    pitcher_outs        from 2026-04-01
+Because each market's window is its own median, the eleven verdicts are not
+measured over a common period. That is correct for a per-market gate and it
+means the eleven results are not directly comparable to each other in time.
+
+
+================================================================================
+27. ROBUSTNESS TESTING
+================================================================================
+
+27.1 THE SIX VARIANTS (robustness.py)
+    1. locked (headline)                the shipped configuration
+    2. placebo lag 1 day                force the freshest box score a pick may
+                                        see to be 1 day older
+    3. placebo lag 3 days               same, 3 days
+    4. placebo lag 7 days               same, 7 days
+    5. median book, no line shopping    bet the median price, not the best
+    6. warm-up 15%, 12 refit blocks     a different walk-forward schedule
+
+Each changes exactly ONE thing and re-runs the WHOLE locked pipeline, including
+rebuilding the member cache for that variant. `--conf=60` is passed through to
+every variant, so the stress test exercises the same rule the headline uses.
+
+27.2 RESULTS (results/robustness_v1.csv)
+
+    variant                          full-OOS PASS  verdict PASS  units OOS / verdict
+    locked (headline)                      7             6          559.3 / 202.7
+    placebo lag 1d                         7             6          499.6 / 216.1
+    placebo lag 3d                         8             5          586.6 / 219.1
+    placebo lag 7d                         8             5          587.7 / 271.6
+    median book, no line shopping          6             4          291.2 /  73.4
+    warm-up 15%, 12 refit blocks           8             4          471.2 / 132.3
+
+27.3 PER-MARKET ROBUSTNESS COUNT
+The count in the final matrix is how many of the six variants that market passes
+the FULL-OOS gate in.
+
+    batter_hits         6/6      pitcher_outs        6/6
+    batter_total_bases  6/6      batter_strikeouts   6/6
+    pitcher_strikeouts  6/6      batter_runs_scored  5/6
+    batter_rbis         5/6      totals              3/6
+    spreads             1/6      h2h                 0/6
+    batter_home_runs    0/6
+
+Five of the six PASS markets survive ALL SIX variants; the sixth survives five.
+The two FAIL_AFTER_ITERATION markets survive one and zero. The stress test and
+the gate agree about which markets are real.
+
+27.4 WHAT THE VARIANTS TELL YOU
+  * THE PLACEBO-LAG PROFILE IS FLAT TO SLIGHTLY RISING, NOT COLLAPSING. This is
+    the single strongest piece of leakage evidence in the project. A same-game
+    leak dies at the first day of lag. This does not. It rises modestly because
+    lagged roll-ups are smoother and the boards are smaller, not because lag
+    helps.
+  * LINE SHOPPING IS WORTH REAL MONEY. Betting the median book instead of the
+    best number at that line costs roughly two thirds of the verdict units
+    (202.7 -> 73.4). Anyone assuming this edge survives worse execution should
+    read that number first. THE HEADLINE RESULT ASSUMES BEST-PRICE EXECUTION.
+  * The verdict count sits between 4 and 6 across every variant -- a broad
+    stable region rather than a single lucky setting.
+
+27.5 INDEPENDENCE AND SELECTION
+The six variants are independent of each other in what they change. NONE of them
+was used during model selection: the global filter, the side policy and the
+override are all chosen on the locked configuration's SELECT half, and the
+variants are run afterwards as a stress test on the finished result.
+
+27.6 AUDIT NOTE
+`reports/robustness_v1.csv` is a BYTE-IDENTICAL COPY of
+`reports/robustness_v1.csv`, made so `final_matrix.py --tag=_v1` could find
+its input under the expected name. Verified by byte comparison. It is benign and
+was not documented anywhere before this audit. Both files ship.
+
+
+================================================================================
+28. PRODUCTION PARITY
+================================================================================
+
+28.1 WHAT IS BEING CHECKED
+`policy.board` re-implements the shipped eligibility rules rather than calling
+them, so "this board is production parity" is a claim about two pieces of code
+agreeing. `parity_audit.py` checks it the other way round: it rebuilds each
+market's final board, hands every row to the ported shipped predicates
+(`ev_pass_mask` / `ev_filtered_mask`, the line-for-line port of
+`isEvPassPick` / `isEvFilteredPick`), and counts the rows they reject.
+
+Three rules make up the shipped filter. policy.board applies two directly:
+    confidence >= 60              applied (min_conf)
+    not isUnbettableJuice         applied verbatim
+    over side must clear breakeven  NOT applied by policy.board -- MEASURED here
+
+28.2 RESULT, RE-RUN DURING THIS AUDIT AND BYTE-IDENTICAL TO THE SHIPPED FILE
+
+    market              board  conf<60  juice  breakeven  shippedOk  parity       rejected
+    batter_hits         2,083     0       0        0       2,083     ev_filtered     0
+    batter_rbis         2,740     0       0        0       2,740     ev_filtered     0
+    totals                569     0       0        0         569     ev_pass         0
+    spreads             2,463     0       0        0       2,463     ev_pass         0
+    batter_total_bases  5,356     0       0        0       5,356     ev_filtered     0
+    batter_home_runs       29     0       0        0          29     ev_filtered     0
+    pitcher_strikeouts  2,407     0       0        0       2,407     ev_filtered     0
+    h2h                 1,524     0       0        0       1,524     ev_pass         0
+    batter_runs_scored  7,337     0       0        0       7,337     ev_filtered     0
+    pitcher_outs        1,957     0       0        0       1,957     ev_filtered     0
+    batter_strikeouts   1,676     0       0        0       1,676     ev_filtered     0
+
+    board rows 28,141   rejected by the shipped predicates 0   (0.000%)
+    PARITY HOLDS
+
+    Model/policy mismatch    0
+    Missing model            0
+    Unsupported market       0
+    Invalid feature          0
+    Invalid confidence       0
+    Invalid price            0
+    Any other failure        0
+
+28.3 WHY ev_pass VS ev_filtered
+The distinction is the shipped one, not a choice made by the research. The
+batter and pitcher write paths carry an `evPerUnit` and production shows a pick
+only when it is positive (`isEvFilteredPick`). The game write path has no
+`evPerUnit` at all, so production shows a game pick on confidence and the
+heavy-juice veto alone (`isEvPassPick`). `PHASE1_SCOPE.md` s1b records this.
+Measuring a game board through an EV filter it does not have in production would
+not be measuring the product.
+
+28.4 WHAT PARITY DOES AND DOES NOT MEAN
+IT MEANS: if these 28,141 picks were handed to the production surface, none of
+them would be filtered out as unservable.
+IT DOES NOT MEAN: that these picks ARE what production shows, or that these
+models are deployed. It is not. See section 1 and 30.4.
+
+
+================================================================================
+29. HISTORICAL RESULTS
+================================================================================
+
+29.1 THE AUTHORITATIVE TABLE  (results/final_matrix.csv)
+Data 2024-04-01 -> 2026-09-16. All figures verified against the CSV this audit.
+
+MKT                 MODEL  SIDE   FULL-OOS                    VERDICT WINDOW                          ROB  STATUS
+                                  n     ROI%   CIlo   units G  from        n     win%   ROI%    CIlo   clus   units G
+batter_hits         gbm    under  2,083 13.16   9.60  274.2 P  2025-08-08 1,269  64.62  14.46   9.51   9.24  183.4 P  6/6  PASS
+batter_total_bases  rf     under  5,356  1.65  -0.47   88.4 P  2025-08-31 2,424  61.39   1.07  -2.06  -2.02   25.9 P  6/6  PASS
+pitcher_strikeouts  gbm    both   2,407  2.27  -1.07   54.6 P  2025-08-25 1,159  61.26   3.37  -1.34  -1.28   39.1 P  6/6  PASS
+batter_runs_scored  gbm    both   7,337  0.41  -1.48   29.7 P  2025-04-19 2,931  61.92   0.41  -2.46  -2.96   12.0 P  5/6  PASS
+pitcher_outs        gbm    both   1,957  1.09  -2.73   21.4 P  2026-04-01   871  58.32   0.43  -5.12  -5.22    3.7 P  6/6  PASS
+batter_strikeouts   gbm    under  1,676  6.98   3.14  117.0 P  2024-06-19   751  63.52   4.57  -1.15  -0.25   34.3 P  6/6  PASS
+totals              gbm    under    569  0.99  -7.18    5.6 P  2025-08-27   221  49.77  -3.17 -16.12 -16.12   -7.0 F  3/6  PASS_WITH_RESTRICTIONS
+batter_rbis         gbm    under  2,740 -0.10  -2.91   -2.8 F  2025-09-06 1,020  62.35  -0.66  -5.47  -5.62   -6.7 F  5/6  VETO
+spreads             price  both   2,463 -0.80  -3.96  -19.6 F  2025-08-25 1,387  61.43  -2.91  -6.82  -6.82  -40.3 F  1/6  FAIL_AFTER_ITERATION
+h2h                 gbm    both   1,524 -0.34  -4.65   -5.1 F  2025-08-29   639  55.71  -6.16 -12.95 -12.95  -39.3 F  0/6  FAIL_AFTER_ITERATION
+batter_home_runs    gbm    both     29 -13.97 -41.31   -4.1 F  2025-05-24    15  53.33 -16.27 -58.06 -58.06   -2.4 F  0/6  VETO
+
+    G = gate;  P = PASS;  F = FAIL;  ROB = robustness variants passed of 6
+
+29.2 SUMMARY COUNTS
+    TARGET                     11 / 11 PASS on both gates      NOT MET
+    MINIMUM                     9 / 11 PASS on both gates      NOT MET
+    ACHIEVED                    6 / 11 PASS on both gates
+
+    Gate (full OOS) PASS        7 / 11
+    Gate (verdict window) PASS  6 / 11
+    PASS on BOTH gates          6 / 11
+
+    PASS                    6
+    PASS_WITH_RESTRICTIONS  1     <-- `totals`. NOT a pass. It clears the full
+                                      OOS gate and FAILS the verdict gate.
+    VETO                    2
+    FAIL_AFTER_ITERATION    2
+
+    Total priced candidates   530,193
+    Total graded candidates   529,695
+    Total board rows           28,141
+    Verdict board rows         12,687
+    Verdict units              +202.7
+    Full-OOS units             +559.3
+
+29.3 CONSISTENCY WITH THE FIGURES CARRIED IN PRIOR BRIEFS
+Every verdict n, verdict ROI, robustness count and final status quoted in prior
+project material was checked against `results/final_matrix.csv` and MATCHES
+EXACTLY. The only discrepancies found anywhere in this audit are the dataset
+inventory numbers recorded in section 7.3.
+
+29.4 SEASON-BY-SEASON -- THE FINDING THAT MATTERS MOST FOR DEPLOYMENT
+Board ROI on the final architecture (results/season_split_v1.csv):
+
+    season  markets  board n   units   ROI %
+    2024      10       7,428   146.8    1.98
+    2025      10      11,237   353.8    3.15
+    2026       9       9,476    58.6    0.62
+
+2026 IS ROUGHLY A FIFTH AS PROFITABLE AS 2025, measured on 9,476 picks rather
+than the 1,083 the original data could see. The decay is concentrated almost
+entirely in the GAME markets: h2h -35.9 units, spreads -45.3, totals -11.0. The
+batter and pitcher props hold up: batter_hits +107.1, pitcher_strikeouts +37.3,
+batter_total_bases +15.0, pitcher_outs +12.3, batter_runs_scored -13.0.
+
+This is the single most important production finding in the programme, and it points
+the same way as everything else: the game markets are efficiently priced and
+getting more so.
+
+
+================================================================================
+30. PRODUCTION / LIVE BOARD EVALUATION
+================================================================================
+
+30.1 WHAT WAS RUN
+A new script, `harness/uplift/live_board.py`, written for this audit. It
+READS the locked configuration from `reports/final_v1.csv` -- spec, EV floor,
+confidence floor, collapse rule, parity surface and side policy, per market --
+and changes none of them. It builds each board with `policy.board` and grades it
+with `mlbgate.grade`, the same two functions the headline table uses. It then
+reports the most recent slate and two trailing windows, and labels each by
+settlement status.
+
+    Board generated (UTC)     2026-09-17T12:58Z
+    Data snapshot             harness/uplift/data_expanded_6h
+    Member cache              harness/uplift/cache_fam
+    Config source             reports/final_v1.csv (locked, unmodified)
+    Latest event date in data 2026-09-16
+    Markets configured        11
+
+30.2 THE RESULT
+
+    WINDOW: the latest slate, 2026-09-16 (3 games)
+      priced candidate rows            248
+      graded candidate rows            248
+      model predictions                150
+      confidence >= 60                  96
+      selected (board rows)              7
+      rejected by the filter           241
+      unservable in production           0
+      rows with an unsettled outcome     0
+      settled picks  7   units +2.59   pooled ROI +37.00%
+
+    WINDOW: last 7 days, 2026-09-10 -> 2026-09-16 (64 games)
+      priced candidate rows          5,020
+      graded candidate rows          5,017
+      model predictions              4,834
+      confidence >= 60               2,999
+      selected (board rows)            230
+      rejected by the filter         4,787
+      unservable in production           0
+      rows missing an outcome            3
+      settled picks  230   units +3.61   pooled ROI +1.57%
+
+    WINDOW: last 30 days, 2026-08-18 -> 2026-09-16 (309 games)
+      priced candidate rows         24,279
+      graded candidate rows         24,248
+      model predictions             24,065
+      confidence >= 60              15,126
+      selected (board rows)          1,465
+      rejected by the filter        22,783
+      unservable in production           0
+      rows missing an outcome           31
+      settled picks  1,465   units +18.24   pooled ROI +1.25%
+
+Per-market detail for all three windows:
+`results/live_production_results.csv` and `results/live_summary.txt`.
+
+30.3 PRODUCTION PARITY ON THE LIVE BOARD
+0 unservable rows in every window. The shipped eligibility predicates reject
+nothing the final configuration selects on current data.
+
+30.4 WHAT WOULD BE NEEDED TO ACTUALLY SERVE THIS BOARD LIVE
+This is not a recommendation; it is the audit's statement of the gap.
+
+  1. AN INFERENCE PATH THAT DOES NOT REQUIRE AN OUTCOME. Today
+     `frames.load_candidates` drops any candidate whose settled stat is missing,
+     and `features.graded` keeps only graded rows. A live slate has no outcomes,
+     so today the pipeline returns an empty frame for it.
+  2. A PERSISTED MODEL. Zero estimators are saved (section 15.3). Serving would
+     need the walk-forward's final fold fitted once and written to disk, plus a
+     refit schedule.
+  3. A LIVE ODDS FEED AT THE RIGHT LEAD. The warehouse odds table stops at
+     2026-05-24 (section 6). Whatever lead production settles on must match the
+     backtest's, because that choice was worth three markets (section 10.3).
+  4. FEATURE PARITY AT SERVE TIME. Every feature must be computable from data
+     available before first pitch, with the same as-of cut. The features are
+     designed for this, but nothing has been run in that mode.
+  5. A DECISION ABOUT WHICH MARKETS SHIP. The evidence says six, and
+     says explicitly not to ship the three game markets (section 43).
+
+None of these five exists today. This is a validated research result, not a
+deployable artifact.
+
+
+================================================================================
+31. LIVE MARKET COVERAGE
+================================================================================
+
+    market              last priced date   board rows, latest slate / 7d / 30d
+    batter_hits         2026-09-16          1 /  32 / 136
+    batter_rbis         2026-09-16          0 /  20 / 111
+    totals              2026-09-16          0 /   3 /  25
+    spreads             2026-09-16          0 /  18 / 152
+    batter_total_bases  2026-09-16          1 /  32 / 247
+    batter_home_runs    2026-06-19          0 /   0 /   0
+    pitcher_strikeouts  2026-09-16          0 /  28 / 116
+    h2h                 2026-09-16          0 /  12 /  72
+    batter_runs_scored  2026-09-16          5 /  67 / 462
+    pitcher_outs        2026-09-16          0 /  18 / 144
+    batter_strikeouts   2026-07-17          0 /   0 /   0
+
+TWO MARKETS HAVE NO LIVE COVERAGE AT ALL:
+  * `batter_home_runs` -- last priced 2026-06-19.
+  * `batter_strikeouts` -- last priced 2026-07-17. This is the market whose
+    historical verdict is a PASS on 2024-only data. It is currently not offered,
+    so that PASS cannot be confirmed or refuted going forward from this dataset.
+
+The latest slate holds only 3 games, which is the tail of the data pull rather
+than a full MLB day. Any per-market read on that day is 1-5 picks wide and
+carries no information. The 30-day window is the only one of the three with
+enough volume to be worth looking at, and even there no market reaches the
+gate's 500-row floor.
+
+
+================================================================================
+32. LIVE PREDICTIONS
+================================================================================
+
+30-day window, 2026-08-18 -> 2026-09-16, 309 games:
+
+    market              priced  predictions  conf>=60  selected  selection rate
+    batter_hits          5,501      5,483      2,725      136        2.5%
+    batter_rbis          5,200      5,183      5,129      111        2.1%
+    totals                 456        411         66       25        6.1%
+    spreads                372        339        195      152       44.8%
+    batter_total_bases   5,834      5,816      2,629      247        4.2%
+    batter_home_runs     1,069      1,039      1,039        0        0.0%
+    pitcher_strikeouts     697        677        177      116       17.1%
+    h2h                    309        282         91       72       25.5%
+    batter_runs_scored   5,196      5,179      3,905      462        8.9%
+    pitcher_outs           714        695        209      144       20.7%
+    batter_strikeouts       12          0          0        0        0.0%
+
+Two behaviours are worth an auditor's attention:
+
+  * `spreads` selects 44.8% of priced rows and `h2h` 25.5%, against 2-9% on the
+    prop markets. That is the `ev_pass` surface at work: game markets have no EV
+    filter in production, so only confidence and the juice veto cut them. It is
+    correct parity, and it is also why the game markets carry the most volume
+    for the least edge.
+  * `batter_rbis` clears the confidence floor on 99% of rows (5,129 of 5,183)
+    and still selects only 2.1%. The EV floor, not the confidence floor, is
+    doing all the work there. See section 20.
+  * `batter_home_runs` has 1,039 rows clearing confidence and selects ZERO. That
+    is the D-164 heavy-juice veto plus the EV floor, and it is the same
+    mechanism that leaves the market with 29 board rows out of 59,338 graded
+    candidates historically.
+
+
+================================================================================
+33. LIVE PASS/FAIL CLASSIFICATION
+================================================================================
+
+33.1 THE ANSWER
+
+    LIVE MARKETS WITH SETTLED RESULTS       9 / 11   (30-day window)
+    LIVE MARKETS PENDING / NOT YET SETTLED  0 / 11
+    LIVE MARKETS WITH NO BOARD ROWS         2 / 11
+    POST-DEPLOYMENT SETTLED MARKETS         0 / 11
+    LIVE MARKETS LEGITIMATELY PASSING       NOT COMPUTABLE
+
+33.2 WHY NO LIVE PASS CAN BE CLAIMED -- THREE INDEPENDENT REASONS
+
+REASON 1 -- THERE IS NO UNSETTLED BOARD.
+The harness cannot produce one. `frames.load_candidates` keeps only rows whose
+outcome exists; `features.graded` keeps only graded rows; `policy.walkforward`
+needs `overHit` to fit anything. Every board row the validation pipeline can build
+is, by construction, already settled. Pending count: 0, in every window.
+
+REASON 2 -- THESE ROWS ARE NOT POST-DEPLOYMENT.
+Every date in section 30 falls INSIDE the out-of-sample period that
+produced the headline table, and for most markets inside the verdict window
+itself. They are already counted in the 6/11. Reporting them again as a "live
+result" would be double-counting the same picks.
+
+REASON 3 -- THE SAMPLE IS FAR BELOW THE GATE'S FLOOR.
+The largest per-market 30-day n is 462 (batter_runs_scored), below
+EV_GATE_MIN_GRADED = 500. Every window therefore falls on the CI arm of the
+gate, where 3 to 462 picks cannot produce a usable interval. The gate column in
+`results/live_production_results.csv` is computed mechanically and is
+explicitly flagged in that file's own header as NOT a market verdict.
+
+33.3 THE SENTENCE THAT SHOULD BE USED
+"No realized live-market PASS/FAIL result can be computed, because the final configuration
+pipeline produces no unsettled board and the most recent available slates are
+already inside the historical out-of-sample period."
+
+33.4 WHAT MAY LEGITIMATELY BE SAID ABOUT THE LIVE BOARD
+  * Board coverage: 9 of 11 markets produce picks on current data.
+  * Volume: 1,465 picks over 30 days across 309 games, from 24,279 priced rows.
+  * Serving status: 0 unservable rows -- production parity holds on live data.
+  * Confidence and EV distributions: section 32.
+  * Market availability: two markets are no longer offered by the books.
+
+33.5 HISTORICAL VS LIVE -- THE SEPARATION TABLE
+
+    METRIC                 HISTORICAL (BACKTEST)      CURRENT BOARD (30d)   POST-DEPLOYMENT
+    Markets                        11                      9 with rows           0
+    Priced candidates         530,193                    24,279                  0
+    Board rows                 28,141                     1,465                  0
+    Verdict-window rows        12,687                       n/a                  0
+    PASS (both gates)            6/11                      N/A                  N/A
+    PASS_WITH_RESTRICTIONS       1/11                      N/A                  N/A
+    Units                 +559.3 OOS / +202.7 verdict     +18.24                 0
+    ROI                   see section 29.1 per market     +1.25% pooled          n/a
+    Settled?                      yes                      yes                   n/a
+    Independent of the
+      historical result?          --                       NO                    --
+
+    The "current board" column is a SUBSET of the historical column, not an
+    addition to it. The two must never be summed or quoted side by side as
+    independent evidence.
+
+
+================================================================================
+34. LIVE DATA LIMITATIONS
+================================================================================
+
+34.1 THE DATA STOPS BEFORE TODAY
+Today is 2026-09-17. The latest priced event in the packaged snapshot is
+2026-09-16 00:40 UTC. There are no priced candidates for today's slate anywhere
+in this project, so there are ZERO live predictions for today. That is a data
+boundary, not a failure.
+
+34.2 A FRESH ODDS PULL WOULD NOT HELP, AND WAS NOT MADE
+Even with today's prices in hand, the harness would produce nothing: an unplayed
+game has no box-score outcome, so `frames.load_candidates` drops every one of its
+candidates before a feature is built. Spending Odds API credits to prove this was
+judged pointless and no pull was made. The credit balance was checked on the free
+endpoint and stands at 355,792 remaining of a 100k/month plan.
+
+34.3 THE WAREHOUSE ODDS TABLE IS STALE
+`cache_mlb_historical_odds` ends at 2026-05-24 (verified by read-only SQL this
+audit). Box scores are current to 2026-09-17. Anyone planning to operate this
+system should treat the odds capture pipeline as the thing to fix first; without
+it there is no priced universe to score.
+
+34.4 THE ENTRY-CONVENTION SPLIT PERSISTS IN THE LIVE DATA
+2026 warehouse rows sit at ~1.01 h lead; 2026 API rows sit at 6 h. The live
+board in section 30 is built from the API rows and is therefore at the 6 h
+convention. A production system pricing at 1 h would see a sharper line and a
+smaller measured edge. Section 10.4.
+
+34.5 THE LATEST SLATE IS THREE GAMES
+Not a full MLB day. It is the tail of the pull. Read the 30-day window instead.
+
+
+================================================================================
+35. TESTING GUIDE AUDIT
+================================================================================
+
+The two files `TESTING_GUIDE_3_PASS_MARKETS.md` and `TESTING_GUIDE_8_POOLED_ML.md`
+were supplied by the client and are present in the working tree as untracked
+files dated 2026-09-17. They are audited here as THIRD-PARTY CLAIMS.
+
+35.1 HEADLINE FINDING: THEY DESCRIBE A DIFFERENT PROJECT, AND IT IS NOT HERE
+
+Both guides reference a repository rooted at `MLB Markets/` containing
+`db/mlb_markets.duckdb`, `scripts/gate.py`, `scripts/xgboost_pooled_A_factors.py`,
+`reports/MILESTONE_1_GATE_REPORT.md`, `HANDOFF.md` and `POOLED_ML_STATUS.md`, on
+branches named `3-pass-markets` and `8-pooled-ml`.
+
+NONE OF THOSE EXIST. Verified independently during this audit:
+    `find` over the whole project for mlb_markets / gate.py / xgboost_pooled* /
+        MILESTONE_1_GATE_REPORT / POOLED_ML_STATUS   -> ZERO hits
+    `git branch -a`  -> five branches, neither name among them
+An earlier, more exhaustive search (reflog, packed-refs, stashes, the other two
+GitHub repositories on the account, and a whole-disk PowerShell scan) is
+recorded in `docs/methodology/THIRD_PARTY_GUIDE_AUDIT.md` and reached the same result.
+
+CONSEQUENCE: nothing in either guide is reproducible from this handoff. Every
+number they report is an unverifiable claim.
+
+35.2 GUIDE 1 -- `3-pass-markets`
+
+    Tested          10 core markets through a gate; per-market XGBoost; a
+                    6-model sweep (XGBoost, LightGBM, HistGradientBoosting,
+                    RandomForest, LogisticRegression, FLAML); a tuned-XGBoost
+                    pass over 4 markets
+    Data            db/mlb_markets.duckdb, plus data_raw/*_odds_cache.jsonl
+    Validation      a single chronological split, scored once
+    Claimed result  hits, rbis, spreads PASS; 8 FAIL. Backfilled markets all
+                    FAIL. Multi-model: 6 of 48 combinations clear the gate over
+                    4 markets, no two models agreeing. Tuned XGBoost: 3 of 4
+                    reverse to FAIL
+    Compatible with the final configuration?  NO
+
+    LIMITATIONS THE GUIDE ITSELF DISCLOSES (to its credit)
+      * the n>=500 arm needs only a positive point estimate
+      * a pass from one model or one search is not promoted
+      * the best-of-5-thresholds result carries multiple-comparisons exposure
+        and is "not a second finding"
+      * the batter_home_runs near-miss is explicitly NOT a confirmed pass
+
+    LIMITATIONS THIS AUDIT ADDS
+      * 10 markets, not 11 -- it omits batter_home_runs from the core list while
+        testing it in the tuning step.
+      * THE ENTRY-TIME CONVENTION IS NEVER STATED. This work measured that
+        convention to be worth three markets (section 10.3). An unstated
+        convention leaves every ROI in the guide unanchored, and makes its
+        results incomparable to this project's by construction.
+      * Two of its three headline passes (hits, rbis) come from the same script
+        the guide itself flags for threshold exposure.
+      * NO VERDICT-WINDOW EQUIVALENT. One split, scored once. This project's
+        PASS requires clearing the gate twice, on two windows, the later of
+        which is never read during selection. The two standards are not the
+        same bar and the numbers are not comparable.
+
+35.3 GUIDE 2 -- `8-pooled-ml`
+
+    Model A   pooled XGBoost across markets on a ~150-factor production feature
+              set that exists only for 2026-05-17 -> 2026-07-27; 75/25
+              chronological split within that one window.
+              Claimed: nothing clears the gate. ALL MARKETS edge>0.0 -> n=3,550,
+              ROI -0.05%, CI [-2.55, +2.44].
+    Model B   pooled XGBoost over 2023-2026 with self-built features; 8 markets;
+              75/25 chronological split within each calendar year, then pooled.
+              Claimed: `edge>0.03, minus-money` clears the gate at
+              n=1,264, ROI +5.65%, CI [+1.56%, +9.75%].
+
+    THE MODEL B RESULT, CLASSIFIED
+
+    Reproducible from this handoff?   NO -- the branch does not exist (35.1).
+    Stable?                           NO, BY THE GUIDE'S OWN ADMISSION. Its
+                                      section 3 states that the same model
+                                      re-run "produces a different PASS/FAIL
+                                      verdict from run to run", that this is
+                                      "genuine training instability", and that
+                                      "the verdict itself is the noise".
+    Comparable to the final configuration?            NO. One split versus two gates; no verdict
+                                      window; unstated entry convention;
+                                      different market set (8, excluding
+                                      batter_runs_scored and pitcher_outs);
+                                      1 of 4 thresholds tried, which is
+                                      multiple-comparisons exposure on the same
+                                      test set.
+    Point-in-time?                    UNKNOWN. The guide names Elo, L10 form,
+                                      park factors and bullpen fatigue but
+                                      states no as-of rule and no entry time.
+    Valid under the current gate?     The arithmetic (n=1,264 >= 500, ROI > 0)
+                                      would clear the n>=500 arm IF the number
+                                      were trustworthy. It is not, by the
+                                      guide's own instability finding.
+
+    CLASSIFICATION: UNVERIFIED, SELF-DECLARED UNSTABLE, NOT PROMOTED.
+
+35.4 DISPOSITION
+Neither guide changes any market verdict, and this handoff promotes nothing
+from either. Both are shipped in `docs/` unaltered so the client has the source
+of the claims, alongside `docs/methodology/THIRD_PARTY_GUIDE_AUDIT.md` which records
+the searches that establish their artifacts are absent.
+
+One substantive thing the guides DO establish, and it agrees with the final configuration: in
+their own 6-model, 48-combination sweep, no two models agreed on the same market
+and every passing CI still spanned into negative territory. That is the same
+conclusion this project reached from the other direction -- a single model
+clearing the bar once is not a result.
+
+
+================================================================================
+36. EXPERIMENT HISTORY
+================================================================================
+
+Full ledger with hypotheses, pre-registered acceptance criteria and results:
+`reports/experiment_log.csv`. Nine entries. Verified against the log this
+audit.
+
+E22  PRICE ANCHOR, ISOLATED FROM THE EV FLOOR                        REJECT
+     Hypothesis: the price anchor helps once isolated from the EV floor it was
+     confounded with in an earlier stage.
+     Change: logit(p) = logit(p_price) + w*(logit(p_model) - logit(p_price)),
+     every grid cell built twice, anchor off and on.
+     Selection: SELECT-A at q=0.5/0.6/0.7; scored on held-out SELECT-B; verdict
+     window not read.
+     Criteria (three, pre-registered): pooled units improve at EV floor 0.00;
+     >= 6 of 11 markets improve; strong markets keep >= 11/12 splits in profit.
+     Result: units ON 33,399.6 vs OFF 36,685.0; 4 of 11 markets improved;
+     strong-market cells in profit 917/984 vs 945/984.
+     Decision: ALL THREE FAILED. The earlier confound is removed and the answer
+     is unchanged, so the anchor is closed permanently.
+     Affected final config? NO.
+
+E23  CALIBRATED EDGE IN THE BOARD FILTER                             REJECT
+     Change: isotonic map from predicted EV to realised profit, fitted only on
+     earlier walk-forward folds, applied to the EV FILTER only.
+     Result: units ON 24,277.7 vs OFF 34,062.4; 2 of 8 markets improved.
+     Decision: failed its criterion. It DOES lift held-out ROI on 6 of 8 markets
+     (pitcher_strikeouts -1.46 -> +2.07, pitcher_outs -1.51 -> +1.47,
+     batter_total_bases 1.44 -> 3.52) but cuts board size 50-75%.
+     Affected final config? NO.
+
+E23-MEAS  DOES A NOMINAL x% EDGE PAY x%?                            EVIDENCE
+     Diagnostic only, SELECT half. Result in section 19.3. Carried forward as
+     the programme's most important measurement, not as an adoption.
+
+E24  GATE-ALIGNED PER-MARKET THRESHOLDS                              REJECT
+     Result: arm B 11 passes, arm C 13, incumbent 13; strong markets arm B 8,
+     arm C 10, incumbent 10. Neither arm beat the incumbent.
+     It ALSO established, on held-out SELECT-B rather than on the verdict
+     window, that totals, spreads, h2h and batter_home_runs clear the gate on
+     0 OF 3 INNER CUTS UNDER EVERY SELECTION RULE TESTED. The verdict table is
+     not bad luck.
+     Affected final config? NO.
+
+E25a  DATA EXPANSION AT T-1h                                         REJECT
+     Result: verdict PASS 2/11 vs 4/11; full-OOS 8/11 vs 9/11.
+     Decision: rejected as confounded by the price convention, not by the data.
+     Affected final config? NO -- but it caused the re-pull that produced E25b.
+
+E25b  DATA EXPANSION AT T-6h                                          ADOPT
+     Result: verdict PASS 5/11 vs 4/11; full-OOS 7/11 vs 9/11; both-gates 5 vs
+     4; parity 0 of 21,973 rejected. Gained pitcher_strikeouts,
+     batter_runs_scored, pitcher_outs; lost batter_rbis and batter_total_bases.
+     Affected final config? YES -- this is the dataset the shipped table uses.
+
+E26  PER-MARKET MODEL FAMILY                                ADOPT (AMENDED)
+     Result as first run: 4 of 11 markets qualified -- spreads -> price (mean
+     gain 0.0143), pitcher_strikeouts -> price (0.0055), pitcher_outs -> price
+     (0.0020), batter_total_bases -> rf (0.0015). totals and batter_runs_scored
+     beat the noise band at all three cuts but SWITCHED MEMBER between cuts and
+     were not adopted.
+     THE AMENDMENT: the unamended rule STARVED pitcher_strikeouts to a
+     ONE-ROW board and cut pitcher_outs from 1,957 to 507, taking both-gates
+     from 5 to 4. Condition 3 (SELECT board >= 500 rows) was added, derived from
+     EV_GATE_MIN_GRADED and evaluated entirely on SELECT. Two overrides survive.
+     Affected final config? YES -- both-gates 5 -> 6.
+     DISCLOSURE: the verdict consequence of the unamended rule was seen before
+     the amendment was written. Recorded in `docs/methodology/EXPERIMENT_PLAN.md` Addendum 3 and
+     in section 17.4 of this audit.
+
+E32  VOLUME GUARD ON THE SIDE LEVER                                  REJECT
+     Result: gate passes 9 vs 9 at f=0.25, 0.40 and 0.50; strong markets 9 vs 9
+     at every f. f=0.50 does lift held-out units (245.96 vs 205.01) and median
+     ROI (2.54 vs 0.24) but TIES on passes, which was the criterion.
+     Affected final config? NO.
+
+E33  PAIR ENSEMBLES (widen the override pool from 11 to 66)          REJECT
+     Result: both-gates 4/11 vs 6/11. Overrides became spreads -> price and
+     pitcher_outs -> price+gbmC; the batter_total_bases -> rf override that
+     repaired that market was DISPLACED.
+     Affected final config? NO.
+
+SUMMARY: nine experiments, two adopted (E25b, E26), six rejected, one carried
+as evidence. NONE was re-run with a changed criterion after its number existed.
+The one amendment that was made (E26 condition 3) is disclosed rather than
+presented as if it had been specified first.
+
+
+================================================================================
+37. LEAKAGE AUDIT
+================================================================================
+
+The wording below is deliberate. This section does not claim that leakage is
+impossible. It reports what the implemented checks found.
+
+    CHECK                                  RESULT        EVIDENCE
+    --------------------------------------  ------------  -------------------------
+    As-of joins strictly earlier            PASS          check_asof.log: 0
+                                                          mismatches on 3 feature
+                                                          families, 200 rows each
+    The as-of CONTROL (would it move?)      PASS          188/200, 179/200, 195/200
+                                                          rows would change if the
+                                                          game's own day were
+                                                          admitted
+    Date filtering / timezone               PASS          game_date read as TEXT;
+                                                          frames.py rule 1
+    Game inclusion (outcome exists)         PASS          load_candidates; the DNP
+                                                          vs DATA_MISSING split
+    Rolling windows expanding-only          PASS          features.py: every
+                                                          roll-up over dates < D
+    Current-game contamination              PASS          frames.py rule 3; only
+                                                          the settled stat is read
+    Future statistics                       PASS          no forward-looking column
+                                                          found in the 47/53/65
+                                                          feature sets
+    Future standings                        PASS          Elo and Pythagorean are
+                                                          expanding roll-ups
+    Outcome leakage into features           PASS          the target is used only as
+                                                          y in a fit
+    Odds timestamp leakage                  PASS          entry snapshot is strictly
+                                                          before commence_time;
+                                                          lead measured at 6.01 h
+    Target leakage                          PASS          binary overHit, computed
+                                                          after the fact
+    Calibration leakage                     PASS          no global map; the one
+                                                          optional calibrator splits
+                                                          its own training fold on
+                                                          the clock
+    Global priors                           PASS          none found
+    Whole-sample aggregates                 PASS          none found in the shipped
+                                                          feature set
+    Feature caches                          PASS          cache is keyed by
+                                                          (market, lag, price,
+                                                          warmup, blocks); each
+                                                          variant has its own
+    Train/test contamination (time)         PASS          fold boundaries are
+                                                          timestamps; a game lands
+                                                          wholly on one side
+    Placebo-lag profile                     PASS          flat to slightly rising
+                                                          across 1/3/7 days -- a
+                                                          same-game leak dies at
+                                                          the first day of lag
+    Production parity                       PASS          0 of 28,141 rejected
+    Cache reproducibility                   NOT RE-TESTED the cache was not rebuilt
+                                                          in this audit (38.3)
+    Selection-layer optimism                WARNING       see below
+    Event-bridge contamination              WARNING       0.87% of bridged events
+                                                          resolve to the wrong game
+    Park-factor slow-moving channel         WARNING       section 13.5 note **
+    Live-mode leakage                       NOT TESTABLE  there is no live inference
+                                                          path to test
+
+37.1 THE THREE WARNINGS, STATED PLAINLY
+
+WARNING 1 -- SELECTION-LAYER OPTIMISM. Every model prediction is out of sample,
+but the global filter, the side policy and the per-market override were chosen
+using the SELECT half of that same out-of-sample period. The full-OOS gate is
+therefore optimistic. This is not a leak -- it is the reason the verdict window
+exists, and the verdict window IS clean. The correct reading is: use the
+BOTH-GATES count (6/11), never the full-OOS count alone.
+
+WARNING 2 -- EVENT-BRIDGE CONTAMINATION. 0.87% of events resolved by the rebuilt
+event_id <-> game_pk bridge are known-wrong (section 5.4). A wrong bridge grades
+a candidate against a different game. It is measured, small, and carried.
+
+WARNING 3 -- PARK FACTORS. Point-in-time correct but slow-moving, so a park's
+season-to-date factor is highly correlated with its full-season factor. Not a
+leak; a weak channel. Flagged, not repaired.
+
+37.2 THE CONCLUSION, IN THE WORDING THE EVIDENCE SUPPORTS
+
+NO CONFIRMED LEAKAGE WAS FOUND BY THE IMPLEMENTED AUDIT CHECKS.
+
+That sentence is not the same as "there is no leakage", and this audit does not
+make the stronger claim. The as-of sampling covers 3 feature families at 200
+rows each, not all thirteen families exhaustively; the gate replay covers two
+shipped reports; and the member cache was not rebuilt from raw data during this
+audit. The strongest single piece of positive evidence is the placebo-lag
+profile, because it is a test that WOULD have failed loudly if a same-game leak
+existed, and it did not.
+
+
+================================================================================
+38. REPRODUCIBILITY AUDIT
+================================================================================
+
+Full detail, including every hash: `reports/reproducibility.txt`.
+
+38.1 THE HEADLINE
+The result stage reproduces BIT-IDENTICALLY.
+
+    python harness/uplift/run_final_model.py --conf=60 --tag=_recheck
+
+    reports/final_v1.csv    sha256 73e5cdb0803151bb...f52673
+    reports/final_recheck.csv  sha256 73e5cdb0803151bb...f52673   IDENTICAL
+
+    overrides_recheck.csv    == overrides_v1.csv      IDENTICAL
+    global_sweep_recheck.csv == global_sweep_v1.csv   IDENTICAL
+    parity_audit re-run    == parity_audit_v1.csv   IDENTICAL
+
+38.2 SOURCE STATE AND THE ONE ANOMALY
+    commit  2629293f09fb28343378a111340b80766da731f5
+    tree    27 entries not in the commit at audit time
+
+The one MODIFIED tracked file is `harness/uplift/policy.py`, which carried an
+uncommitted later draft adding new ensemble members (xgb, lgbm, two recency
+variants, two single-column members) to `walkforward`. The handoff ships the
+COMMITTED file (sha256 58e4726db770abfc...), not the draft.
+
+The draft is inert for the final configuration, and this is checkable rather than asserted: the
+final result path reads member probabilities from the pre-built cache and
+calls only `policy.board`, `policy.unit_key` and `policy.parity_for` -- none of
+which the diff touches -- which is why the reproduction above still matched
+exactly while the working tree carried the draft.
+
+38.3 WHAT IS DETERMINISTIC
+    Deterministic and verified by re-run:
+      every stage from the member cache onward, including the bootstrap
+      (seeded 20260701, numpy PCG64, or the exact mulberry32 port)
+    Deterministic by construction, NOT re-verified here:
+      the member cache. Every estimator carries a fixed random_state
+      (HistGradientBoosting 20260916; forests 20260917) and fold boundaries are
+      data-derived timestamps. Rebuilding takes ~90 minutes and was not repeated.
+    Not bit-reproducible across machines:
+      scikit-learn floating point varies with BLAS build and CPU. Expect
+      agreement well inside a basis point on a matching environment; do not
+      expect the same sha256 on a different one.
+
+38.4 WHAT THIS AUDIT DID NOT RE-RUN
+    the member cache rebuild; the six robustness variants; check_asof.py.
+    verify_gate.py had only two shipped report JSONs available.
+    No second machine was used.
+
+
+================================================================================
+39. DEPENDENCY AUDIT
+================================================================================
+
+39.1 PYTHON -- THE VALIDATION PIPELINE (configs/requirements.txt)
+    pandas        >= 3.0    (built and verified on 3.0.3)
+    numpy         >= 2.4    (2.4.6)
+    scikit-learn  >= 1.9    (1.9.0)
+    scipy         >= 1.18   (1.18.0)
+    statsmodels   >= 0.14   (0.14.6)
+    openpyxl      >= 3.1    (3.1.5 -- only build_workbook.py needs it)
+    Python 3.14.6 is what it was built on; 3.11+ should work. pandas >= 3 is
+    pinned because the date handling depends on pandas 3 semantics.
+
+    Nothing else is imported by the pipeline.
+
+39.2 THE EXPLICIT VERIFICATION ASKED FOR
+    XGBoost   NOT a dependency of the final production configuration.
+              Not in requirements.txt. Not imported by any delivered file.
+              (xgboost 3.4.1 IS installed on the developer machine, for later
+              research. Irrelevant to every final number.)
+    LightGBM  NOT a dependency. Same three statements. (lightgbm 4.7.0 installed.)
+    CatBoost  NOT a dependency and NOT installed.
+    FLAML     NOT a dependency and NOT installed.
+
+    The boosted member is scikit-learn's HistGradientBoostingClassifier, which
+    is the same histogram-boosting family LightGBM belongs to. requirements.txt
+    states this in a comment. Nothing was installed for this handoff.
+
+39.3 JAVASCRIPT / TYPESCRIPT (configs/package.json, package-lock.json)
+    Runtime for the app     React 19, TypeScript, Vite, Tailwind v4, shadcn/ui,
+                            Recharts, @supabase/supabase-js
+    Runtime for the harness Deno (2.9.6 verified) -- the harness .ts files are
+                            Deno scripts, not Node scripts
+    Test                    Vitest
+    Node                    v24.20.0 verified
+    A deno.lock is shipped in configs/.
+
+39.4 DATABASE
+    PostgreSQL via Supabase. The harness connects with the `harness_readonly`
+    role: SELECT only, connection limit 10. Never run two harness processes at
+    once (CLAUDE.md cardinal rule 9).
+    Deno needs `DENO_CERT` pointed at the shipped `prod-ca-2021.crt`.
+
+39.5 SYSTEM
+    No system packages, no Docker, no GPU. Everything runs single-threaded on
+    CPU; `n_jobs=1` is set explicitly on the forests so a re-run is stable.
+    Peak memory during a full cache build is driven by the largest market
+    (batter_hits, 120,269 rows x 47 features) and fits comfortably in 8 GB.
+
+
+================================================================================
+40. SECURITY / SECRETS AUDIT
+================================================================================
+
+40.1 WHAT THE SOURCE REPOSITORY HOLDS
+    betgenius/harness/.env     HARNESS_DATABASE_URL (with password), ODDS_API_KEY
+    betgenius/.env.local       GEMINI_API_KEY, THE_ODDS_API_KEY
+    Both are git-ignored. Neither is in the audited commit.
+
+40.2 A STANDING SECURITY ISSUE, RESTATED
+`betgenius/.env.local` carries a header written by a previous session stating
+that the two keys in it were found HARDCODED in a file that was committed to a
+PUBLIC repository, that they must be treated as COMPROMISED, and that they must
+be rotated at:
+    Gemini        https://aistudio.google.com/app/apikey
+    The Odds API  https://the-odds-api.com/account/
+
+THIS AUDIT CONFIRMS THE ROTATION HAS NOT HAPPENED: The Odds API key in
+`harness/.env` still authenticates successfully (checked on the free balance
+endpoint). ROTATING THESE TWO KEYS IS THE HIGHEST-PRIORITY SECURITY ACTION IN
+THIS PROJECT and it is outside the scope of what an audit can perform.
+
+40.3 WHAT THE HANDOFF CONTAINS -- SCANNED, NOT ASSUMED
+Two scans were run over the assembled handoff directory:
+  (a) pattern scan for JWTs, `sk_live_`/`sk_test_`, Google API keys, postgres
+      URLs with embedded passwords, Slack tokens, AWS keys and PEM private keys;
+  (b) a literal-string scan for the four REAL credential values that exist in
+      the developer environment.
+
+    Result of (a): 6 files matched, ALL of them template placeholders --
+        `<password>`, `<sk_live_…>`, `[PASSWORD]`, `user:pass@host`.
+    Result of (b): ZERO occurrences. Not one real credential value appears
+        anywhere in the handoff.
+
+40.4 NO POPULATED `.env` IS SHIPPED -- AND WHY
+The recommended handoff layout lists a `.env`. This handoff deliberately does
+NOT include one. None of the four credentials in the developer environment is
+appropriate to deliver:
+    ODDS_API_KEY / THE_ODDS_API_KEY  flagged compromised, pending rotation
+    GEMINI_API_KEY                   same
+    HARNESS_DATABASE_URL             the developer's warehouse role and password
+Shipping any of them would distribute a credential that is already known to be
+exposed. `.env.example` is shipped instead, documenting every variable the
+client must supply. No credential was invented to fill the gap.
+
+40.5 NON-SECRET IDENTIFIERS THAT DO APPEAR
+    Supabase project ref `gzuzuqxvfjszlfclhcfz` appears in CLAUDE.md and
+    DEPLOY.md. It is the client's own project identifier, not a secret, and it
+    is required to use the deploy commands. Retained deliberately.
+    The frontend URL `betgenius-eight.vercel.app` appears in CLAUDE.md.
+    No personal data of any subscriber appears anywhere in the handoff. The
+    only personal names in the data are MLB players, from public box scores.
+
+40.6 OTHER OBSERVATIONS
+    * `prod-ca-2021.crt` is a PUBLIC CA certificate (Supabase's), not a private
+      key. Shipped deliberately; `DENO_CERT` must point at it.
+    * Two unrelated non-project PDFs in the source tree, and a text dump of
+      one of them, were EXCLUDED from the handoff as unrelated material.
+    * No secrets were found in any log, notebook or report CSV.
+
+
+================================================================================
+41. CLIENT HANDOFF AUDIT
+================================================================================
+
+41.1 THE CLIENT-INDEPENDENCE TEST
+Read as a new technical client holding only this directory:
+
+    Can I understand the architecture?          YES -- section 4, and
+                                                BETGENIUS_COMPLETE_DOCUMENTATION.txt
+    Can I understand the models?                YES -- section 15, MODEL_DOCUMENTATION.txt
+    Can I understand the data?                  YES -- section 7, DATA_DOCUMENTATION.txt
+    Can I understand the historical results?    YES -- section 29, FINAL_RESULTS.txt
+    Can I understand the live results?          YES -- sections 30-34, and the
+                                                separation table in 33.5
+    Can I install it?                           YES -- ENVIRONMENT_SETUP.txt
+    Can I configure it?                         YES -- .env.example plus
+                                                PRODUCTION_SETUP.txt
+    Can I run a smoke test?                     YES -- verify_gate.py, no
+                                                credentials needed
+    Can I regenerate the production board?      YES -- live_board.py, from the
+                                                shipped data, no network needed
+    Can I reproduce the evaluation?             YES -- the data snapshot is
+                                                included; ~90 min cache rebuild,
+                                                no API credits
+    Do I understand PASS/FAIL?                  YES -- section 23
+    Do I understand the limitations?            YES -- sections 43, 44
+
+41.2 GAPS THAT WERE CLOSED DURING THIS AUDIT
+    * There was no document stating that the validated models are not deployed.
+      Now stated in section 1, section 4, section 30.4 and README.txt.
+    * There was no live-board evaluation at all. Now `live_board.py` plus
+      two result files.
+    * There was no reproducibility record with hashes. Now
+      `reports/reproducibility.txt`.
+    * The 535,961-vs-529,695 inventory error was undetected. Now section 7.3.
+    * `robustness_v1.csv` being a copy was undocumented. Now section 27.6.
+
+41.3 GAPS THAT REMAIN OPEN AND ARE NOT CLOSED BY THIS HANDOFF
+    * The member cache (939 MB) is not shipped; it must be rebuilt (~90 min).
+    * `reports/calibration.csv` is an earlier-stage diagnostic and was not recomputed
+      on the final dataset (section 18.3).
+    * The two exposed API keys are not rotated (section 40.2).
+
+
+================================================================================
+42. KNOWN BUGS / TECHNICAL DEBT
+================================================================================
+
+42.1 DOCUMENTATION DEFECTS FOUND BY THIS AUDIT
+  B1  `docs/VALIDATION_REPORT.md` section 1.4 quotes the T-1h inventory
+      (535,961 graded rows, 5,397 games, 517 unused) as if it were the shipped
+      T-6h dataset (529,695 / 5,421 / 493). Corrected in section 7.3 and in
+      FINAL_RESULTS.txt. No result is affected.
+  B2  `reports/robustness_v1.csv` is an undocumented byte copy of
+      `robustness_v1.csv`. Benign. Documented in section 27.6.
+  B3  `reports/calibration.csv` is labelled as if current but was computed on
+      the pre-expansion cache. Documented in section 18.3.
+
+42.2 CODE-LEVEL TECHNICAL DEBT
+  T1  Three near-duplicate runners (run_final.py, run_final_v2.py,
+      run_final_model.py) sharing ~90% of their code. Kept so each configuration still
+      reproduces; a real maintenance hazard.
+  T2  The filter is implemented twice (policy.board and boardfast.Fast).
+      Guarded by selfcheck(), but still two implementations.
+  T3  The gate is implemented twice (metrics.ts and mlbgate.py). Guarded by
+      verify_gate.py, which has only two report JSONs to replay.
+  T4  ~2.6 GB of superseded member caches in eight directories.
+  T5  `run_markets.py` looks like legacy exploratory code but is NOT dead --
+      `build_cache._members()` imports `run_markets.MEMBERS`. Easy to delete by
+      mistake.
+  T6  The uncommitted later draft in the working tree (section 38.2) is a
+      source-hygiene issue, not a defect.
+
+42.3 DATA DEFECTS, ALL DISCLOSED AND CARRIED
+  D1  The 12-month box-score hole: `runs_scored` and `batter_strikeouts` are 0%
+      non-null for 2025-06 -> 2026-05. This is why batter_runs_scored has only
+      2,954 games against batter_hits' 5,393, and why batter_strikeouts is
+      2024-only.
+  D2  0.87% of bridged events resolve to the wrong game (section 5.4).
+  D3  313 doubleheaders dropped rather than guessed.
+  D4  The 2026 entry-lead split: warehouse rows at ~1.01 h, API rows at 6 h.
+  D5  The warehouse odds table stops at 2026-05-24 while box scores are current.
+
+42.4 NO FUNCTIONAL BUG WAS FOUND IN THE VALIDATION PIPELINE
+Every number in the shipped table reproduced exactly. No operational fix was
+needed to make this handoff work, and none was applied. The original repository
+was not modified except by the addition of `live_board.py`, which is an audit
+tool that reads configuration and writes only to `reports/`.
+
+
+================================================================================
+43. KNOWN LIMITATIONS
+================================================================================
+
+43.1 WHY EACH MARKET DID NOT PASS -- THE BINDING CONSTRAINT, PER MARKET
+
+    batter_home_runs   PRODUCT RULE, NOT THE MODEL. The D-164 heavy-juice veto
+                       plus confidence >= 60 leaves 29 board rows out of 59,338
+                       graded candidates. Loosening a shipped product rule to
+                       pass a gate was refused.
+    h2h                EFFICIENT MARKET. `price` beats `gbm` on log loss at only
+                       1 of 3 inner cuts, so no override qualifies; the board is
+                       -6.16% on 639 verdict picks and -35.9 units in 2026.
+    spreads            EFFICIENT MARKET. `price` beats `gbm` by 0.0143 -- the
+                       largest gain measured anywhere -- and WAS adopted, which
+                       improved verdict ROI from -7.45% to -2.91%. Still
+                       negative. The best available member is not good enough.
+    totals             UNDERPOWERED BY CONSTRUCTION. 221 verdict picks, below
+                       the gate's 500, so it needs the CI to clear zero -- about
+                       13% flat ROI. No honest MLB board returns that.
+    batter_rbis        GENUINELY MARGINAL. -0.66% on 1,020 verdict picks.
+                       `compact` beats `gbm` at all three cuts but by 0.0005 to
+                       0.0012 -- inside the 0.0011 noise band at two of three --
+                       so no override.
+
+    E24 established INDEPENDENTLY, on held-out SELECT-B rather than on the
+    verdict window, that totals, spreads, h2h and batter_home_runs clear the
+    gate on 0 OF 3 INNER CUTS UNDER EVERY SELECTION RULE TESTED. The verdict
+    table is not bad luck.
+
+43.2 STANDING LIMITATIONS
+  1. `batter_strikeouts` IS VALIDATED ON 2024 ONLY and cannot be repaired from
+     here -- the market is not offered in 2025 or mid-2026. Its PASS must carry
+     that caveat wherever it is quoted.
+  2. A TWELVE-MONTH BOX-SCORE HOLE (2025-06 -> 2026-05, `runs_scored` and
+     `batter_strikeouts` 0% non-null) needs a warehouse backfill re-run. It is
+     data-ops, not data science, and statsapi.mlb.com is unreachable from here.
+  3. CATBOOST IS UNTESTED. XGBoost and LightGBM are now installable but were not
+     used in this work; HistGradientBoosting is the same histogram-boosting family
+     LightGBM belongs to, so the genuinely untested ground is CatBoost's ordered
+     target statistics.
+  4. 2026 DEGRADATION IS REAL AND UNEXPLAINED (section 29.4). It may be market
+     sharpening, or the 2026 rows may be priced differently in ways the T-6h fix
+     does not fully capture (section 10.4). Worth isolating before trusting the
+     board on live data.
+  5. 313 DOUBLEHEADERS DROPPED in the expansion rather than guessed.
+  6. `batter_total_bases` REMAINS FRAGILE: the unguarded side lever caused a 92%
+     board collapse on the expanded data before the `rf` override repaired it,
+     and E32's guard was rejected on its own criterion. The repair is real; the
+     fragility is structural.
+  7. THE FULL-OOS GATE COUNT IS NOT A STABLE YARDSTICK. It moves with the size
+     and difficulty of the dataset, not only with model quality (section 25).
+     Any comparison between two configurations of this system must use the
+     BOTH-GATES count.
+  8. THE HEADLINE ASSUMES BEST-PRICE EXECUTION. At the median book the verdict
+     units fall from 202.7 to 73.4 (section 27.4). Line shopping is not an
+     optimisation here; it is load-bearing.
+  9. NO CLV MEASUREMENT. The warehouse holds roughly 2 snapshots per event,
+     which is too sparse to reconstruct line movement. CLV is the standard way
+     to distinguish a real edge from a lucky one, and it is not available.
+ 10. THE VALIDATED MODELS ARE NOT DEPLOYED and there is no inference path for an
+     unplayed game (section 30.4).
+
+43.3 PRODUCTION RECOMMENDATIONS, IN PRIORITY ORDER (carried from the final configuration
+     report, unchanged, with one addition from this audit)
+  0. ROTATE THE TWO EXPOSED API KEYS (section 40.2). This audit's addition.
+  1. Re-run the box-score backfill with the full column set for
+     2025-03 -> 2026-06. Highest-value action available; data-ops, not data
+     science.
+  2. Fix the entry-snapshot convention. Whichever of 6 h or 1 h is correct, it
+     should be ONE of them, and the backtest should match what production prices
+     at. This work showed the choice is worth three markets.
+  3. Do not ship the game markets. totals, spreads and h2h lose money in 2026 on
+     9,476 picks and clear the gate on 0 of 3 held-out cuts under every rule.
+  4. Quote `batter_strikeouts` with its caveat -- validated on 2024 only.
+  5. Capture opening and closing prices going forward, so CLV becomes usable.
+  6. Keep capturing Statcast daily. Too young to use (starts 2026-05-20), still
+     the one source that may contain something the book does not fully price.
+
+
+================================================================================
+44. GENERALIZATION RISK
+================================================================================
+
+ASSESSMENT: MEDIUM.
+
+EVIDENCE THAT LOWERS THE RISK
+  * Six markets pass TWO gates, the second on a window never read during any
+    selection decision.
+  * Five of those six survive ALL SIX robustness variants; the sixth survives
+    five.
+  * The placebo-lag profile is flat to slightly rising -- the signature of a
+    form signal, not a leak.
+  * The verdict pass count sits between 4 and 6 across every variant: a broad
+    stable region, not a single lucky setting.
+  * Production parity is exact (0 of 28,141).
+  * The whole result reproduces bit-identically.
+  * The markets that fail, fail consistently across the gate, the robustness
+    variants AND the independent E24 held-out test. The system's failures are
+    coherent, which is itself evidence that its passes are not noise.
+
+EVIDENCE THAT RAISES THE RISK
+  * 2026 IS FIVE TIMES LESS PROFITABLE THAN 2025 on 9,476 picks. Whatever is
+    happening, it is happening in the most recent and most relevant period.
+  * The game markets are demonstrably being priced out. Nothing suggests this
+    reverses.
+  * The edge is overstated by 3-18 points at every predicted level (section
+    19.3). The EV filter works as a threshold and not as a ranking, which means
+    the system has less control over its own board than the numbers suggest.
+  * Two thirds of the verdict units depend on best-price execution.
+  * `batter_strikeouts`, one of the six PASS markets, is validated on 2024 only
+    and is no longer offered.
+  * `batter_total_bases`, another of the six, is structurally fragile.
+  * No CLV, the standard forward-looking check, is available.
+  * The selection layer saw the SELECT half of the same period. The verdict
+    window mitigates this; it does not eliminate it.
+  * There is no post-deployment evidence of any kind. Zero markets have been
+    observed live.
+
+THE HONEST SUMMARY
+Six markets clear a two-gate bar that an extended programme of experiments failed to game,
+and they survive a stress test designed to break them. That is a real result.
+It is also a result measured entirely on history, in a period whose most recent
+year is materially worse than its predecessor, with no live observation behind
+it. A reasonable operator would ship a small number of markets in a monitored,
+paper-traded mode first, watch CLV, and re-evaluate on the 2026 regime rather
+than the pooled average.
+
+
+================================================================================
+45. FINAL TECHNICAL ASSESSMENT
+================================================================================
+
+SYSTEM STATUS
+    PARTIALLY OPERATIONAL.
+    The validation pipeline is fully operational: it reproduces its
+    result bit-identically from the shipped data and source, and it generates a
+    production board on current data with zero unservable rows.
+    It is NOT operational as a live prediction service: there is no inference
+    path for an unplayed game and no persisted model. Section 30.4.
+
+HISTORICAL VALIDATION
+    6 / 11 PASS on both gates.
+    Target 11/11 NOT MET. Minimum 9/11 NOT MET.
+
+FULL OOS
+    7 / 11 PASS.  28,141 board rows.  +559.3 units.
+
+VERDICT
+    6 / 11 PASS.  12,687 board rows.  +202.7 units.
+    Window never read during any selection decision.
+
+PRODUCTION PARITY
+    PASS. 0 of 28,141 historical board rows rejected (re-verified this audit,
+    byte-identical). 0 of 1,465 live board rows rejected.
+
+CURRENT PRODUCTION BOARD
+    Generated 2026-09-17T12:58Z on the locked configuration.
+    Latest slate 2026-09-16: 3 games, 248 priced, 7 selected.
+    Last 30 days: 309 games, 24,279 priced, 1,465 selected, 0 unservable.
+
+LIVE PREDICTIONS
+    24,065 model predictions over the last 30 days of available data;
+    150 on the latest slate.
+    ZERO predictions for today (2026-09-17) -- the data ends 2026-09-16.
+
+LIVE SETTLED MARKETS
+    9 of 11 have settled board rows in the 30-day window.
+    0 of 11 are POST-DEPLOYMENT. Every one is inside the historical OOS period.
+
+LIVE PASSING MARKETS
+    N/A -- NOT LEGITIMATELY COMPUTABLE. Three independent reasons in section
+    33.2: no unsettled board exists, the rows are not post-deployment, and the
+    largest per-market sample (462) is below the gate's 500 floor.
+
+LIVE PENDING MARKETS
+    0 of 11. The pipeline cannot produce an unsettled board row.
+
+CONFIRMED LEAKAGE
+    NO CONFIRMED LEAKAGE WAS FOUND BY THE IMPLEMENTED AUDIT CHECKS.
+    Three warnings recorded: selection-layer optimism (mitigated by the verdict
+    window), 0.87% event-bridge contamination, and slow-moving park factors.
+    This is not a claim that leakage is impossible. Section 37.
+
+REPRODUCIBILITY
+    BIT-IDENTICAL on the result stage, verified by sha256 during this audit.
+    The member cache rebuild was not repeated. Not bit-portable across machines.
+
+SECURITY
+    PASS FOR THE HANDOFF: zero real credentials in the package, verified by two
+    independent scans.
+    OUTSTANDING IN THE PROJECT: two API keys were exposed in a public repository
+    and have NOT been rotated. The Odds API key still authenticates. This is the
+    highest-priority open action.
+
+CLIENT HANDOFF
+    PASS. The package is self-contained, reproduces the result without network
+    access or API credits, and states plainly what is validated, what is
+    deployed (nothing), and what is unknown.
+
+GENERALIZATION RISK
+    MEDIUM. Section 44.
+
+MAIN LIMITATIONS
+    1. The validated models are NOT deployed and there is no live inference path.
+    2. 2026 is roughly a fifth as profitable as 2025 on 9,476 picks.
+    3. Two exposed API keys are unrotated.
+    4. `batter_strikeouts` (a PASS market) is validated on 2024 only and is no
+       longer offered by the books.
+    5. Two thirds of the verdict units depend on best-price execution.
+    6. A twelve-month box-score hole limits two markets.
+    7. Predicted edge is overstated by 3-18 points at every level.
+    8. No CLV measurement is possible from the available snapshot density.
+    9. The warehouse odds table stopped on 2026-05-24.
+   10. No post-deployment evidence exists for any market.
+
+THE ONE-SENTENCE VERSION
+This is a carefully controlled, fully reproducible research result showing
+that six of eleven MLB markets clear the product's own gate on two windows and
+survive a six-variant stress test -- and it is a backtest, on a period whose
+most recent year is materially worse, with nothing yet observed in production.
+
+
+================================================================================
+46. EXACT FILES USED AS EVIDENCE
+================================================================================
+
+SOURCE CODE READ IN FULL OR IN THE RELEVANT PART
+    betgenius/harness/uplift/frames.py
+    betgenius/harness/uplift/features.py            (structure and build())
+    betgenius/harness/uplift/policy.py              (committed 2629293, and the
+                                                     working-tree diff)
+    betgenius/harness/uplift/mlbgate.py
+    betgenius/harness/uplift/build_cache.py
+    betgenius/harness/uplift/run_final_model.py
+    betgenius/harness/uplift/final_matrix.py
+    betgenius/harness/uplift/parity_audit.py
+    betgenius/harness/uplift/robustness.py
+    betgenius/harness/uplift/boardfast.py
+    betgenius/harness/uplift/build_workbook.py      (status_of)
+    betgenius/harness/uplift/verify_gate.py
+    betgenius/harness/uplift/calibration.py
+    betgenius/harness/uplift/probe_warehouse.ts
+    betgenius/harness/lib/metrics.ts                (evaluateEvGate, lines 316-390)
+    betgenius/harness/run_backtest.ts               (import graph only)
+    betgenius/CLAUDE.md
+    betgenius/requirements.txt
+
+REPORTS AND RESULT FILES
+    reports/final_matrix.csv        the authoritative table
+    reports/final_v1.csv, final_v1.json
+    reports/overrides_v1.csv           the override decision table
+    reports/robustness_v1.csv, robustness_v1.csv
+    reports/parity_audit_v1.csv
+    reports/season_split_v1.csv
+    reports/global_sweep_v1.csv
+    reports/boards_v1.csv
+    reports/experiment_log.csv
+    reports/calibration.csv, calibration_reliability.csv
+    reports/diag_signal.csv
+    reports/check_asof.log
+    reports/inventory_base.csv/.log, inventory_exp.csv/.log,
+            inventory_exp6.csv/.log
+        reports/run_final_v1.log, run_robustness_v1.log
+    reports/edge_buckets_e23.csv, gate_aligned_e24.csv,
+            model_families_e26.csv, side_guard_e32.csv
+
+DATA
+    harness/uplift/data_expanded_6h/boxscores.csv   (coverage verified directly)
+    harness/uplift/data_expanded_6h/odds_*.csv      (25 files, all hashed)
+    harness/uplift/cache_fam/*.pkl                  (the member cache)
+
+DOCUMENTS
+    harness/uplift/VALIDATION_REPORT.md  -> docs/VALIDATION_REPORT.md
+    harness/uplift/methodology/EXPERIMENT_PLAN.md   -> docs/methodology/EXPERIMENT_PLAN.md
+    harness/uplift/methodology/PREREGISTRATION.md
+    harness/uplift/methodology/THIRD_PARTY_GUIDE_AUDIT.md  -> docs/methodology/THIRD_PARTY_GUIDE_AUDIT.md
+    harness/PHASE1_SCOPE.md
+    MLB_PHASE1_RESULTS.md
+    TESTING_GUIDE_3_PASS_MARKETS.md
+    TESTING_GUIDE_8_POOLED_ML.md
+
+FILES CREATED BY THIS AUDIT
+    betgenius/harness/uplift/live_board.py    (the live board generator)
+    reports/live_production_results.csv
+    reports/live_summary.txt
+    reports/final_recheck.csv, overrides_recheck.csv, global_sweep_recheck.csv
+        (the reproduction run's output, used only for the hash comparison)
+    reports/reproducibility.txt
+    AUDIT_COMPLETE.txt  (this file)
+
+COMMANDS WHOSE OUTPUT IS QUOTED IN THIS AUDIT
+    git rev-parse HEAD ; git diff ; git branch -a ; git status --porcelain
+    python harness/uplift/run_final_model.py --conf=60 --tag=_recheck
+    python harness/uplift/parity_audit.py --tag=_v1
+    python harness/uplift/verify_gate.py
+    python harness/uplift/live_board.py --tag=_v1 --windows=1,7,30
+    read-only SQL against cache_mlb_historical_odds / _events /
+        _boxscore_player_stats
+    curl https://api.the-odds-api.com/v4/sports/  (free endpoint, balance only)
+    sha256sum over the data snapshot and every shipped result file
+    find / git / grep scans for the testing-guide artifacts and for secrets
+
+================================================================================
+END OF AUDIT
+================================================================================

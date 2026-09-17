@@ -1,0 +1,107 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- VERSION INFORMATION
+================================================================================
+
+VERSION                         FINAL
+
+CONFIDENCE FLOOR                60
+                                Pinned. Never searched, never lowered, identical
+                                across all 11 markets. It is the shipped
+                                product's own floor (mlbgate.ev_pass_mask).
+
+HISTORICAL BOTH-GATES PASS      6 / 11
+TARGET                         11 / 11        NOT MET
+MINIMUM                         9 / 11        NOT MET
+
+    Gate (full out-of-sample)   7 / 11 PASS
+    Gate (verdict window)       6 / 11 PASS
+
+    PASS                        6   batter_hits, batter_total_bases,
+                                    pitcher_strikeouts, batter_runs_scored,
+                                    pitcher_outs, batter_strikeouts
+    PASS_WITH_RESTRICTIONS      1   totals
+    VETO                        2   batter_rbis, batter_home_runs
+    FAIL_AFTER_ITERATION        2   spreads, h2h
+
+PRODUCTION PARITY               PASS -- 0 of 28,141 board rows rejected
+                                (0.000%). Re-verified 2026-09-17 by re-running
+                                parity_audit.py; the output was byte-identical
+                                to the shipped results/parity_audit_v1.csv.
+                                Also 0 of 1,465 rows on the live 30-day board.
+
+GIT COMMIT                      2629293f09fb28343378a111340b80766da731f5
+REPOSITORY                      private development repository (identity
+                                withheld; the complete source tree ships in
+                                project/)
+WORKING TREE AT PACKAGING TIME  27 entries not in the commit -- untracked
+                                later research files plus one modified file,
+                                policy.py. THE HANDOFF SHIPS THE COMMITTED
+                                policy.py (sha256 58e4726db770abfc...), not the
+                                working-tree draft (05da9d7228185170...).
+
+DATA SNAPSHOT                   project/betgenius/harness/uplift/data_expanded_6h
+                                25 files, 344,635,080 bytes (329 MB)
+                                Entry convention: T-6h (verified served lead
+                                6.01 h median)
+                                Coverage: 2024-04-01 -> 2026-09-16
+                                Box scores: 5,914 games / 321,890 player-game
+                                rows / 4,419 players
+                                Priced candidates: 530,193
+                                Graded candidates: 529,695
+                                Games used by the model: 5,421
+                                Per-file sha256: reports/reproducibility.txt
+
+MEMBER CACHE                    NOT SHIPPED (939 MB). Regenerable from the
+                                shipped data with build_cache.py in ~90 minutes,
+                                no network and no API credits.
+
+MODELS                          gbm   HistGradientBoostingClassifier  9 markets
+                                rf    RandomForestClassifier          1 market
+                                price LogisticRegression on the price 1 market
+                                440 estimators fitted for the shipped table
+                                4,840 fitted to build the full member cache
+                                0 persisted to disk
+                                XGBoost / LightGBM / CatBoost / FLAML NOT used
+
+DEPLOYMENT STATUS               NOT DEPLOYED. The live product scores picks with
+                                supabase/functions/_shared/scoring_mlb_v2.ts and
+                                the algorithm_weights table. The validated models
+                                share no code with it and are not serving
+                                traffic. See AUDIT_COMPLETE.txt section 30.4.
+
+LIVE / PRODUCTION BOARD         Generated 2026-09-17T12:58Z
+                                Latest event date in the data: 2026-09-16
+                                Latest slate (3 games): 248 priced, 150
+                                predictions, 7 selected, 0 unservable
+                                Last 30 days (309 games): 24,279 priced, 24,065
+                                predictions, 1,465 selected, 0 unservable
+                                Unsettled board rows: 0
+                                Post-deployment settled markets: 0
+                                LIVE PASS/FAIL: NOT COMPUTABLE
+
+REPRODUCIBILITY                 The result stage reproduces BIT-IDENTICALLY.
+                                reports/final_v1.csv and the audit re-run's
+                                final_recheck.csv share sha256
+                                73e5cdb0803151bb74fb1b9ff75c5f1af1a31b26778415462d17a40d41f52673
+
+BUILD / RUNTIME VERSIONS        Python 3.14.6, numpy 2.4.6, pandas 3.0.3,
+                                scikit-learn 1.9.0, scipy 1.18.0,
+                                statsmodels 0.14.6
+                                Deno 2.9.6, Node 24.20.0
+                                OS Windows 11 (10.0.26200)
+
+SECURITY                        No credential of any kind ships in this package.
+                                Verified by a pattern scan and a literal-value
+                                scan: zero real credentials found.
+                                OUTSTANDING: two API keys previously exposed in
+                                a public repository have NOT been rotated.
+
+AUDIT                           AUDIT_COMPLETE.txt, 46 sections,
+                                performed 2026-09-17
+
+CREATION DATE                   2026-09-17
+
+================================================================================
+Every field above was read from a file or from the output of a command run
+during the audit. No field is estimated.
+================================================================================

@@ -1,0 +1,134 @@
+BETGENIUS MLB PHASE 1 -- CURRENT PRODUCTION / LIVE BOARD EVALUATION
+==============================================================================
+Board generated (UTC)      : 2026-09-17T12:58:46.939000+00:00
+Data snapshot directory    : <project>/betgenius/harness/uplift/data_expanded_6h
+Member cache directory     : <project>/betgenius/harness/uplift/cache_fam
+Configuration read from    : reports/final_v1.csv  (the locked configuration, unmodified)
+Latest event date in data  : 2026-09-16
+Markets configured         : 11
+
+SETTLEMENT STATUS
+------------------------------------------------------------------------------
+Board rows with an unsettled outcome, all windows: 0
+Every board row this pipeline can produce is already SETTLED.
+No realized live-market PASS/FAIL result can be computed from an unsettled
+board, because this harness produces no unsettled board rows: the candidate
+loader keeps only rows whose outcome exists (frames.load_candidates) and the
+cache builder keeps only graded rows (features.graded). See section 30 of
+AUDIT_COMPLETE.txt.
+
+WINDOW: last 1 day(s) of available data  (2026-09-16 -> 2026-09-16)
+------------------------------------------------------------------------------
+  games (max over markets)  3
+  markets with board rows   3 / 11
+  priced candidate rows     248
+  graded candidate rows     248
+  model predictions         150
+  confidence >= floor       96
+  selected (board rows)     7
+  rejected by the filter    241
+  unservable in production  0
+  rows missing an outcome   0
+  settled picks             7   units +2.59   pooled ROI +37.00%
+
+            market market_last_priced_date  events  priced_candidates  predictions  confidence_60  selected  unservable outcome_status  n  win_pct     roi  units    gate
+       batter_hits              2026-09-16       3                 55           37             14         1           0        SETTLED  1    100.0   83.33   0.83    PASS
+       batter_rbis              2026-09-16       3                 52           35             35         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+            totals              2026-09-16       3                  6            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+           spreads              2026-09-16       3                  4            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+batter_total_bases              2026-09-16       3                 61           43             16         1           0        SETTLED  1      0.0 -100.00  -1.00    FAIL
+  batter_home_runs              2026-06-19       0                  0            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+pitcher_strikeouts              2026-09-16       3                  8            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+               h2h              2026-09-16       3                  3            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+batter_runs_scored              2026-09-16       3                 52           35             31         5           0        SETTLED  5    100.0   55.17   2.76    PASS
+      pitcher_outs              2026-09-16       3                  7            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+ batter_strikeouts              2026-07-17       0                  0            0              0         0           0  NO_BOARD_ROWS  0      NaN     NaN   0.00 NO_DATA
+
+  LIVE MARKETS WITH SETTLED RESULTS : 3/11
+  LIVE MARKETS PASSING OFFICIAL GATE: 2/11   (see the caveat below -- n is far under the gate's floor)
+  LIVE MARKETS FAILING OFFICIAL GATE: 1/11
+  LIVE MARKETS PENDING              : 0/11
+  LIVE MARKETS WITH NO BOARD ROWS   : 8/11
+
+WINDOW: last 7 day(s) of available data  (2026-09-10 -> 2026-09-16)
+------------------------------------------------------------------------------
+  games (max over markets)  64
+  markets with board rows   9 / 11
+  priced candidate rows     5,020
+  graded candidate rows     5,017
+  model predictions         4,834
+  confidence >= floor       2,999
+  selected (board rows)     230
+  rejected by the filter    4,787
+  unservable in production  0
+  rows missing an outcome   3
+  settled picks             230   units +3.61   pooled ROI +1.57%
+
+            market market_last_priced_date  events  priced_candidates  predictions  confidence_60  selected  unservable outcome_status  n  win_pct    roi  units    gate
+       batter_hits              2026-09-16      64               1126         1108            514        32           0        SETTLED 32    62.50   7.80   2.50    FAIL
+       batter_rbis              2026-09-16      64               1080         1063           1059        20           0        SETTLED 20    50.00 -21.77  -4.35    FAIL
+            totals              2026-09-16      64                109           81             15         3           0        SETTLED  3    66.67  26.19   0.79    FAIL
+           spreads              2026-09-16      64                 82           49             24        18           0        SETTLED 18    61.11  -5.18  -0.93    FAIL
+batter_total_bases              2026-09-16      64               1194         1176            492        32           0        SETTLED 32    59.38  -2.21  -0.71    FAIL
+  batter_home_runs              2026-06-19       0                  0            0              0         0           0  NO_BOARD_ROWS  0      NaN    NaN   0.00 NO_DATA
+pitcher_strikeouts              2026-09-16      63                140          120             37        28           0        SETTLED 28    64.29   9.57   2.68    FAIL
+               h2h              2026-09-16      64                 64           37             14        12           0        SETTLED 12    83.33  32.12   3.85    FAIL
+batter_runs_scored              2026-09-16      64               1080         1063            807        67           0        SETTLED 67    58.21  -8.09  -5.42    FAIL
+      pitcher_outs              2026-09-16      63                145          137             37        18           0        SETTLED 18    77.78  28.87   5.20    FAIL
+ batter_strikeouts              2026-07-17       0                  0            0              0         0           0  NO_BOARD_ROWS  0      NaN    NaN   0.00 NO_DATA
+
+  LIVE MARKETS WITH SETTLED RESULTS : 9/11
+  LIVE MARKETS PASSING OFFICIAL GATE: 0/11   (see the caveat below -- n is far under the gate's floor)
+  LIVE MARKETS FAILING OFFICIAL GATE: 9/11
+  LIVE MARKETS PENDING              : 0/11
+  LIVE MARKETS WITH NO BOARD ROWS   : 2/11
+
+WINDOW: last 30 day(s) of available data  (2026-08-18 -> 2026-09-16)
+------------------------------------------------------------------------------
+  games (max over markets)  309
+  markets with board rows   9 / 11
+  priced candidate rows     24,279
+  graded candidate rows     24,248
+  model predictions         24,065
+  confidence >= floor       15,126
+  selected (board rows)     1,465
+  rejected by the filter    22,783
+  unservable in production  0
+  rows missing an outcome   31
+  settled picks             1,465   units +18.24   pooled ROI +1.25%
+
+            market market_last_priced_date  events  priced_candidates  predictions  confidence_60  selected  unservable outcome_status   n  win_pct   roi  units    gate
+       batter_hits              2026-09-16     308               5501         5483           2725       136           0        SETTLED 136    66.18 16.57  22.53    PASS
+       batter_rbis              2026-09-16     309               5200         5183           5129       111           0        SETTLED 111    60.36 -4.99  -5.54    FAIL
+            totals              2026-09-16     309                456          411             66        25           0        SETTLED  25    52.00 -0.09  -0.02    FAIL
+           spreads              2026-09-16     309                372          339            195       152           0        SETTLED 152    60.53 -4.83  -7.35    FAIL
+batter_total_bases              2026-09-16     309               5834         5816           2629       247           0        SETTLED 247    59.51 -2.18  -5.39    FAIL
+  batter_home_runs              2026-06-19       0                  0            0              0         0           0  NO_BOARD_ROWS   0      NaN   NaN   0.00 NO_DATA
+pitcher_strikeouts              2026-09-16     308                697          677            177       116           0        SETTLED 116    62.07  7.39   8.57    FAIL
+               h2h              2026-09-16     309                309          282             91        72           0        SETTLED  72    59.72 -4.76  -3.43    FAIL
+batter_runs_scored              2026-09-16     308               5196         5179           3905       462           0        SETTLED 462    61.04 -1.15  -5.33    FAIL
+      pitcher_outs              2026-09-16     307                714          695            209       144           0        SETTLED 144    65.28  9.86  14.20    FAIL
+ batter_strikeouts              2026-07-17       0                  0            0              0         0           0  NO_BOARD_ROWS   0      NaN   NaN   0.00 NO_DATA
+
+  LIVE MARKETS WITH SETTLED RESULTS : 9/11
+  LIVE MARKETS PASSING OFFICIAL GATE: 1/11   (see the caveat below -- n is far under the gate's floor)
+  LIVE MARKETS FAILING OFFICIAL GATE: 8/11
+  LIVE MARKETS PENDING              : 0/11
+  LIVE MARKETS WITH NO BOARD ROWS   : 2/11
+
+CAVEAT ON THE GATE COLUMN
+------------------------------------------------------------------------------
+The gate column applies the shipped rule (n>=500 -> ROI>0, else 95% CI lower
+bound > 0) mechanically to each window. On a 1-, 7- or 30-day window no market
+reaches n=500, so every evaluation falls on the CI arm, where a handful of picks
+cannot produce a meaningful interval. These per-window gate values are NOT a
+market verdict and must never be quoted as one. The market verdicts are in
+results/final_matrix.csv and nowhere else.
+
+THESE WINDOWS ARE NOT POST-DEPLOYMENT EVIDENCE
+------------------------------------------------------------------------------
+Every date above falls inside the out-of-sample period that produced the
+headline table, and for most markets inside the verdict window itself. The rows
+are therefore already counted in the historical result. They are reported here
+to show what the production board LOOKS LIKE on the most recent available data --
+coverage, volume, serving status -- not to add an independent result.

@@ -55,12 +55,30 @@ COMPACT = {
 }
 
 
+# R5-03 (round 4's unrun E27). features.py already fits a Poisson and a negative
+# binomial count model per prop market and hands their implied P(X > line) to the
+# calibrator as two columns among forty-six. These members offer that probability
+# DIRECTLY, in the same one-column shape `price` uses, so it is not re-weighted by
+# a logistic fitted on everything else. Prop markets only -- a game market has no
+# column of this form, and a member is left all-NaN there rather than silently
+# falling back to something else and being compared as if it were the same thing.
+SINGLE = {"nb": "parPNb", "poi": "parPAdj"}
+
+
 def _design(d, cols, member):
     if member == "price":
         use = ["pLogit"]
     elif member == "compact":
         kind = "game" if "expMargin" in cols else "prop"
         use = [c for c in COMPACT[kind] if c in cols]
+    elif member in SINGLE:
+        col = SINGLE[member]
+        if col not in cols:
+            return None, []
+        # to the logit scale, as `price` is: a logistic on a raw probability is
+        # linear in p, which is not the shape a probability carries information in
+        p = np.clip(d[col].to_numpy(float), 1e-6, 1 - 1e-6)
+        return np.log(p / (1 - p)).reshape(-1, 1), [col]
     else:
         use = cols
     return d[use].to_numpy(float), use
@@ -201,6 +219,99 @@ def _fit_predict_gbm_tuned(Xtr, ytr, Xte, params):
         return np.full(len(Xte), base)
 
 
+def _fit_predict_xgb(Xtr, ytr, Xte):
+    """R5-01. XGBoost, the one model family the branches had and this did not.
+
+    Hyperparameters are FIXED in advance to the same conservative shape the
+    incumbent gbm member uses -- shallow, heavily leaf-constrained, strong L2 --
+    and nothing is searched. A search over the same split the member is then
+    scored on is the multiple-comparisons exposure the branch's own guide flags
+    on its best-of-5-thresholds result, and round 5 does not import it.
+
+    Single-threaded and seeded so a re-run is bit-identical: Part 33 asks for
+    run-to-run stability to be established rather than assumed.
+    """
+    import xgboost as xgb
+    base = float(ytr.mean()) if len(ytr) else 0.5
+    if len(np.unique(ytr)) < 2 or len(ytr) < 800:
+        return np.full(len(Xte), base)
+    keep = [j for j in range(Xtr.shape[1])
+            if np.isfinite(Xtr[:, j]).sum() > 20 and np.nanstd(Xtr[:, j]) > 1e-12]
+    if not keep:
+        return np.full(len(Xte), base)
+    m = xgb.XGBClassifier(
+        max_depth=3, n_estimators=200, learning_rate=0.05, min_child_weight=200,
+        reg_lambda=5.0, subsample=0.8, colsample_bytree=0.8,
+        tree_method="hist", n_jobs=1, random_state=20260917,
+        eval_metric="logloss", verbosity=0)
+    try:
+        m.fit(Xtr[:, keep], ytr)
+        return m.predict_proba(Xte[:, keep])[:, 1]
+    except (ValueError, xgb.core.XGBoostError):
+        return np.full(len(Xte), base)
+
+
+def _fit_predict_lgbm(Xtr, ytr, Xte):
+    """R5-02. LightGBM, leaf-wise rather than depth-wise. Same discipline."""
+    import lightgbm as lgb
+    base = float(ytr.mean()) if len(ytr) else 0.5
+    if len(np.unique(ytr)) < 2 or len(ytr) < 800:
+        return np.full(len(Xte), base)
+    keep = [j for j in range(Xtr.shape[1])
+            if np.isfinite(Xtr[:, j]).sum() > 20 and np.nanstd(Xtr[:, j]) > 1e-12]
+    if not keep:
+        return np.full(len(Xte), base)
+    m = lgb.LGBMClassifier(
+        num_leaves=8, max_depth=3, n_estimators=200, learning_rate=0.05,
+        min_child_samples=200, reg_lambda=5.0, subsample=0.8, subsample_freq=1,
+        colsample_bytree=0.8, deterministic=True, force_row_wise=True,
+        num_threads=1, random_state=20260917, verbose=-1)
+    try:
+        m.fit(Xtr[:, keep], ytr)
+        return m.predict_proba(Xte[:, keep])[:, 1]
+    except (ValueError, lgb.basic.LightGBMError):
+        return np.full(len(Xte), base)
+
+
+# R5-05 (round 4's unrun E29). Board ROI measured 1.98% / 3.15% / 0.62% across
+# 2024 / 2025 / 2026, so the question of whether the later period is a regime
+# change or noise is live. Arm B weights the training fold by recency; arm C
+# discards everything older than a year. Both are decided on SELECT-B log loss.
+RECENCY = {"gbmW": ("weight", 365.0), "gbmR": ("roll", 365.0)}
+
+
+def _fit_predict_gbm_recency(Xtr, ytr, Xte, ttr, mode, days):
+    """The incumbent gbm, trained with a recency weight or a rolling window.
+
+    `ttr` is the training fold's commence times as int64 seconds. Nothing about
+    the fold boundary changes -- this only changes how the rows INSIDE an
+    already-out-of-sample training fold are weighted, so it cannot leak.
+    """
+    base = float(ytr.mean()) if len(ytr) else 0.5
+    if len(np.unique(ytr)) < 2 or len(ytr) < 800:
+        return np.full(len(Xte), base)
+    age = (ttr.max() - ttr) / 86400.0
+    if mode == "roll":
+        m = age <= days
+        if m.sum() < 800 or len(np.unique(ytr[m])) < 2:
+            return _fit_predict_gbm(Xtr, ytr, Xte)
+        return _fit_predict_gbm(Xtr[m], ytr[m], Xte)
+    w = np.power(0.5, age / days)
+    keep = [j for j in range(Xtr.shape[1])
+            if np.isfinite(Xtr[:, j]).sum() > 20 and np.nanstd(Xtr[:, j]) > 1e-12]
+    if not keep:
+        return np.full(len(Xte), base)
+    m = HistGradientBoostingClassifier(max_depth=3, max_leaf_nodes=8,
+                                       l2_regularization=5.0, learning_rate=0.05,
+                                       max_iter=200, min_samples_leaf=200,
+                                       random_state=20260916)
+    try:
+        m.fit(Xtr[:, keep], ytr, sample_weight=w)
+        return m.predict_proba(Xte[:, keep])[:, 1]
+    except ValueError:
+        return np.full(len(Xte), base)
+
+
 # E28 grid. Named so a cache can be built per configuration and compared on log
 # loss inside SELECT-A, never against the verdict window.
 GBM_GRID = {
@@ -252,7 +363,8 @@ def walkforward(d, cols, members=MEMBERS, warmup=WARMUP, n_blocks=N_BLOCKS):
             edges.append(t[i])
     edges.append(np.datetime64("2999-01-01T00:00:00"))
 
-    _full = ("gbm", "offset", "iso", "rf", "et") + tuple(GBM_GRID)
+    _full = (("gbm", "offset", "iso", "rf", "et", "xgb", "lgbm")
+             + tuple(GBM_GRID) + tuple(RECENCY))
     des = {m: _design(d, cols, "box" if m in _full else m)[0] for m in members}
     off = d["pLogit"].to_numpy(float)
     off = np.clip(np.where(np.isfinite(off), off, 0.0), -8, 8)
@@ -264,6 +376,11 @@ def walkforward(d, cols, members=MEMBERS, warmup=WARMUP, n_blocks=N_BLOCKS):
         if te.sum() == 0 or tr.sum() < 200:
             continue
         for mem in members:
+            # a SINGLE member whose column this market does not have. Left as
+            # NaN, which every downstream consumer already treats as "this
+            # member does not exist here" rather than silently substituting one
+            if des[mem] is None:
+                continue
             if mem == "offset":
                 R = d[resid_cols].to_numpy(float)
                 p[mem][te] = _fit_predict_offset(R[tr], y[tr], R[te], off[tr], off[te])
@@ -274,6 +391,15 @@ def walkforward(d, cols, members=MEMBERS, warmup=WARMUP, n_blocks=N_BLOCKS):
                                               t[tr].astype("datetime64[s]").astype(np.int64))
             elif mem in ("rf", "et"):
                 p[mem][te] = _fit_predict_forest(des[mem][tr], y[tr], des[mem][te], mem)
+            elif mem == "xgb":
+                p[mem][te] = _fit_predict_xgb(des[mem][tr], y[tr], des[mem][te])
+            elif mem == "lgbm":
+                p[mem][te] = _fit_predict_lgbm(des[mem][tr], y[tr], des[mem][te])
+            elif mem in RECENCY:
+                mode, days = RECENCY[mem]
+                p[mem][te] = _fit_predict_gbm_recency(
+                    des[mem][tr], y[tr], des[mem][te],
+                    t[tr].astype("datetime64[s]").astype(np.int64), mode, days)
             elif mem in GBM_GRID:
                 p[mem][te] = _fit_predict_gbm_tuned(des[mem][tr], y[tr], des[mem][te],
                                                     GBM_GRID[mem])

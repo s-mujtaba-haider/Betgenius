@@ -1,0 +1,448 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- PRODUCTION SETUP / RUNBOOK
+================================================================================
+
+SCOPE NOTE, READ FIRST
+----------------------
+This document covers the VALIDATION PIPELINE -- the system that produces
+the 6/11 result, the board and the gate verdicts. That pipeline is an offline,
+read-only research system.
+
+IT IS NOT A LIVE PREDICTION SERVICE, and it cannot be turned into one by
+configuration. Section 12 states exactly what is missing.
+
+The LIVE SharpAI product is a different codebase (React + Supabase edge
+functions + `scoring_mlb_v2.ts`). Its deploy procedure is in
+project/betgenius/DEPLOY.md and project/betgenius/CLAUDE.md. Nothing in this
+document changes it.
+
+EVERY COMMAND BELOW WAS TAKEN FROM THE ACTUAL PROJECT CODE. None was invented.
+Commands are shown in bash form. In PowerShell replace `export X="v"` with
+`$env:X = "v"` and drop the `$` from `$PWD`.
+
+
+================================================================================
+1. PREREQUISITES
+================================================================================
+    Python           3.14.6 (built and verified on it; 3.11+ should work)
+    Deno             2.9.6         -- only for the warehouse export and probes
+    Node             24.20.0       -- only for the frontend app
+    Disk             ~1.5 GB free  -- 329 MB data + 939 MB regenerated cache
+    RAM              8 GB is comfortable
+    Network          NOT required to reproduce the result from this package
+    Credentials      NOT required to reproduce the result from this package
+
+The only steps that need credentials or network are the data-regeneration steps
+in section 5, and the shipped snapshot makes them unnecessary.
+
+
+================================================================================
+2. INSTALLATION
+================================================================================
+    cd project/betgenius
+    python -m venv .venv
+    # Windows: .venv\Scripts\Activate.ps1      macOS/Linux: source .venv/bin/activate
+    pip install -r requirements.txt
+
+    # only if you will touch the frontend or the TypeScript harness
+    npm ci
+
+
+================================================================================
+3. ENVIRONMENT VARIABLES
+================================================================================
+
+REQUIRED FOR THE VALIDATION PIPELINE
+    UPLIFT_DATA_DIR    which data snapshot to read.
+                       Set it to <project>/betgenius/harness/uplift/data_expanded_6h
+                       Unset it and the code reads harness/uplift/data/, which is
+                       the PRE-EXPANSION baseline dataset and is NOT shipped.
+                       SETTING THIS IS MANDATORY.
+    UPLIFT_CACHE_DIR   where the member cache lives. Set it to
+                       <project>/betgenius/harness/uplift/cache_fam
+    UPLIFT_MEMBERS     extra ensemble members to build into the cache.
+                       For the final configuration: "rf,et,gbmB,gbmC,gbmD"
+                       Needed ONLY when building the cache. If it is omitted the
+                       cache will lack `rf`, and the batter_total_bases override
+                       cannot be reproduced.
+
+REQUIRED ONLY FOR DATA REGENERATION
+    HARNESS_DATABASE_URL   the harness_readonly Postgres role. SELECT only,
+                           connection limit 10.
+    ODDS_API_KEY           The Odds API key. Spending credits.
+    DENO_CERT              path to the shipped prod-ca-2021.crt
+
+NOT REQUIRED BY THE VALIDATION PIPELINE AT ALL
+    Every Supabase, Stripe, Twilio, Gemini, Anthropic and Sentry variable in
+    .env.example belongs to the live product, not to this pipeline.
+
+See .env.example for the complete annotated list. NO CREDENTIALS SHIP IN THIS
+PACKAGE -- you must supply your own. See section 11.
+
+    export UPLIFT_DATA_DIR="$PWD/harness/uplift/data_expanded_6h"
+    export UPLIFT_CACHE_DIR="$PWD/harness/uplift/cache_fam"
+
+
+================================================================================
+4. DATABASE
+================================================================================
+PostgreSQL via Supabase. The validation pipeline touches it ONLY during data
+regeneration, and only with SELECT.
+
+    TABLE                              USED FOR
+    cache_mlb_historical_odds          the priced universe (dump_odds.ts)
+    cache_mlb_boxscore_player_stats    outcomes (dump_box.ts)
+    cache_mlb_historical_events        the event bridge (dump_events.ts)
+
+HARD RULE, carried from CLAUDE.md cardinal rule 9:
+    NEVER RUN TWO HARNESS PROCESSES CONCURRENTLY. The `harness_readonly` role
+    has a Postgres connection limit of 10, and the sweep scripts sequence
+    markets for this reason.
+
+The pipeline NEVER writes to the database. There is no migration, no upsert and
+no rollback to plan, because there is nothing to roll back.
+
+
+================================================================================
+5. DATA INGESTION  (skip entirely if you use the shipped snapshot)
+================================================================================
+
+    export DENO_CERT="$PWD/prod-ca-2021.crt"
+
+    # 5.1 establish what exists BEFORE spending anything
+    python harness/uplift/probe_api_coverage.py
+    deno run --no-check --allow-net --allow-env --allow-read harness/uplift/probe_warehouse.ts
+    deno run --no-check --allow-net --allow-env --allow-read harness/uplift/probe_entry_lead.ts
+
+    # 5.2 warehouse export -- SELECT only, no credits
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_odds.ts
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_box.ts
+    deno run --no-check --allow-net --allow-env --allow-read --allow-write harness/uplift/dump_events.ts
+
+    # 5.3 the Odds API expansion -- COSTS CREDITS. Always --plan first.
+    python harness/uplift/ingest_expand.py --plan --group=A,B,C
+    python harness/uplift/ingest_expand.py --run  --group=A,B,C --lead=6 --suffix=6h
+
+    # 5.4 assemble into a NEW directory. data/ is never written to.
+    python harness/uplift/build_expanded_data.py --pattern="apix6h_*.jsonl" --out="$UPLIFT_DATA_DIR"
+    python harness/uplift/inventory_expanded.py --tag=exp6
+
+`--lead=6` IS NOT OPTIONAL IF YOU WANT TO REPRODUCE THE FINAL CONFIGURATION. The warehouse's own
+entry convention is 6.01 h before first pitch for 2024-2025, and pulling at 1 h
+instead took the result from 5/11 both-gates to 2/11. See DATA_DOCUMENTATION.txt
+section 6.
+
+`dump_odds.ts` carries `FROM = "2024-04-01"` (box scores, the grading source,
+start here) and `TO = "2026-05-24"` (the warehouse odds stop here). The second is
+a fact about the table, not a throttle.
+
+
+================================================================================
+6. FEATURE GENERATION AND MODEL FITTING
+================================================================================
+One command does candidates, grading, features and the whole walk-forward, and
+writes the member cache:
+
+    export UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD"
+    python harness/uplift/build_cache.py
+
+    Runtime   ~90 minutes, single-threaded
+    Output    $UPLIFT_CACHE_DIR/<market>_lag0_best.pkl, 939 MB total
+    Network   none
+    Progress  one line per market: graded rows, events, date span, seconds
+
+To build a robustness variant's cache instead, add the matching flags:
+
+    python harness/uplift/build_cache.py --lag=1
+    python harness/uplift/build_cache.py --lag=3
+    python harness/uplift/build_cache.py --lag=7
+    python harness/uplift/build_cache.py --price=median
+    python harness/uplift/build_cache.py --warmup=0.15 --blocks=12
+
+Each writes its own filename, so variants never overwrite the headline cache.
+
+
+================================================================================
+7. PREDICTION, CALIBRATION AND POLICY -- THE MAIN RUN
+================================================================================
+There is no separate prediction step, no separate calibration step and no
+separate policy step. `run_final_model.py` reads the cached probabilities, chooses
+the global filter on the SELECT halves, applies the per-market override rule,
+builds every board and grades both windows:
+
+    python harness/uplift/run_final_model.py --conf=60 --tag=_v1
+
+    Runtime   ~5 minutes from a warm cache
+    Writes    reports/final_v1.csv         the per-market result and config
+              reports/final_v1.json        the same plus every intermediate board
+              reports/boards_v1.csv        the six boards per market
+              reports/overrides_v1.csv     the override decision table
+              reports/global_sweep_v1.csv  the 4,600-cell filter sweep
+
+    Prints    the global filter chosen, the overrides adopted, a per-market
+              board table, and the three PASS counts.
+
+    FLAGS     --conf=N       confidence floor. USE 60. It is the shipped floor
+                             and it was never searched.
+              --tag=X        output suffix. Use a NEW tag for any new run so
+                             nothing is overwritten.
+              --lag=N        placebo lag, for robustness only
+              --price=median no-line-shopping variant
+              --warmup / --blocks   walk-forward schedule
+              --pairs        E33's widened override pool. REJECTED -- it takes
+                             both-gates from 6/11 to 4/11. Do not use it.
+
+
+================================================================================
+8. BOARD GENERATION
+================================================================================
+
+8.1 THE HISTORICAL BOARD
+Produced by step 7. `reports/boards_v1.csv` holds, per market, six boards: the
+flat baseline, price-only, the full-OOS board, the all-lines board, and the
+SELECT and VERDICT halves.
+
+8.2 THE CURRENT / LIVE PRODUCTION BOARD
+
+    python harness/uplift/live_board.py --tag=_v1 --windows=1,7,30
+
+    Runtime   ~10 minutes (it reloads the raw candidate universe per market to
+              report the priced-vs-graded funnel)
+    Reads     reports/final_v1.csv for the LOCKED configuration. It changes
+              nothing -- no threshold, no model, no policy.
+    Writes    reports/live_production_results.csv
+              reports/live_summary.txt
+    Prints    the board, per market, for each window, by settlement status.
+
+    WHAT IT CAN DO      generate the board for the most recent SETTLED slates in
+                        the snapshot, report coverage, volume, confidence and
+                        production serving status.
+    WHAT IT CANNOT DO   produce a board for a game that has not been played.
+                        See section 12.
+
+8.3 THE PRODUCTION PARITY CHECK -- RUN THIS AFTER ANY BOARD RUN
+
+    python harness/uplift/parity_audit.py --tag=_v1
+
+    Hands every board row to the ported shipped eligibility predicates and counts
+    rejections. Expect:
+        board rows 28,141   rejected by the shipped predicates 0   (0.000%)
+        PARITY HOLDS
+    ANY NON-ZERO REJECTION COUNT IS A BLOCKING DEFECT. It means the research
+    board and the production surface disagree about what is servable.
+
+8.4 THE FINAL CLIENT TABLE
+
+    python harness/uplift/final_matrix.py --tag=_v1
+
+    Requires reports/final_v1.csv and reports/robustness_v1.csv to exist.
+    NOTE: robustness.py writes `robustness_v1.csv`; final_matrix.py with
+    --tag=_v1 looks for `robustness_v1.csv`. Copy the former to the latter
+    (this is exactly what was done for the shipped run):
+        cp reports/robustness_v1.csv reports/robustness_v1.csv
+
+8.5 THE ROBUSTNESS SUITE
+
+    python harness/uplift/robustness.py --model --conf=60
+
+    Runs all six variants. It SKIPS any variant whose final_*.csv already
+    exists, so it is resumable. Each variant needs its own member cache built
+    first (section 6). Full suite from cold: several hours.
+
+8.6 THE SEASON SPLIT
+
+    python harness/uplift/season_analysis.py --tag=_v1
+
+
+================================================================================
+9. LOGGING AND MONITORING
+================================================================================
+Every script prints to stdout and writes its CSVs under `harness/uplift/reports`.
+The project convention is to tee the console into a log beside the CSVs:
+
+    python harness/uplift/run_final_model.py --conf=60 --tag=_v1 2>&1 | tee reports/run_final_v1.log
+
+WHAT TO WATCH, RUN TO RUN
+    * the global filter line -- `spec=gbm  EV floor=0.02  conf floor=60
+      collapse=maxEv`. If it moves, something upstream changed.
+    * the override list -- exactly two: spreads -> price,
+      batter_total_bases -> rf.
+    * the three PASS counts -- 6 verdict, 7 full OOS, 6 both gates.
+    * parity_audit -- 0 rejected. Always.
+    * `not in cache: <markets>` -- means UPLIFT_CACHE_DIR is wrong or the cache
+      is incomplete.
+
+THERE IS NO ALERTING, NO DASHBOARD AND NO METRICS EXPORT in this pipeline. It is
+run by hand.
+
+
+================================================================================
+10. SCHEDULING AND RETRAINING
+================================================================================
+NOTHING IN THE VALIDATION PIPELINE IS SCHEDULED. There is no cron entry, no job
+dispatcher hook and no automation. It is a research pipeline run manually.
+
+"Retraining" in the usual sense does not apply either: no model is persisted, so
+there is nothing to retrain. Every one of the 440 estimators behind the shipped
+table is fit inside `build_cache.py` and discarded after its probabilities are
+written. Refreshing the result means re-running section 5 (new data), then 6
+(rebuild the cache), then 7-8.
+
+A SENSIBLE CADENCE IF THIS IS KEPT AS A VALIDATION HARNESS
+    monthly   re-run the warehouse export and the inventory (5.2, 5.4). Confirm
+              the odds table is advancing -- as of 2026-09-17 IT IS NOT; it
+              stopped at 2026-05-24.
+    monthly   rebuild the cache and re-run 7, 8.3 and 8.6. Watch the season
+              split: 2026 is already five times less profitable than 2025.
+    quarterly re-run the full robustness suite (8.5).
+    never     change a threshold, a model or the gate to make a number improve.
+              Every such change invalidates the verdict window, which is the
+              only clean number the project has.
+
+
+================================================================================
+11. CREDENTIALS
+================================================================================
+NO CREDENTIALS SHIP IN THIS PACKAGE. `.env.example` lists every variable and
+what it is for.
+
+TO REGENERATE DATA YOU MUST SUPPLY
+    HARNESS_DATABASE_URL   your own harness_readonly Postgres URL
+    ODDS_API_KEY           your own Odds API key
+
+SECURITY ACTION OUTSTANDING IN THE SOURCE PROJECT
+Two keys (Gemini and The Odds API) were previously found hardcoded in a file
+committed to a PUBLIC repository and must be treated as compromised. They have
+NOT been rotated -- the Odds API key still authenticates as of 2026-09-17.
+Rotate at:
+    Gemini        https://aistudio.google.com/app/apikey
+    The Odds API  https://the-odds-api.com/account/
+then push the new values with `supabase secrets set`. This is the
+highest-priority open action in the project.
+
+
+================================================================================
+12. WHAT WOULD BE NEEDED TO SERVE A THE FINAL CONFIGURATION BOARD LIVE
+================================================================================
+This is a statement of the gap, not a plan.
+
+  1. AN INFERENCE PATH THAT DOES NOT REQUIRE A SETTLED OUTCOME.
+     `frames.load_candidates` drops any candidate whose settled stat is missing,
+     and `features.graded` keeps only graded rows. A live slate therefore
+     produces an EMPTY FRAME today. This is the blocking item.
+
+  2. A PERSISTED MODEL.
+     Zero estimators are saved. The walk-forward's final fold would have to be
+     fitted once, serialised, and put on a refit schedule.
+
+  3. A LIVE ODDS FEED AT THE RIGHT LEAD.
+     The warehouse odds table stopped on 2026-05-24. Whatever lead production
+     settles on must match the backtest's, because that choice was worth three
+     markets.
+
+  4. FEATURE PARITY AT SERVE TIME.
+     Every feature must be computable before first pitch with the same as-of
+     cut. The features are designed for this; nothing has been run in that mode.
+
+  5. A DECISION ABOUT WHICH MARKETS SHIP.
+     the evidence supports six and says explicitly not to ship the three
+     game markets.
+
+None of these five exists today.
+
+
+================================================================================
+13. ROLLBACK
+================================================================================
+The pipeline writes only to `harness/uplift/reports` and to the cache directory,
+and every output is tagged.
+
+    TO ROLL BACK A RUN            delete the files carrying that `--tag`
+    TO ROLL BACK A CACHE BUILD    delete or rename that UPLIFT_CACHE_DIR
+    TO ROLL BACK A DATA CHANGE    point UPLIFT_DATA_DIR back at the old snapshot.
+                                  No ingest ever writes to an existing dataset
+                                  directory, which is why the earlier baseline result
+                                  still reproduces bit-identically.
+    TO ROLL BACK SOURCE           git checkout 2629293 -- the delivered commit
+
+THE SHIPPED FILES IN results/ ARE THE REFERENCE. If a re-run disagrees with
+them, the re-run is wrong until proven otherwise. Compare with
+reports/reproducibility.txt, which carries the sha256 of every one.
+
+
+================================================================================
+14. TROUBLESHOOTING
+================================================================================
+
+SYMPTOM   `not in cache: <market list>` and markets missing from the table
+CAUSE     UPLIFT_CACHE_DIR is unset or points at a cache built for a different
+          data snapshot or a different warmup/blocks combination.
+FIX       set UPLIFT_CACHE_DIR to cache_fam, or rebuild with build_cache.py.
+
+SYMPTOM   the run completes but the overrides are wrong or missing `rf`
+CAUSE     the cache was built without UPLIFT_MEMBERS.
+FIX       rebuild with UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD".
+
+SYMPTOM   row counts are ~413k instead of ~530k
+CAUSE     UPLIFT_DATA_DIR is unset, so the code is reading the pre-expansion
+          `data/` directory -- which is not shipped in this package.
+FIX       set UPLIFT_DATA_DIR to data_expanded_6h.
+
+SYMPTOM   `final_matrix.py` cannot find robustness_v1.csv
+CAUSE     robustness.py writes robustness_v1.csv.
+FIX       copy it to reports/robustness_v1.csv (section 8.4).
+
+SYMPTOM   parity_audit reports a non-zero rejection count
+CAUSE     policy.board and the shipped predicates disagree. This is a BLOCKING
+          defect, not a warning.
+FIX       do not ship the board. Read the `conf60`, `juice` and `breakeven`
+          columns to see which rule rejected the rows.
+
+SYMPTOM   a Deno script fails with a TLS or certificate error
+FIX       export DENO_CERT="$PWD/prod-ca-2021.crt"
+
+SYMPTOM   a Deno script hangs with no output
+CAUSE     probe_warehouse.ts runs full-table aggregates over 18.6M rows and can
+          take many minutes. It is not necessarily stuck.
+FIX       let it run, or query the specific table you need directly.
+
+SYMPTOM   a Postgres connection is refused
+CAUSE     harness_readonly has a connection limit of 10, and another harness
+          process is holding connections.
+FIX       run one harness process at a time.
+
+SYMPTOM   the Odds API returns HTTP 422 "Historical odds are not available"
+CAUSE     you requested a date before 2023-05. No historical odds exist there.
+FIX       nothing to fix; it is a provider limit.
+
+SYMPTOM   `live_board.py` reports NO_BOARD_ROWS for batter_home_runs and
+          batter_strikeouts
+CAUSE     correct behaviour. The books stopped offering those markets on
+          2026-06-19 and 2026-07-17.
+
+SYMPTOM   scikit-learn results differ slightly from the shipped CSVs
+CAUSE     a different BLAS build, CPU or library version. Floating point is not
+          guaranteed identical across machines.
+FIX       expect agreement well inside a basis point; do not expect the same
+          sha256. Pin the versions in requirements.txt.
+
+
+================================================================================
+15. THE SHORTEST PATH TO A FULL REPRODUCTION
+================================================================================
+    cd project/betgenius
+    pip install -r requirements.txt
+    export UPLIFT_DATA_DIR="$PWD/harness/uplift/data_expanded_6h"
+    export UPLIFT_CACHE_DIR="$PWD/harness/uplift/cache_fam"
+    export UPLIFT_MEMBERS="rf,et,gbmB,gbmC,gbmD"
+
+    python harness/uplift/verify_gate.py                    #  <1 min, smoke test
+    python harness/uplift/build_cache.py                    # ~90 min
+    python harness/uplift/run_final_model.py --conf=60 --tag=_v1   # ~5 min
+    python harness/uplift/parity_audit.py --tag=_v1      # ~5 min
+    python harness/uplift/live_board.py --tag=_v1 --windows=1,7,30
+    python harness/uplift/season_analysis.py --tag=_v1
+
+    diff harness/uplift/reports/final_v1.csv ../../results/final_v1.csv
+
+No network. No credentials. No API credits.

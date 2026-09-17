@@ -1,0 +1,567 @@
+================================================================================
+BETGENIUS MLB PHASE 1 -- HANDOFF MANIFEST
+================================================================================
+Generated 2026-09-17 by walking the assembled package.
+
+TOTAL FILES        1,429
+TOTAL DIRECTORIES  112
+TOTAL SIZE         353.0 MB  (370,098,075 bytes)
+
+Columns: Path | Type | Size | Production-required | Reproduction-required |
+         Sensitive | Purpose / Notes
+
+NO FILE IN THIS PACKAGE IS MARKED SENSITIVE. Verified by two independent
+scans: a pattern scan for credentials of every common shape, and a literal
+scan for the four real credential values that exist in the development
+environment. Both returned zero. No populated .env ships, by design.
+
+================================================================================
+(root)   --   12 files, 311.7 KB
+================================================================================
+.env.example                                                   config       6.4 KB
+    production-required yes | reproduction-required no | sensitive no
+    Every environment variable, annotated
+    NOTE: Placeholders only; no real credential
+
+.gitignore                                                     config       1.4 KB
+    production-required no | reproduction-required no | sensitive no
+    Keeps secrets and caches out if committed
+
+AUDIT_COMPLETE.txt                                             doc        148.8 KB
+    production-required no | reproduction-required no | sensitive no
+    The complete 46-section forensic technical audit
+    NOTE: The most complete document in the package
+
+BETGENIUS_COMPLETE_DOCUMENTATION.txt                           doc         21.1 KB
+    production-required no | reproduction-required no | sensitive no
+    End-to-end system documentation
+
+CLIENT_HANDOFF_CHECKLIST.txt                                   doc         15.8 KB
+    production-required no | reproduction-required no | sensitive no
+    What is in the box, verified
+
+DATA_DOCUMENTATION.txt                                         doc         24.0 KB
+    production-required no | reproduction-required yes | sensitive no
+    Sources, schema, coverage, regeneration
+
+ENVIRONMENT_SETUP.txt                                          doc         11.2 KB
+    production-required yes | reproduction-required yes | sensitive no
+    Install and smoke test
+
+FINAL_RESULTS.txt                                              doc         19.4 KB
+    production-required no | reproduction-required no | sensitive no
+    Definitive result tables; historical and live kept apart
+
+MODEL_DOCUMENTATION.txt                                        doc         25.2 KB
+    production-required no | reproduction-required no | sensitive no
+    Every model, hyperparameter, rejection
+
+PRODUCTION_SETUP.txt                                           doc         20.9 KB
+    production-required yes | reproduction-required yes | sensitive no
+    Operational runbook; every command verified
+
+README.txt                                                     doc         11.5 KB
+    production-required no | reproduction-required no | sensitive no
+    Client-facing entry point
+    NOTE: Read first
+
+VERSION_INFO.txt                                               doc          5.9 KB
+    production-required no | reproduction-required yes | sensitive no
+    Version, commit, snapshot, parity
+
+================================================================================
+results   --   11 files, 76.3 KB
+================================================================================
+results/boards_v1.csv                                          result       7.9 KB
+    production-required no | reproduction-required yes | sensitive no
+    The six boards built per market
+
+results/final_matrix.csv                                       result       2.1 KB
+    production-required no | reproduction-required yes | sensitive no
+    THE authoritative 11-market table
+    NOTE: Every published number comes from here
+
+results/final_v1.csv                                           result       3.1 KB
+    production-required no | reproduction-required yes | sensitive no
+    Per-market result and the exact config used
+    NOTE: sha256 73e5cdb0803151bb...
+
+results/final_v1.json                                          result      27.7 KB
+    production-required no | reproduction-required yes | sensitive no
+    The same plus every intermediate board
+
+results/global_sweep_v1.csv                                    result      14.4 KB
+    production-required no | reproduction-required yes | sensitive no
+    The 4,600-cell global filter sweep
+
+results/live_production_results.csv                            result       5.1 KB
+    production-required no | reproduction-required no | sensitive no
+    The live board, per market, three windows
+    NOTE: Generated by this audit
+
+results/live_summary.txt                                       result      10.5 KB
+    production-required no | reproduction-required no | sensitive no
+    Live board narrative summary
+    NOTE: Generated by this audit
+
+results/overrides_v1.csv                                       result       2.6 KB
+    production-required no | reproduction-required yes | sensitive no
+    The per-market override decision table
+
+results/parity_audit_v1.csv                                    result        534 B
+    production-required no | reproduction-required yes | sensitive no
+    Production parity: 0 of 28,141 rejected
+
+results/robustness_v1.csv                                      result       1.0 KB
+    production-required no | reproduction-required yes | sensitive no
+    The six robustness variants, rolled up
+
+results/season_split_v1.csv                                    result       1.3 KB
+    production-required no | reproduction-required yes | sensitive no
+    Board ROI by season
+    NOTE: 2026 is 5x less profitable than 2025
+
+================================================================================
+reports   --   43 files, 262.5 KB
+================================================================================
+reports/boards_base_v1.csv                                     report       7.9 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/boards_lag1_v1.csv                                     report       8.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/boards_lag3_v1.csv                                     report       7.9 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/boards_lag7_v1.csv                                     report       7.9 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/boards_median_v1.csv                                   report       7.9 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/boards_w15b12_v1.csv                                   report       8.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/build_cache_fam.log                                    report        960 B
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/build_cache_robust6.log                                report       4.6 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/build_expanded_6h.log                                  report       2.2 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/calibration.csv                                        report       5.8 KB
+    production-required no | reproduction-required no | sensitive no
+    Calibration by member and market
+    NOTE: Computed on the PRE-expansion cache
+
+reports/calibration_reliability.csv                            report       4.6 KB
+    production-required no | reproduction-required no | sensitive no
+    Calibration by member and market
+    NOTE: Computed on the PRE-expansion cache
+
+reports/check_asof.log                                         report        592 B
+    production-required no | reproduction-required no | sensitive no
+    As-of leakage check and its control
+
+reports/data_inventory.csv                                     report       2.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/diag_signal.csv                                        report       7.7 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/diag_signal.log                                        report       7.6 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/edge_buckets_e23.csv                                   report      22.5 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/exp_price_members.csv                                  report       3.2 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/experiment_log.csv                                     report       9.2 KB
+    production-required no | reproduction-required no | sensitive no
+    Nine experiments with pre-registered criteria
+
+reports/final_base_v1.csv                                      report       3.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/final_lag1_v1.csv                                      report       3.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/final_lag3_v1.csv                                      report       3.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/final_lag7_v1.csv                                      report       3.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/final_median_v1.csv                                    report       3.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/final_w15b12_v1.csv                                    report       3.3 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/gate_aligned_e24.csv                                   report       9.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/inventory_base.csv                                     report       1.3 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/inventory_base.log                                     report       4.1 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/inventory_exp.csv                                      report       1.4 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/inventory_exp.log                                      report       4.0 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/inventory_exp6.csv                                     report       1.4 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/inventory_exp6.log                                     report       4.0 KB
+    production-required no | reproduction-required yes | sensitive no
+    Dataset inventories (base / T-1h / T-6h)
+    NOTE: exp6 is the shipped dataset
+
+reports/model_families_e26.csv                                 report      23.4 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/nested_rules.csv                                       report      10.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/reproducibility.txt                                    report       9.2 KB
+    production-required no | reproduction-required yes | sensitive no
+    Hashes, versions, what reproduced
+    NOTE: Generated by this audit
+
+reports/run_e22.log                                            report       4.6 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_e23.log                                            report       5.7 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_e24.log                                            report       6.2 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_e32.log                                            report       3.4 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_e33.log                                            report      10.6 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_final_v1.log                                       report      10.5 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_ingest_6h.log                                      report       4.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/run_robustness_v1.log                                  report       1.5 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+reports/side_guard_e32.csv                                     report      10.8 KB
+    production-required no | reproduction-required no | sensitive no
+    Supporting evidence, run logs and experiment output
+
+================================================================================
+docs   --   16 files, 188.7 KB
+================================================================================
+docs/CODE_MAP.txt                                              doc         24.9 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MARKET_DIAGNOSTICS.md                                     doc         12.8 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MILESTONE2.md                                             doc          6.5 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MILESTONE3.md                                             doc          6.8 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MILESTONE4.md                                             doc          7.2 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MILESTONE5.md                                             doc          7.5 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/MILESTONE6.md                                             doc          7.7 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/PHASE1_HARNESS_README.md                                  doc          9.3 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/PHASE1_SCOPE.md                                           doc         19.7 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/TESTING_GUIDE_3_PASS_MARKETS.md                           doc          6.1 KB
+    production-required no | reproduction-required no | sensitive no
+    Client-supplied third-party research guides
+    NOTE: Audited as claims; describe a different repository
+
+docs/TESTING_GUIDE_8_POOLED_ML.md                              doc          4.7 KB
+    production-required no | reproduction-required no | sensitive no
+    Client-supplied third-party research guides
+    NOTE: Audited as claims; describe a different repository
+
+docs/UPLIFT_HARNESS_README.md                                  doc          8.6 KB
+    production-required no | reproduction-required no | sensitive no
+    The research record, unaltered
+
+docs/VALIDATION_REPORT.md                                      doc         25.5 KB
+    production-required no | reproduction-required no | sensitive no
+    The technical write-up
+    NOTE: Section 1.4 quotes the T-1h inventory; corrected in the audit
+
+docs/methodology/EXPERIMENT_PLAN.md                            doc         18.7 KB
+    production-required no | reproduction-required no | sensitive no
+    The experiment plan and its addenda
+    NOTE: Addendum 3 discloses the E26 amendment
+
+docs/methodology/PREREGISTRATION.md                            doc         12.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Pre-registered hypotheses
+
+docs/methodology/THIRD_PARTY_GUIDE_AUDIT.md                    doc         10.8 KB
+    production-required no | reproduction-required no | sensitive no
+    The searches proving the testing-guide artifacts are absent
+
+================================================================================
+configs   --   5 files, 250.1 KB
+================================================================================
+configs/deno.lock                                              config      25.0 KB
+    production-required no | reproduction-required no | sensitive no
+    Deno lockfile
+
+configs/harness.env.example                                    config       1.9 KB
+    production-required no | reproduction-required yes | sensitive no
+    Harness env template
+    NOTE: Placeholders only
+
+configs/package-lock.json                                      config     220.7 KB
+    production-required yes | reproduction-required no | sensitive no
+    Node lockfile
+
+configs/package.json                                           config       1.6 KB
+    production-required yes | reproduction-required no | sensitive no
+    Node manifest for the app
+
+configs/requirements.txt                                       config        791 B
+    production-required yes | reproduction-required yes | sensitive no
+    Python dependencies for the validation pipeline
+
+================================================================================
+scripts   --   6 files, 5.3 KB
+================================================================================
+scripts/generate_live_board.ps1                                script        793 B
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+scripts/generate_live_board.sh                                 script        682 B
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+scripts/reproduce.ps1                                          script       1.5 KB
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+scripts/reproduce.sh                                           script       1.6 KB
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+scripts/smoke_test.ps1                                         script        381 B
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+scripts/smoke_test.sh                                          script        361 B
+    production-required yes | reproduction-required yes | sensitive no
+    Convenience runners (smoke test, reproduce, live board)
+
+================================================================================
+project   --   1,335 files, 351.9 MB
+================================================================================
+project/betgenius/                                             source      81.6 KB
+    37 files | production-required yes | reproduction-required no | sensitive no
+    Product source and configuration
+
+project/betgenius/docs/                                        doc        218.8 KB
+    3 files | production-required no | reproduction-required no | sensitive no
+    The product's own documentation
+
+project/betgenius/docs/d182/                                   doc          7.7 KB
+    3 files | production-required no | reproduction-required no | sensitive no
+    The product's own documentation
+
+project/betgenius/docs/d194/                                   doc         20.5 KB
+    5 files | production-required no | reproduction-required no | sensitive no
+    The product's own documentation
+
+project/betgenius/docs/d200/                                   doc          2.4 KB
+    1 files | production-required no | reproduction-required no | sensitive no
+    The product's own documentation
+
+project/betgenius/harness/                                     source     108.3 KB
+    12 files | production-required yes | reproduction-required yes | sensitive no
+    The Phase 1 harness
+
+project/betgenius/harness/lib/                                 source     201.9 KB
+    21 files | production-required yes | reproduction-required yes | sensitive no
+    The Phase 1 TypeScript harness library
+
+project/betgenius/harness/out/                                 report      15.1 MB
+    9 files | production-required no | reproduction-required yes | sensitive no
+    Shipped harness report JSONs -- the smoke test replays these
+
+project/betgenius/harness/scripts/                             source      43.1 KB
+    20 files | production-required yes | reproduction-required yes | sensitive no
+    The Phase 1 harness
+
+project/betgenius/harness/test/                                source      40.2 KB
+    1 files | production-required yes | reproduction-required yes | sensitive no
+    The Phase 1 harness
+
+project/betgenius/harness/uplift/                              source     329.1 MB
+    79 files | production-required yes | reproduction-required yes | sensitive no
+    The validation pipeline -- models, features, board, gate
+
+project/betgenius/public/                                      asset      432.0 KB
+    2 files | production-required yes | reproduction-required no | sensitive no
+    Frontend static assets
+
+project/betgenius/scripts/                                     script     359.3 KB
+    51 files | production-required no | reproduction-required no | sensitive no
+    Operational and diagnostic scripts from the product's history
+    NOTE: Legacy; not part of the validated pipeline
+
+project/betgenius/src/                                         source      16.1 KB
+    4 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/src/components/                              source      80.7 KB
+    11 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/src/hooks/                                   source       6.3 KB
+    2 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/src/lib/                                     source      62.3 KB
+    16 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/src/pages/                                   source     543.0 KB
+    11 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/src/types/                                   source          0 B
+    1 files | production-required yes | reproduction-required no | sensitive no
+    React frontend
+
+project/betgenius/supabase/                                    source       3.0 KB
+    2 files | production-required yes | reproduction-required no | sensitive no
+    Edge functions, schema, config
+
+project/betgenius/supabase/functions/                          source       2.3 MB
+    113 files | production-required yes | reproduction-required no | sensitive no
+    Edge functions, schema, config
+
+project/betgenius/supabase/migrations/                         sql          3.1 MB
+    917 files | production-required yes | reproduction-required no | sensitive no
+    Database migrations
+
+project/betgenius/supabase/tests/                              source       3.2 KB
+    1 files | production-required yes | reproduction-required no | sensitive no
+    Edge functions, schema, config
+
+project/betgenius/tests/                                       test        97.0 KB
+    13 files | production-required no | reproduction-required no | sensitive no
+    Vitest suites over the production scorer
+
+================================================================================
+EXCLUDED FROM THIS PACKAGE -- DELIBERATELY, AND WHY
+================================================================================
+
+harness/uplift/cache_fam/            939 MB   the member cache.
+    A pure function of the shipped data plus the shipped source. Regenerate
+    with build_cache.py: ~90 minutes, no network, no API credits, free.
+
+harness/uplift/data/                 518 MB   the pre-expansion dataset.
+harness/uplift/data_expanded/        330 MB   the superseded T-1h pull.
+    Neither produced any final number. Regeneration documented in
+    DATA_DOCUMENTATION.txt section 9.3.
+
+harness/uplift/cache, cache_v1, cache_v2, cache_h, cache_repro,
+cache_expanded, cache_expanded_6h   ~1.6 GB combined
+    Member caches for earlier configurations. Superseded.
+
+node_modules/                                 restore with `npm ci`.
+.git/                                         this is a file tree, not a repo.
+
+Exploratory follow-on research code
+    Unfinished exploratory work that is not part of this result. It is
+    excluded deliberately.
+
+Three PDFs and one text dump from the source tree
+    Two are unrelated non-project material. The third could not have its text
+    extracted in the audit environment, so it could not be checked for
+    personal or confidential content before packaging, and was excluded
+    rather than shipped unverified. No code reads any of them.
+
+No model files are excluded, because NONE EXIST. Zero estimators are
+persisted anywhere in this project; the walk-forward fits 440 models and
+discards each one after writing its out-of-sample probabilities. See
+AUDIT_COMPLETE.txt sections 15.3 and 30.4.
+
+================================================================================
+END OF MANIFEST
+================================================================================
