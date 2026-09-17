@@ -42,11 +42,12 @@ VARIANTS = [
 
 def main():
     v2 = "--v2" in sys.argv
-    runner = "run_final_v2.py" if v2 else "run_final.py"
+    r4 = "--r4" in sys.argv
+    runner = "run_final_v2.py" if v2 else ("run_final_r4.py" if r4 else "run_final.py")
     # --conf=N is passed straight through to every variant, so the stress test
     # exercises the SAME rule the headline uses rather than a looser one.
     conf = next((a for a in sys.argv[1:] if a.startswith("--conf=")), None)
-    suffix = ("_v2" if v2 else "") + (f"_c{conf.split('=')[1]}" if conf else "")
+    suffix = ("_v2" if v2 else ("_r4" if r4 else "")) + (f"_c{conf.split('=')[1]}" if conf else "")
     rows = []
     for label, args in VARIANTS:
         tag = next(a.split("=")[1] for a in args if a.startswith("--tag=")) + suffix

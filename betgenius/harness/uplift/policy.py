@@ -148,6 +148,73 @@ def _fit_predict_offset(Xtr, ytr, Xte, otr, ote):
         return 1.0 / (1.0 + np.exp(-ote))
 
 
+def _prep(Xtr, Xte):
+    """Median-impute on the TRAINING fold only, then standardise. Shared by the
+    round-3+ model families so the only thing that differs between them is the
+    estimator."""
+    med = np.nanmedian(Xtr, axis=0)
+    med = np.where(np.isfinite(med), med, 0.0)
+    tr = np.where(np.isfinite(Xtr), Xtr, med)
+    te = np.where(np.isfinite(Xte), Xte, med)
+    mu, sd = tr.mean(axis=0), tr.std(axis=0)
+    sd = np.where(sd > 1e-9, sd, 1.0)
+    return (tr - mu) / sd, (te - mu) / sd
+
+
+def _fit_predict_forest(Xtr, ytr, Xte, kind="rf"):
+    """Bagged trees as an alternative to boosting.
+
+    Deliberately shallow and heavily leaf-constrained for the same reason the
+    gbm member is: a prop board carries one weak signal and a deep forest given
+    room memorises players rather than learning form. ExtraTrees splits at
+    random thresholds, which is a stronger regulariser again.
+    """
+    from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
+    base = float(ytr.mean()) if len(ytr) else 0.5
+    if len(np.unique(ytr)) < 2 or len(ytr) < 800:
+        return np.full(len(Xte), base)
+    tr, te = _prep(Xtr, Xte)
+    cls = RandomForestClassifier if kind == "rf" else ExtraTreesClassifier
+    m = cls(n_estimators=200, max_depth=8, min_samples_leaf=200,
+            max_features="sqrt", n_jobs=1, random_state=20260917)
+    try:
+        m.fit(tr, ytr)
+        return m.predict_proba(te)[:, 1]
+    except ValueError:
+        return np.full(len(te), base)
+
+
+def _fit_predict_gbm_tuned(Xtr, ytr, Xte, params):
+    """The incumbent gbm with an explicit hyperparameter dict (E28)."""
+    base = float(ytr.mean()) if len(ytr) else 0.5
+    if len(np.unique(ytr)) < 2 or len(ytr) < 800:
+        return np.full(len(Xte), base)
+    keep = [j for j in range(Xtr.shape[1])
+            if np.isfinite(Xtr[:, j]).sum() > 20 and np.nanstd(Xtr[:, j]) > 1e-12]
+    if not keep:
+        return np.full(len(Xte), base)
+    m = HistGradientBoostingClassifier(random_state=20260916, **params)
+    try:
+        m.fit(Xtr[:, keep], ytr)
+        return m.predict_proba(Xte[:, keep])[:, 1]
+    except ValueError:
+        return np.full(len(Xte), base)
+
+
+# E28 grid. Named so a cache can be built per configuration and compared on log
+# loss inside SELECT-A, never against the verdict window.
+GBM_GRID = {
+    "gbmA": dict(max_depth=3, max_leaf_nodes=8, l2_regularization=5.0,
+                 learning_rate=0.05, max_iter=200, min_samples_leaf=200),   # incumbent
+    "gbmB": dict(max_depth=4, max_leaf_nodes=15, l2_regularization=10.0,
+                 learning_rate=0.03, max_iter=400, min_samples_leaf=300),
+    "gbmC": dict(max_depth=2, max_leaf_nodes=4, l2_regularization=2.0,
+                 learning_rate=0.08, max_iter=150, min_samples_leaf=100),
+    "gbmD": dict(max_depth=6, max_leaf_nodes=31, l2_regularization=20.0,
+                 learning_rate=0.02, max_iter=600, min_samples_leaf=500),
+}
+
+
 def _fit_predict(Xtr, ytr, Xte):
     med = np.nanmedian(Xtr, axis=0)
     med = np.where(np.isfinite(med), med, 0.0)
@@ -185,8 +252,8 @@ def walkforward(d, cols, members=MEMBERS, warmup=WARMUP, n_blocks=N_BLOCKS):
             edges.append(t[i])
     edges.append(np.datetime64("2999-01-01T00:00:00"))
 
-    des = {m: _design(d, cols, "box" if m in ("gbm", "offset", "iso") else m)[0]
-           for m in members}
+    _full = ("gbm", "offset", "iso", "rf", "et") + tuple(GBM_GRID)
+    des = {m: _design(d, cols, "box" if m in _full else m)[0] for m in members}
     off = d["pLogit"].to_numpy(float)
     off = np.clip(np.where(np.isfinite(off), off, 0.0), -8, 8)
     resid_cols = [c for c in cols if c != "pLogit"]
@@ -205,6 +272,11 @@ def walkforward(d, cols, members=MEMBERS, warmup=WARMUP, n_blocks=N_BLOCKS):
             elif mem == "iso":
                 p[mem][te] = _fit_predict_iso(des[mem][tr], y[tr], des[mem][te],
                                               t[tr].astype("datetime64[s]").astype(np.int64))
+            elif mem in ("rf", "et"):
+                p[mem][te] = _fit_predict_forest(des[mem][tr], y[tr], des[mem][te], mem)
+            elif mem in GBM_GRID:
+                p[mem][te] = _fit_predict_gbm_tuned(des[mem][tr], y[tr], des[mem][te],
+                                                    GBM_GRID[mem])
             else:
                 p[mem][te] = _fit_predict(des[mem][tr], y[tr], des[mem][te])
     return p, d

@@ -37,13 +37,22 @@ def cache_path(market, lag, price, warmup=policy.WARMUP, blocks=policy.N_BLOCKS)
     return os.path.join(CACHE, stem + ".pkl")
 
 
+# UPLIFT_MEMBERS adds ensemble members to the walk-forward without editing the
+# default list, so an experiment cache can carry rf / et / a tuned gbm beside the
+# shipped six. Unset, the member list is exactly run_markets.MEMBERS and the
+# cache reproduces the _c60 one.
+def _members():
+    extra = [m for m in os.environ.get("UPLIFT_MEMBERS", "").split(",") if m.strip()]
+    return tuple(run_markets.MEMBERS) + tuple(m.strip() for m in extra)
+
+
 def build(market, box, lag=0, price="best", warmup=policy.WARMUP, blocks=policy.N_BLOCKS):
     c = frames.load_candidates(market, box, price=price)
     d, cols = features.build(market, c, box, lag_days=lag)
     g = features.graded(d)
     if len(g) < 300:
         return None
-    probs, g = policy.walkforward(g, cols, members=run_markets.MEMBERS,
+    probs, g = policy.walkforward(g, cols, members=_members(),
                                   warmup=warmup, n_blocks=blocks)
     keep = [c for c in ("market", "game_date", "commenceTime", "eventId", "game_pk",
                         "playerId", "player_name", "line", "overOdds", "underOdds",

@@ -19,7 +19,17 @@ import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(HERE, "data")
+# UPLIFT_DATA_DIR lets an EXPANDED dataset be assembled beside the live one
+# without touching the inputs the `_c60` result was produced from, the same way
+# UPLIFT_CACHE_DIR already does for the member cache. Unset -- the default --
+# resolves to exactly the old path, so `_c60` reproduces bit for bit.
+DATA = os.environ.get("UPLIFT_DATA_DIR", os.path.join(HERE, "data"))
+
+# market -> how its priced rows resolved to an outcome. Filled by
+# load_candidates, read by the inventory. See the DID_NOT_PLAY / DATA_MISSING
+# note there: a null settled stat is not the same event as an absent player-game
+# row, and conflating them is what hid a twelve-month backfill hole.
+LAST_FUNNEL = {}
 
 # market -> (role, box-score column, kind)
 MARKETS = {
@@ -267,9 +277,32 @@ def load_candidates(market, box=None, price="best"):
         c = c[c["playerId"].notna()].copy()
         c["playerId"] = c["playerId"].astype(int)
         stat = box.set_index(["player_id", "game_pk"])[col]
-        c["actual"] = pd.Series(list(zip(c["playerId"], c["game_pk"]))).map(stat).to_numpy()
-        # no box-score row for that player in that game = did not play = the
-        # book voids the prop. Not a loss, and never graded as one.
+        pairs = list(zip(c["playerId"], c["game_pk"]))
+        c["actual"] = pd.Series(pairs).map(stat).to_numpy()
+        # A missing `actual` has TWO causes and they are not the same thing:
+        #
+        #   no box-score row for that player in that game
+        #       -> DID_NOT_PLAY. The book voids the prop. Correctly dropped.
+        #   the row EXISTS but this column is null
+        #       -> DATA_MISSING. That is a hole in the warehouse backfill, not a
+        #          void, and treating it as one silently deletes real games. It
+        #          is what removes twelve months from `batter_runs_scored` and
+        #          `batter_strikeouts`.
+        #
+        # Both are still dropped -- an outcome that was never recorded cannot be
+        # invented, and guessing one would be worse than losing the row. What
+        # changes here is that the two are COUNTED separately and reported, so a
+        # backfill gap can no longer hide inside a void count. The graded set is
+        # unchanged by construction: the filter below is the same `notna()`.
+        _seen = set(zip(box["player_id"].to_numpy(), box["game_pk"].to_numpy()))
+        _has_row = np.fromiter((p in _seen for p in pairs), bool, len(pairs))
+        _missing = ~c["actual"].notna().to_numpy()
+        LAST_FUNNEL[market] = dict(
+            market=market,
+            priced=int(len(c)),
+            didNotPlay=int((_missing & ~_has_row).sum()),
+            dataMissing=int((_missing & _has_row).sum()),
+            withOutcome=int((~_missing).sum()))
         c = c[c["actual"].notna()].copy()
         c["overHit"] = np.where(c["actual"] == c["line"], np.nan, c["actual"] > c["line"])
         c["sideOver"], c["sideUnder"] = "over", "under"
